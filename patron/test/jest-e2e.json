@@ -1,0 +1,11 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testRegex": "test/e2e/.*\\.e2e-spec\\.ts$",
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "testEnvironment": "node",
+  "setupFilesAfterEnv": ["<rootDir>/test/integration/setup.ts"],
+  "testTimeout": 90000,
+  "maxWorkers": 1,
+  "moduleNameMapper": { "^@/(.*)$": "<rootDir>/src/$1" }
+}

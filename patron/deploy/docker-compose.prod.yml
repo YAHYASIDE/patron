@@ -1,0 +1,156 @@
+# Production-shaped compose. Suitable for a single-host deployment; for
+# multi-node use the Kubernetes manifests in deploy/k8s.
+
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public&connection_limit=20&pool_timeout=10
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+  BASE_CURRENCY: ${BASE_CURRENCY:-USD}
+  OTEL_ENABLED: ${OTEL_ENABLED:-true}
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  METRICS_TOKEN: ${METRICS_TOKEN}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backup:/backup
+    command:
+      # Tuned for a 4GB host. Revisit with pgtune for your actual hardware.
+      - postgres
+      - -c=max_connections=200
+      - -c=shared_buffers=1GB
+      - -c=effective_cache_size=3GB
+      - -c=work_mem=8MB
+      - -c=maintenance_work_mem=256MB
+      # Keeps 1GB of WAL for PITR and replica catch-up.
+      - -c=wal_keep_size=1GB
+      - -c=max_wal_size=2GB
+      # Anything slower than a second is worth seeing in the logs.
+      - -c=log_min_duration_statement=1000
+      - -c=log_lock_waits=on
+      - -c=deadlock_timeout=1s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      # AOF everysec: BullMQ job state survives a restart. Losing the queue
+      # is survivable thanks to the outbox, but needless.
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 512mb
+      # Never evict: a queue is not a cache, and evicting job state silently
+      # loses work.
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      retries: 5
+    logging: *logging
+
+  migrate:
+    image: ${IMAGE:-patron:latest}
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    logging: *logging
+
+  api:
+    image: ${IMAGE:-patron:latest}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      OTEL_SERVICE_NAME: patron-api
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "1.0", memory: 1G }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/v1/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+
+  worker:
+    image: ${IMAGE:-patron:latest}
+    command: ["node", "dist/worker"]
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      OTEL_SERVICE_NAME: patron-worker
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "1.0", memory: 1G }
+    # Workers must drain in-flight provider calls before dying, or an order is
+    # left PROCESSING with a purchase already made.
+    stop_grace_period: 60s
+    logging: *logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on: [api]
+    logging: *logging
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/config.yaml:ro
+    logging: *logging
+
+volumes:
+  pgdata:
+  redisdata:

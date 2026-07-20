@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patron-api
+  namespace: patron
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0        # never reduce capacity during a deploy
+  selector:
+    matchLabels: { app: patron-api }
+  template:
+    metadata:
+      labels: { app: patron-api }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/api/v1/metrics"
+        prometheus.io/port: "3000"
+    spec:
+      # Spread replicas across nodes so one node failure is not an outage.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: patron-api }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: api
+          image: ghcr.io/ORG/patron:TAG
+          ports: [{ containerPort: 3000, name: http }]
+          envFrom:
+            - configMapRef: { name: patron-config }
+            - secretRef: { name: patron-secrets }
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: patron-api
+            - name: APP_VERSION
+              valueFrom: { fieldRef: { fieldPath: metadata.labels['app.kubernetes.io/version'] } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { cpu: 1000m, memory: 1Gi }
+          # Liveness must not depend on the database, or a database blip
+          # restarts every pod and turns a degradation into an outage.
+          livenessProbe:
+            httpGet: { path: /api/v1/health/live, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /api/v1/health/ready, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          startupProbe:
+            httpGet: { path: /api/v1/health/live, port: http }
+            failureThreshold: 30
+            periodSeconds: 2
+          lifecycle:
+            preStop:
+              # Let the load balancer notice the pod is going away before the
+              # process starts refusing connections.
+              exec: { command: ["sh", "-c", "sleep 10"] }
+      terminationGracePeriodSeconds: 45
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patron-api
+  namespace: patron
+spec:
+  selector: { app: patron-api }
+  ports: [{ port: 80, targetPort: http, name: http }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: patron-api
+  namespace: patron
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: patron-api }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: patron-api
+  namespace: patron
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: patron-api }
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 65 } }
+  behavior:
+    scaleDown:
+      # Slow scale-down: a spiky traffic pattern otherwise thrashes.
+      stabilizationWindowSeconds: 300
+      policies: [{ type: Percent, value: 25, periodSeconds: 60 }]
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies: [{ type: Percent, value: 100, periodSeconds: 30 }]
