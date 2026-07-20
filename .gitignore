@@ -1,0 +1,45 @@
+# ─── dependencies ───
+node_modules/
+.npm/
+
+# ─── build output ───
+dist/
+build/
+*.tsbuildinfo
+
+# ─── environment & secrets ───
+# .env.example is committed; real env files never are.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+deploy/nginx/certs/
+
+# ─── test & coverage ───
+coverage/
+.nyc_output/
+junit.xml
+
+# ─── prisma ───
+# The generated client is a build artifact: `prisma generate` recreates it.
+prisma/generated/
+node_modules/.prisma/
+
+# ─── logs & runtime ───
+*.log
+npm-debug.log*
+pids/
+*.pid
+
+# ─── local database dumps ───
+backup/
+*.dump
+*.sql.gz
+
+# ─── editors & OS ───
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
