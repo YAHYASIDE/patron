@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
@@ -18,6 +19,32 @@ interface OutboxPayload {
   refundId?: string;
   status?: string;
   [key: string]: unknown;
+}
+
+/**
+ * Outbox payloads are stored as `Json`, so Prisma types them as `JsonValue` —
+ * which may legitimately be a string, an array or null. Narrowing at the
+ * boundary means the routing switch below can rely on the shape instead of
+ * asserting it.
+ *
+ * Fields are read individually rather than cast wholesale: a payload written
+ * with `orderId: 123` would otherwise satisfy the type at compile time and
+ * produce the job id `fulfil-123` at runtime.
+ */
+function toOutboxPayload(value: Prisma.JsonValue): OutboxPayload {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+
+  const record: Record<string, unknown> = value;
+  const asString = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+
+  return {
+    ...record,
+    orderId: asString(record.orderId),
+    userId: asString(record.userId),
+    paymentId: asString(record.paymentId),
+    refundId: asString(record.refundId),
+    status: asString(record.status),
+  };
 }
 
 /**
@@ -78,8 +105,9 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async publish(event: { id: string; eventType: string; payload: OutboxPayload }) {
-    const { eventType, payload } = event;
+  private async publish(event: { id: string; eventType: string; payload: Prisma.JsonValue }) {
+    const eventType = event.eventType;
+    const payload = toOutboxPayload(event.payload);
 
     switch (eventType) {
       case 'order.paid':

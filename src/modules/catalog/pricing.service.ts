@@ -3,6 +3,33 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
+/** Currency fields the rounding logic needs. Narrower than the full model. */
+export interface RoundingRules {
+  decimals: number;
+  roundingMode: string;
+  roundingStep: Prisma.Decimal | null;
+}
+
+/** A resolved FX rate. `id` is null for the base currency and for overrides. */
+export interface ResolvedRate {
+  id: string | null;
+  rate: Prisma.Decimal;
+}
+
+/**
+ * Everything needed to price one page of products with a single rate lookup.
+ *
+ * Declared explicitly because building it inline with a spread made TypeScript
+ * infer a union of object shapes — `rate` and `fxRateId` then appeared to be
+ * absent on one branch even though every branch supplied them.
+ */
+export interface PricingContext {
+  currency: RoundingRules;
+  rate: Prisma.Decimal;
+  fxRateId: string | null;
+  markup: Prisma.Decimal;
+}
+
 export interface PricedAmount {
   amount: Prisma.Decimal;      // in the requested currency
   currency: string;
@@ -52,7 +79,7 @@ export class PricingService {
   private rateCache = new Map<string, { value: { id: string | null; rate: Prisma.Decimal }; expiresAt: number }>();
   private static readonly RATE_CACHE_MS = 5_000;
 
-  async getRate(quoteCurrency: string, at?: Date) {
+  async getRate(quoteCurrency: string, at?: Date): Promise<ResolvedRate> {
     if (quoteCurrency === this.baseCurrency) {
       return { id: null, rate: new Prisma.Decimal(1) };
     }
@@ -90,13 +117,11 @@ export class PricingService {
   async priceLoadedProduct(
     product: { id: string; sellPrice: Prisma.Decimal; prices: Array<{ currencyCode: string; sellPrice: Prisma.Decimal; isActive: boolean }> },
     currencyCode: string,
-    preloaded?: { currency: { decimals: number; roundingMode: string; roundingStep: Prisma.Decimal | null }; rate: Prisma.Decimal; fxRateId: string | null; markup: Prisma.Decimal },
+    preloaded?: PricingContext,
   ): Promise<PricedAmount> {
-    const ctx = preloaded ?? {
-      currency: await this.assertSupported(currencyCode),
-      ...(await this.getRate(currencyCode).then((r) => ({ rate: r.rate, fxRateId: r.id }))),
-      markup: await this.fxMarkup(),
-    };
+    // `?? await` would build the context even when preloaded is supplied, so
+    // resolve it explicitly and only when needed.
+    const ctx: PricingContext = preloaded ?? (await this.pricingContext(currencyCode));
 
     const override = product.prices.find((p) => p.currencyCode === currencyCode && p.isActive);
 
@@ -127,7 +152,7 @@ export class PricingService {
   }
 
   /** Batch context so a page of products shares one rate and one markup read. */
-  async pricingContext(currencyCode: string) {
+  async pricingContext(currencyCode: string): Promise<PricingContext> {
     const [currency, rate, markup] = await Promise.all([
       this.assertSupported(currencyCode),
       this.getRate(currencyCode),

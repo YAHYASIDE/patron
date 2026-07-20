@@ -1139,21 +1139,4 @@ model NotificationTemplate {
 /// Dashboards read this instead of scanning orders ⨝ order_items. Recomputed
 /// nightly for the previous few days, and re-computable for any single historic
 /// day after a correction — which a materialised view cannot do without a full
-/// refresh. See ADR 017.
-model DailyMetric {
-  day             DateTime @db.Date
-  currency        String   @db.Char(3)
-  orders          Int      @default(0)
-  paidOrders      Int      @default(0)
-  failedOrders    Int      @default(0)
-  grossBase       Decimal  @default(0) @db.Decimal(16, 4)
-  costBase        Decimal  @default(0) @db.Decimal(16, 4)
-  refundBase      Decimal  @default(0) @db.Decimal(16, 4)
-  items           Int      @default(0)
-  uniqueCustomers Int      @default(0)
-  updatedAt       DateTime @updatedAt
 
-  @@id([day, currency])
-  @@index([day(sort: Desc)])
-  @@map("daily_metrics")
-}

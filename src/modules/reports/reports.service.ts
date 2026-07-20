@@ -434,7 +434,7 @@ export class ReportsService {
     const weekAgo = new Date(today.getTime() - 7 * 86_400_000);
 
     const [rollup, liveStatuses, stuck, queues] = await Promise.all([
-      this.prisma.dailyMetric.findMany({
+      this.prisma.dailyRollup.findMany({
         where: { day: { gte: weekAgo } },
         orderBy: { day: 'asc' },
       }),
@@ -459,8 +459,13 @@ export class ReportsService {
         orders: todayRow.reduce((a, r) => a + r.orders, 0),
         paidOrders: todayRow.reduce((a, r) => a + r.paidOrders, 0),
         revenueBase: todayRow.reduce((a, r) => a.plus(r.grossBase), new Prisma.Decimal(0)),
-        profitBase: todayRow.reduce((a, r) => a.plus(r.profitBase), new Prisma.Decimal(0)),
-        failedItems: todayRow.reduce((a, r) => a + r.failedItems, 0),
+        // Profit is derived, not stored: gross − cost − refunds. Storing it
+        // would be a fourth number that can disagree with the other three.
+        profitBase: todayRow.reduce(
+          (a, r) => a.plus(r.grossBase).minus(r.costBase).minus(r.refundBase),
+          new Prisma.Decimal(0),
+        ),
+        failedItems: todayRow.reduce((a, r) => a + r.itemsFailed, 0),
       },
       lastSevenDays: rollup,
       ordersByStatus: liveStatuses,

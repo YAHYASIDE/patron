@@ -33,7 +33,7 @@ async function bootstrap() {
   );
   // Registration order is significant: Nest applies the *last* matching
   // filter, so the catch-all goes first and the specific one wins.
-  app.useGlobalFilters(new AllExceptionsFilter(), new PrismaExceptionFilter());
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   if (config.get('app.env') !== 'production') {
     const doc = new DocumentBuilder()
