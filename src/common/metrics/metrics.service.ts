@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import { Counter, Gauge, Histogram, Metric, Registry, collectDefaultMetrics } from 'prom-client';
 
 /**
  * Prometheus metrics.
@@ -160,7 +160,7 @@ export class MetricsService implements OnModuleInit {
 
   onModuleInit() {
     collectDefaultMetrics({ register: this.registry, prefix: 'patron_' });
-    for (const metric of [
+    const metrics: Metric[] = [
       this.httpDuration, this.ordersCreated, this.ordersCompleted, this.orderValue,
       this.quotesCreated, this.quotesExpired, this.paymentsTotal, this.paymentDuration,
       this.webhooksTotal, this.providerCalls, this.providerDuration, this.providerFailovers,
@@ -168,8 +168,10 @@ export class MetricsService implements OnModuleInit {
       this.queueDepth, this.jobsProcessed, this.jobDuration, this.jobRetries, this.workerHeartbeat,
       this.outboxPending, this.outboxDead, this.idempotencyReplays, this.walletDrift,
       this.fxRateAge, this.authAttempts, this.tokenReuseDetected,
-    ]) {
-      this.registry.registerMetric(metric as any);
+    ];
+
+    for (const metric of metrics) {
+      this.registry.registerMetric(metric);
     }
   }
 

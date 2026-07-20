@@ -37,7 +37,7 @@ describe('ProviderEngine', () => {
       provider: { update: jest.fn().mockResolvedValue({}) },
       productProvider: { findMany: jest.fn() },
       orderResult: { createMany: jest.fn().mockResolvedValue({}) },
-      $transaction: jest.fn(async (fn: any) => fn(prisma)),
+      $transaction: jest.fn((fn: (client: unknown) => unknown) => fn(prisma)),
     };
 
     registry = {
@@ -45,10 +45,12 @@ describe('ProviderEngine', () => {
         { providerId: 'prov-1', providerSku: 'SKU_A', priority: 0 },
         { providerId: 'prov-2', providerSku: 'sku-a', priority: 1 },
       ]),
-      credentialsFor: jest.fn(async (id: string) =>
-        id === 'prov-1'
-          ? { adapter: primary, creds: {}, code: 'fazercards' }
-          : { adapter: secondary, creds: {}, code: 'foxreload' },
+      credentialsFor: jest.fn((id: string) =>
+        Promise.resolve(
+          id === 'prov-1'
+            ? { adapter: primary, creds: {}, code: 'fazercards' }
+            : { adapter: secondary, creds: {}, code: 'foxreload' },
+        ),
       ),
     };
     crypto = { sha256: () => 'k'.repeat(64), encrypt: (v: string) => `enc(${v})`, decrypt: (v: string) => v };

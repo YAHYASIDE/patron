@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import {
-  DiskHealthIndicator, HealthCheck, HealthCheckService,
+  DiskHealthIndicator, HealthCheck, HealthCheckService, HealthIndicatorResult,
   MemoryHealthIndicator, PrismaHealthIndicator,
 } from '@nestjs/terminus';
 import { ApiExcludeController } from '@nestjs/swagger';
@@ -60,8 +60,10 @@ export class HealthController {
     ]);
   }
 
-  private async checkRedis() {
-    const client = await this.fulfilment.client;
+  private async checkRedis(): Promise<HealthIndicatorResult> {
+    // BullMQ exposes the ioredis connection; terminus' IRedisClient interface
+    // does not declare `ping`, so narrow to what we actually call.
+    const client = (await this.fulfilment.client) as unknown as { ping(): Promise<string> };
     const pong = await client.ping();
     return { redis: { status: pong === 'PONG' ? 'up' : 'down' } };
   }
@@ -70,7 +72,7 @@ export class HealthController {
    * A backed-up outbox means committed state changes are not reaching workers —
    * paid orders silently not being fulfilled. Worth failing readiness for.
    */
-  private async checkOutbox() {
+  private async checkOutbox(): Promise<HealthIndicatorResult> {
     const [pending, dead] = await Promise.all([
       this.prisma.outboxEvent.count({ where: { status: 'PENDING', availableAt: { lt: new Date(Date.now() - 60_000) } } }),
       this.prisma.outboxEvent.count({ where: { status: 'DEAD' } }),
@@ -80,12 +82,12 @@ export class HealthController {
     return { outbox: { status: 'up', pending, dead } };
   }
 
-  private async checkProviders() {
+  private async checkProviders(): Promise<HealthIndicatorResult> {
     const providers = await this.prisma.provider.findMany({
       where: { isActive: true },
       select: { code: true, isHealthy: true },
     });
-    const healthy = providers.filter((p) => p.isHealthy).length;
+    const healthy = providers.filter((provider: { isHealthy: boolean }) => provider.isHealthy).length;
     // Degraded, not down: one healthy provider is enough to keep selling.
     if (providers.length > 0 && healthy === 0) throw new Error('No healthy providers');
     return { providers: { status: 'up', healthy, total: providers.length } };

@@ -57,7 +57,7 @@ export class ProviderRegistry implements OnModuleInit {
    * Candidate providers for a product, best first. Unhealthy or inactive
    * providers are filtered out here rather than failing mid-fulfilment.
    */
-  async candidatesFor(productId: string) {
+  candidatesFor(productId: string) {
     return this.prisma.productProvider.findMany({
       where: {
         productId,

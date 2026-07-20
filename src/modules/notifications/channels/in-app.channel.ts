@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NotificationChannel, OutboundNotification } from './notification-channel.interface';
+import { NotificationChannel } from './notification-channel.interface';
 
 /**
  * In-app rows are written by NotificationsService itself (it owns the record),
@@ -10,7 +10,15 @@ export class InAppChannel implements NotificationChannel {
   readonly code = 'IN_APP' as const;
   readonly isEnabled = true;
 
-  async send(_notification: OutboundNotification) {
-    return { sent: true };
+  /**
+   * The parameter is omitted rather than named-and-ignored: TypeScript permits
+   * implementing an interface method with fewer parameters, so this satisfies
+   * NotificationChannel while leaving nothing unused.
+   *
+   * Not `async` either — there is nothing to await, and an async function with
+   * no await is a promise wrapper pretending to be I/O.
+   */
+  send(): Promise<{ sent: boolean }> {
+    return Promise.resolve({ sent: true });
   }
 }

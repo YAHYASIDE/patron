@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import { WalletService } from '../../src/modules/wallet/wallet.service';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 

@@ -4,6 +4,20 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { PricingService } from './pricing.service';
 import { CreateProductDto, QueryCatalogDto, UpdateProductDto } from './dto/catalog.dto';
+import { toAuditJson } from '../../common/audit/audit.service';
+
+/**
+ * Strip the internal cost from a storefront payload.
+ *
+ * Previously written as `const { costPrice, ...rest } = product`, which reads
+ * well but leaves an unused binding — and, more importantly, hid the intent.
+ * Naming it makes the rule explicit: provider cost is never exposed publicly.
+ */
+function withoutCost<T extends { costPrice?: unknown }>(product: T): Omit<T, 'costPrice'> {
+  const rest = { ...product };
+  delete rest.costPrice;
+  return rest;
+}
 
 @Injectable()
 export class ProductsService {
@@ -52,15 +66,15 @@ export class ProductsService {
     const stock = await this.stockForPage(products);
 
     const priced = await Promise.all(
-      products.map(async ({ costPrice, ...p }) => {
-        const price = await this.pricing.priceLoadedProduct(p as any, currency, ctx);
+      products.map(async (product) => {
+        const price = await this.pricing.priceLoadedProduct(product, currency, ctx);
         return {
-          ...p,
+          ...withoutCost(product),
           prices: undefined,
           sellPrice: price.amount,
           currency: price.currency,
           priceIsOverride: price.isOverride,
-          inStock: stock.get(p.id) ?? true,
+          inStock: stock.get(product.id) ?? true,
         };
       }),
     );
@@ -80,10 +94,9 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     const price = await this.pricing.priceProduct(product.id, currency);
-    const { costPrice, ...visible } = product;
 
     return {
-      ...visible,
+      ...withoutCost(product),
       sellPrice: price.amount,
       currency: price.currency,
       priceIsOverride: price.isOverride,
@@ -262,7 +275,7 @@ export class ProductsService {
 
   private audit(userId: string, action: string, entityId: string, before: unknown, after: unknown) {
     return this.prisma.auditLog.create({
-      data: { userId, action, entityType: 'Product', entityId, before: before as any, after: after as any },
+      data: { userId, action, entityType: 'Product', entityId, before: toAuditJson(before), after: toAuditJson(after) },
     });
   }
 }

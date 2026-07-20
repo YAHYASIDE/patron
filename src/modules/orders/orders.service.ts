@@ -12,6 +12,24 @@ import { cursorWhere, toCursorPage } from '../../common/dto/cursor.dto';
 import { assertTransition, deriveOrderStatus } from './order-state.machine';
 import { QueryOrdersDto } from './dto/order.dto';
 
+/**
+ * The shape `present()` reads. Declared structurally rather than pulled from a
+ * Prisma payload type because the two callers pass different `include` shapes;
+ * what matters is that both carry items, inputs and results.
+ */
+interface PresentableOrder {
+  items: Array<{
+    inputs: Array<{ fieldKey: string; fieldLabel: string; value: string; isSensitive: boolean }>;
+    results: Array<{
+      id: string;
+      resultType: string;
+      viewedAt: Date | null;
+      deliveredAt: Date;
+      providerRef: string | null;
+    }>;
+  }>;
+}
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
@@ -208,7 +226,7 @@ export class OrdersService {
         where: { orderItemId, viewedAt: null },
         data: { viewedAt: new Date() },
       });
-      await this.audit.recordIn(tx, {
+      await this.audit.record(tx, {
         actorId: userId, action: 'orders.reveal_result', entityType: 'OrderItem', entityId: orderItemId,
       });
     });
@@ -224,7 +242,7 @@ export class OrdersService {
    * Recompute order status from its items. Called after every fulfilment
    * attempt; the aggregate is derived, never assigned ad hoc.
    */
-  async syncStatus(orderId: string) {
+  syncStatus(orderId: string) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUniqueOrThrow({
         where: { id: orderId },
@@ -257,7 +275,7 @@ export class OrdersService {
     });
   }
 
-  async cancelUnpaid(orderId: string, reason: string, actorId?: string) {
+  cancelUnpaid(orderId: string, reason: string, actorId?: string) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
       assertTransition(order.status, 'CANCELLED');
@@ -275,7 +293,7 @@ export class OrdersService {
       if (order.couponId) {
         await tx.coupon.update({ where: { id: order.couponId }, data: { usedCount: { decrement: 1 } } });
       }
-      await this.audit.recordIn(tx, {
+      await this.audit.record(tx, {
         actorId, action: 'orders.cancel', entityType: 'Order', entityId: orderId, after: { reason },
       });
       return updated;
@@ -328,17 +346,17 @@ export class OrdersService {
   }
 
   /** Never leak raw code values or decrypted inputs in list/detail payloads. */
-  private present(order: any, maskSensitive: boolean) {
+  private present<T extends PresentableOrder>(order: T, maskSensitive: boolean) {
     return {
       ...order,
-      items: order.items.map((item: any) => ({
+      items: order.items.map((item) => ({
         ...item,
-        inputs: item.inputs.map((i: any) => ({
+        inputs: item.inputs.map((i) => ({
           fieldKey: i.fieldKey,
           fieldLabel: i.fieldLabel,
           value: i.isSensitive ? '••••' : i.value,
         })),
-        results: item.results.map((r: any) => ({
+        results: item.results.map((r) => ({
           id: r.id,
           resultType: r.resultType,
           hasValue: true,

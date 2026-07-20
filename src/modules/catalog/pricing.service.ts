@@ -26,7 +26,7 @@ export class PricingService {
     return this.config.get<string>('currency.base') ?? 'USD';
   }
 
-  async listCurrencies() {
+  listCurrencies() {
     return this.prisma.currency.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },

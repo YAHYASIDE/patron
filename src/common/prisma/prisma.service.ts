@@ -30,7 +30,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     // comes from Postgres `log_min_duration_statement` and OTel spans, without
     // the per-query overhead.
     if (process.env.NODE_ENV === 'development') {
-      (this as any).$on('query', (event: { duration: number; query: string }) => {
+      // PrismaClient only types `$on('query')` when the client is
+      // parameterised with its log options; a narrow structural interface
+      // states exactly what we rely on without widening to `any`.
+      const withQueryEvents = this as unknown as {
+        $on(event: 'query', listener: (e: { duration: number; query: string }) => void): void;
+      };
+
+      withQueryEvents.$on('query', (event) => {
         if (event.duration > 200) {
           this.logger.warn(`Slow query (${event.duration}ms): ${event.query.slice(0, 300)}`);
         }
@@ -38,7 +45,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async enableShutdownHooks(app: INestApplication) {
+  enableShutdownHooks(app: INestApplication) {
     process.on('beforeExit', () => void app.close());
   }
 }

@@ -149,7 +149,7 @@ export class ReportsService {
              SUM("grossBase")::text AS gross,
              SUM("refundBase")::text AS refunds,
              (SUM("grossBase") - SUM("refundBase"))::text AS net
-      FROM "daily_metrics"
+      FROM "daily_rollups"
       WHERE "day" >= $1::date AND "day" < $2::date
       GROUP BY 1 ORDER BY 1
       `,
@@ -206,7 +206,7 @@ export class ReportsService {
 
   // ─────────────── Providers ───────────────
 
-  async providerPerformance(dto: DateRangeDto) {
+  providerPerformance(dto: DateRangeDto) {
     const { from, to } = this.range(dto);
 
     return this.prisma.$queryRaw<
@@ -233,7 +233,7 @@ export class ReportsService {
   }
 
   /** Which provider actually delivered, and what it cost us. */
-  async providerFulfilment(dto: DateRangeDto) {
+  providerFulfilment(dto: DateRangeDto) {
     const { from, to } = this.range(dto);
 
     return this.prisma.$queryRaw<
@@ -253,7 +253,7 @@ export class ReportsService {
 
   // ─────────────── Products ───────────────
 
-  async productPerformance(dto: DateRangeDto) {
+  productPerformance(dto: DateRangeDto) {
     const { from, to } = this.range(dto);
 
     return this.prisma.$queryRaw<
@@ -319,7 +319,7 @@ export class ReportsService {
 
   // ─────────────── Currency ───────────────
 
-  async currencyBreakdown(dto: DateRangeDto) {
+  currencyBreakdown(dto: DateRangeDto) {
     const { from, to } = this.range(dto);
 
     return this.prisma.$queryRaw<
@@ -425,7 +425,7 @@ export class ReportsService {
   /**
    * Operator dashboard.
    *
-   * Reads pre-aggregated rows from `daily_metrics` rather than scanning the
+   * Reads pre-aggregated rows from `daily_rollups` rather than scanning the
    * orders table. The live figures — status breakdown and stuck orders — are
    * bounded by partial indexes, so they stay cheap regardless of table size.
    */

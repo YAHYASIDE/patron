@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { CreateGameDto, QueryCatalogDto, UpdateGameDto } from './dto/catalog.dto';
+import { toAuditJson } from '../../common/audit/audit.service';
 
 @Injectable()
 export class GamesService {
@@ -89,7 +90,7 @@ export class GamesService {
 
   private audit(userId: string, action: string, entityId: string, before: unknown, after: unknown) {
     return this.prisma.auditLog.create({
-      data: { userId, action, entityType: 'Game', entityId, before: before as any, after: after as any },
+      data: { userId, action, entityType: 'Game', entityId, before: toAuditJson(before), after: toAuditJson(after) },
     });
   }
 }

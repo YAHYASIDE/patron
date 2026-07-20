@@ -7,6 +7,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { GatewayRegistry } from '../payments/gateways/gateway.registry';
 import { D } from '../../common/money/money';
 import { LockRank, acquireLocks } from '../../common/locking/lock-order';
+import { toAuditJson } from '../../common/audit/audit.service';
 
 @Injectable()
 export class RefundsService {
@@ -170,7 +171,7 @@ export class RefundsService {
       await tx.auditLog.create({
         data: {
           userId: processedById, action: 'payments.refund', entityType: 'Refund', entityId: refund.id,
-          after: { amount: refund.amount.toString(), currency: refund.currency } as any,
+          after: toAuditJson({ amount: refund.amount.toString(), currency: refund.currency }),
         },
       });
 

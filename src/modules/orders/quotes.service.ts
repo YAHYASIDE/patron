@@ -8,6 +8,20 @@ import { PricingService } from '../catalog/pricing.service';
 import { ZERO, sum } from '../../common/money/money';
 import { CreateQuoteDto, CreateQuoteItemDto } from './dto/order.dto';
 
+/** The shape `present()` reads; see the note on PresentableOrder. */
+interface PresentableQuote {
+  expiresAt: Date;
+  status: QuoteStatus;
+  items?: Array<{
+    inputs?: Array<{
+      fieldKey: string;
+      fieldLabel: string;
+      value: string;
+      isSensitive: boolean;
+    }>;
+  }>;
+}
+
 const QUOTE_TTL_MINUTES = 15;
 
 interface GameInputField {
@@ -297,13 +311,13 @@ export class QuotesService {
     return (await this.pricing.convert(inBase, to)).amount;
   }
 
-  private present(quote: any) {
+  private present<T extends PresentableQuote>(quote: T) {
     const secondsRemaining = Math.max(0, Math.floor((quote.expiresAt.getTime() - Date.now()) / 1000));
     return {
       ...quote,
-      items: quote.items?.map((i: any) => ({
+      items: quote.items?.map((i) => ({
         ...i,
-        inputs: i.inputs?.map(({ value, isSensitive, ...rest }: any) => ({
+        inputs: i.inputs?.map(({ value, isSensitive, ...rest }) => ({
           ...rest,
           // Never echo a decrypted sensitive value back to the client.
           value: isSensitive ? '••••' : value,

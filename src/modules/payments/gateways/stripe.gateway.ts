@@ -114,8 +114,9 @@ export class StripeGateway implements PaymentGateway {
       },
       body: body ? new URLSearchParams(Object.entries(body).map(([k, v]) => [k, String(v)])) : undefined,
     });
-    const json = (await res.json()) as any;
+    // Stripe returns either the requested resource or an error envelope.
+    const json = (await res.json()) as T & { error?: { message?: string } };
     if (!res.ok) throw new Error(json?.error?.message ?? `Gateway returned ${res.status}`);
-    return json as T;
+    return json;
   }
 }

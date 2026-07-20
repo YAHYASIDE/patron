@@ -2,6 +2,7 @@ import { Params } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 import { RequestContextStore } from '../context/request-context';
 import { trace } from '@opentelemetry/api';
+import type { IncomingMessage, ServerResponse } from 'http';
 
 /**
  * Structured JSON logs.
@@ -53,18 +54,28 @@ export const loggerConfig = (isProduction: boolean): Params => ({
 
     // Health and metrics scrapes would otherwise dominate the log volume.
     autoLogging: {
-      ignore: (req: any) => ['/health', '/health/live', '/health/ready', '/metrics'].includes(req.url),
+      ignore: (req: IncomingMessage) =>
+        ['/health', '/health/live', '/health/ready', '/metrics'].includes(
+          // `url` is optional on IncomingMessage and carries the query string.
+          (req.url ?? '').split('?')[0],
+        ),
     },
 
-    customLogLevel: (_req: any, res: any, err: any) => {
+    customLogLevel: (_req: IncomingMessage, res: ServerResponse, err?: Error) => {
       if (err || res.statusCode >= 500) return 'error';
       if (res.statusCode >= 400) return 'warn';
       return 'info';
     },
 
     serializers: {
-      req: (req: any) => ({ method: req.method, url: req.url, ip: req.remoteAddress }),
-      res: (res: any) => ({ statusCode: res.statusCode }),
+      // pino-http augments the request with `remoteAddress`; IncomingMessage
+      // alone does not declare it, hence the intersection rather than `any`.
+      req: (req: IncomingMessage & { remoteAddress?: string }) => ({
+        method: req.method,
+        url: req.url,
+        ip: req.remoteAddress,
+      }),
+      res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
     },
 
     transport: isProduction ? undefined : { target: 'pino-pretty', options: { singleLine: true } },

@@ -14,6 +14,39 @@ export interface AuditEntry {
 }
 
 /**
+ * Normalise an arbitrary value into something Prisma will accept for a `Json?`
+ * column, redacting secrets on the way through.
+ *
+ * Exported because several services still write `auditLog` directly. Those
+ * call sites previously cast to `any`, which silently defeated both the type
+ * check and the redaction — a before/after snapshot of a User row would carry
+ * its passwordHash straight into a table that report readers can query.
+ *
+ * Prisma's `InputJsonValue` does not include Date or Decimal, which is why the
+ * JSON round-trip is required rather than a cast: it converts both to strings.
+ */
+export function toAuditJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  if (value === undefined || value === null) return Prisma.JsonNull;
+
+  const SENSITIVE = /passwordHash|Enc$|twoFaSecret|tokenHash|codeHash/i;
+
+  const walk = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(walk);
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.entries(input as Record<string, unknown>).map(([k, v]) => [
+          k,
+          SENSITIVE.test(k) ? '[REDACTED]' : walk(v),
+        ]),
+      );
+    }
+    return input;
+  };
+
+  return JSON.parse(JSON.stringify(walk(value))) as Prisma.InputJsonValue;
+}
+
+/**
  * Audit writes were duplicated across eight services, each spelling the same
  * `prisma.auditLog.create` slightly differently — some captured the IP, some
  * did not, some forgot the actor. Centralising it means the shape is uniform
@@ -62,22 +95,6 @@ export class AuditService {
    * readable to anyone with report access.
    */
   private redact(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-    if (value === undefined || value === null) return Prisma.JsonNull;
-    const SENSITIVE = /passwordHash|Enc$|twoFaSecret|tokenHash|codeHash/i;
-
-    const walk = (input: unknown): unknown => {
-      if (Array.isArray(input)) return input.map(walk);
-      if (input && typeof input === 'object') {
-        return Object.fromEntries(
-          Object.entries(input as Record<string, unknown>).map(([k, v]) => [
-            k,
-            SENSITIVE.test(k) ? '[REDACTED]' : walk(v),
-          ]),
-        );
-      }
-      return input;
-    };
-
-    return JSON.parse(JSON.stringify(walk(value))) as Prisma.InputJsonValue;
+    return toAuditJson(value);
   }
 }

@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { AdminUpdateUserDto, BlockUserDto, CreateUserDto, QueryUsersDto, UpdateUserDto } from './dto/user.dto';
+import { toAuditJson } from '../../common/audit/audit.service';
 
 const PUBLIC_FIELDS = {
   id: true, email: true, phone: true, fullName: true, avatarUrl: true,
@@ -86,7 +87,7 @@ export class UsersService {
       });
 
       await tx.auditLog.create({
-        data: { userId: actorId, action: 'users.create', entityType: 'User', entityId: user.id, after: user as any },
+        data: { userId: actorId, action: 'users.create', entityType: 'User', entityId: user.id, after: toAuditJson(user) },
       });
       return user;
     });
@@ -116,7 +117,7 @@ export class UsersService {
       await tx.auditLog.create({
         data: {
           userId: actorId, action: 'users.update', entityType: 'User', entityId: id,
-          before: before as any, after: after as any,
+          before: toAuditJson(before), after: toAuditJson(after),
         },
       });
       return after;
@@ -150,7 +151,7 @@ export class UsersService {
           userId: actorId,
           action: dto.blocked ? 'users.block' : 'users.unblock',
           entityType: 'User', entityId: id,
-          after: { blocked: dto.blocked, reason: dto.reason } as any,
+          after: toAuditJson({ blocked: dto.blocked, reason: dto.reason }),
         },
       });
       return updated;

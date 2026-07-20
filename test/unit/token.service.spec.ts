@@ -1,5 +1,9 @@
+import { createHash } from 'crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import { TokenService } from '../../src/modules/auth/token.service';
+
+const RAW_TOKEN = 'raw-refresh-token';
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 describe('TokenService', () => {
   let prisma: any;
@@ -18,7 +22,10 @@ describe('TokenService', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 3 }),
       },
     };
-    crypto = { sha256: (v: string) => `hash(${v})`, randomToken: () => 'raw-refresh-token' };
+    // A real digest, not `hash(${v})`. The previous stub echoed its input, so
+    // the "raw token is never stored" assertion below could never fail — the
+    // fake hash contained the plaintext it was supposed to hide.
+    crypto = { sha256, randomToken: () => RAW_TOKEN };
     metrics = { tokenReuseDetected: { inc: jest.fn() } };
 
     const jwt = { signAsync: jest.fn().mockResolvedValue('access.jwt') };
@@ -33,8 +40,8 @@ describe('TokenService', () => {
     await service.issue('u1', 'a@b.c');
     const { data } = prisma.refreshToken.create.mock.calls[0][0];
 
-    expect(data.tokenHash).toBe('hash(raw-refresh-token)');
-    expect(JSON.stringify(data)).not.toContain('raw-refresh-token');
+    expect(data.tokenHash).toBe(sha256(RAW_TOKEN));
+    expect(JSON.stringify(data)).not.toContain(RAW_TOKEN);
   });
 
   it('rotates a valid token and revokes the old one', async () => {
@@ -43,7 +50,7 @@ describe('TokenService', () => {
       expiresAt: new Date(Date.now() + 86400e3), user: activeUser,
     });
 
-    await service.rotate('raw-refresh-token');
+    await service.rotate(RAW_TOKEN);
     expect(prisma.refreshToken.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 't1' } }),
     );

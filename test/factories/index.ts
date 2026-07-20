@@ -6,7 +6,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
  * which one is actually under test.
  */
 export const factories = (prisma: PrismaClient) => ({
-  async currency(overrides: Partial<Prisma.CurrencyCreateInput> = {}) {
+  currency(overrides: Partial<Prisma.CurrencyCreateInput> = {}) {
     return prisma.currency.upsert({
       where: { code: overrides.code ?? 'USD' },
       update: {},
@@ -17,7 +17,7 @@ export const factories = (prisma: PrismaClient) => ({
     });
   },
 
-  async user(overrides: Partial<Prisma.UserCreateInput> = {}) {
+  user(overrides: Partial<Prisma.UserCreateInput> = {}) {
     return prisma.user.create({
       data: {
         email: `user-${Math.random().toString(36).slice(2)}@test.local`,
@@ -28,7 +28,7 @@ export const factories = (prisma: PrismaClient) => ({
     });
   },
 
-  async product(categoryId: string, overrides: Partial<Prisma.ProductUncheckedCreateInput> = {}) {
+  product(categoryId: string, overrides: Partial<Prisma.ProductUncheckedCreateInput> = {}) {
     return prisma.product.create({
       data: {
         sku: `SKU-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,

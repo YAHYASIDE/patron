@@ -40,9 +40,9 @@ export class OutboxService {
    * Claim a batch for publishing. SKIP LOCKED lets several relay instances run
    * concurrently without handing the same event to two of them.
    */
-  async claimBatch(limit = 100) {
+  claimBatch(limit = 100) {
     return this.prisma.$queryRaw<
-      Array<{ id: string; aggregate: string; aggregateId: string; eventType: string; payload: any; attempts: number }>
+      Array<{ id: string; aggregate: string; aggregateId: string; eventType: string; payload: Prisma.JsonValue; attempts: number }>
     >`
       UPDATE "outbox_events" SET "attempts" = "attempts" + 1
       WHERE "id" IN (
@@ -64,7 +64,7 @@ export class OutboxService {
   }
 
   /** Exponential backoff, then park in DEAD for manual inspection. */
-  async markFailed(id: string, attempts: number, error: string, maxAttempts = 8) {
+  markFailed(id: string, attempts: number, error: string, maxAttempts = 8) {
     if (attempts >= maxAttempts) {
       this.logger.error(`Outbox event ${id} is dead after ${attempts} attempts: ${error}`);
       return this.prisma.outboxEvent.update({ where: { id }, data: { status: 'DEAD', lastError: error } });

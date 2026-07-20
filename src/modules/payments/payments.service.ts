@@ -131,7 +131,7 @@ export class PaymentsService {
    * once. The conditional updateMany makes a replayed webhook a no-op instead of
    * a double fulfilment.
    */
-  async markCaptured(paymentId: string, gatewayRef: string, raw?: unknown) {
+  markCaptured(paymentId: string, gatewayRef: string, raw?: unknown) {
     return this.prisma.$transaction(async (tx) => {
       // ADR 010 — payment (rank 3) is claimed first here only because the order
       // id is not known until the payment row is read. The lock is then taken

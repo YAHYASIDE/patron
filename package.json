@@ -8,7 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
-    "test": "jest",
+    "test": "jest --config test/jest-unit.json",
     "test:e2e": "jest --config test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -23,7 +23,8 @@
     "test:resilience": "jest --config test/jest-resilience.json",
     "test:load": "k6 run test/load/checkout.load.js",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
-    "lint:check": "eslint \"{src,test}/**/*.ts\" --max-warnings=0"
+    "lint:check": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
+    "typecheck": "tsc --noEmit"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

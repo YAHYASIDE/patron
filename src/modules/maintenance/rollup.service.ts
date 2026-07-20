@@ -28,22 +28,27 @@ export class RollupService {
     const next = new Date(day.getTime() + 864e5);
 
     const affected = await this.prisma.$executeRaw`
-      INSERT INTO "daily_metrics" (
+      INSERT INTO "daily_rollups" (
         "day", "currency", "orders", "paidOrders", "failedOrders",
-        "grossBase", "costBase", "refundBase", "items", "uniqueCustomers", "updatedAt"
+        "itemsDelivered", "itemsFailed", "grossBase", "discountBase",
+        "refundBase", "costBase", "newCustomers", "computedAt"
       )
       SELECT ${day}::date AS day,
              o."currency",
              COUNT(DISTINCT o."id"),
              COUNT(DISTINCT o."id") FILTER (WHERE o."paidAt" IS NOT NULL),
              COUNT(DISTINCT o."id") FILTER (WHERE o."status" IN ('FAILED', 'PARTIALLY_COMPLETED')),
+             COUNT(i.*) FILTER (WHERE i."status" = 'DELIVERED'),
+             COUNT(i.*) FILTER (WHERE i."status" = 'FAILED'),
              COALESCE(SUM(o."totalBase"), 0),
-             COALESCE(SUM(i."unitCost" * i."quantity") FILTER (WHERE i."status" = 'DELIVERED'), 0),
+             COALESCE(SUM(o."discount" / o."fxRate"), 0),
              COALESCE((SELECT SUM(r."amountBase") FROM "refunds" r
                        WHERE r."status" = 'PROCESSED'
                          AND r."processedAt" >= ${day} AND r."processedAt" < ${next}), 0),
-             COUNT(i.*),
-             COUNT(DISTINCT o."userId"),
+             COALESCE(SUM(i."unitCost" * i."quantity") FILTER (WHERE i."status" = 'DELIVERED'), 0),
+             COALESCE((SELECT COUNT(*) FROM "users" u
+                       WHERE u."createdAt" >= ${day} AND u."createdAt" < ${next}
+                         AND u."deletedAt" IS NULL), 0),
              NOW()
       FROM "orders" o
       LEFT JOIN "order_items" i ON i."orderId" = o."id"
@@ -53,12 +58,14 @@ export class RollupService {
         "orders" = EXCLUDED."orders",
         "paidOrders" = EXCLUDED."paidOrders",
         "failedOrders" = EXCLUDED."failedOrders",
+        "itemsDelivered" = EXCLUDED."itemsDelivered",
+        "itemsFailed" = EXCLUDED."itemsFailed",
         "grossBase" = EXCLUDED."grossBase",
-        "costBase" = EXCLUDED."costBase",
+        "discountBase" = EXCLUDED."discountBase",
         "refundBase" = EXCLUDED."refundBase",
-        "items" = EXCLUDED."items",
-        "uniqueCustomers" = EXCLUDED."uniqueCustomers",
-        "updatedAt" = NOW()
+        "costBase" = EXCLUDED."costBase",
+        "newCustomers" = EXCLUDED."newCustomers",
+        "computedAt" = NOW()
     `;
 
     this.logger.log(`Rolled up ${day.toISOString().slice(0, 10)}: ${affected} currency row(s)`);
@@ -89,5 +96,31 @@ export class RollupService {
     }
     this.logger.log(`Backfilled ${days} day(s)`);
     return days;
+  }
+
+  /**
+   * Pre-aggregated daily rows for a range. This is what the dashboard reads:
+   * a few hundred rows instead of several hundred thousand.
+   */
+  series(from: Date, to: Date, currency?: string) {
+    return this.prisma.dailyRollup.findMany({
+      where: {
+        day: { gte: from, lt: to },
+        ...(currency ? { currency } : {}),
+      },
+      orderBy: { day: 'asc' },
+    });
+  }
+
+  /**
+   * When the rollup was last computed, so a dashboard can say "as of 01:15"
+   * rather than quietly presenting figures that are a day behind.
+   */
+  async freshness(): Promise<Date | null> {
+    const latest = await this.prisma.dailyRollup.findFirst({
+      orderBy: { computedAt: 'desc' },
+      select: { computedAt: true },
+    });
+    return latest?.computedAt ?? null;
   }
 }

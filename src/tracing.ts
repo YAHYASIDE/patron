@@ -10,10 +10,10 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { resourceFromAttributes } from '@opentelemetry/resources';
+import { Resource } from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION, ATTR_DEPLOYMENT_ENVIRONMENT_NAME,
-} from '@opentelemetry/semantic-conventions/incubating';
+} from '@opentelemetry/semantic-conventions';
 import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 
@@ -37,7 +37,9 @@ const sampler = new ParentBasedSampler({
 });
 
 export const sdk = new NodeSDK({
-  resource: resourceFromAttributes({
+  // resources@1.x exposes the Resource class; `resourceFromAttributes` is the
+  // 2.x API and is not available on the pinned version.
+  resource: new Resource({
     [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'patron-api',
     [ATTR_SERVICE_VERSION]: process.env.APP_VERSION ?? '0.0.0',
     [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: process.env.NODE_ENV ?? 'development',

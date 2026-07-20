@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/catalog.dto';
+import { toAuditJson } from '../../common/audit/audit.service';
 
 @Injectable()
 export class CategoriesService {
@@ -94,7 +95,7 @@ export class CategoriesService {
 
   private audit(userId: string, action: string, entityId: string, before: unknown, after: unknown) {
     return this.prisma.auditLog.create({
-      data: { userId, action, entityType: 'Category', entityId, before: before as any, after: after as any },
+      data: { userId, action, entityType: 'Category', entityId, before: toAuditJson(before), after: toAuditJson(after) },
     });
   }
 }

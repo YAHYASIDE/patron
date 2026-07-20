@@ -162,8 +162,13 @@ export class ProviderEngine {
     });
     if (!item.fulfilledByProviderId) return { status: item.status };
 
-    const ref = (item.providerCalls[0]?.responseBody as any)?.order_id
-      ?? (item.providerCalls[0]?.responseBody as any)?.txn_id;
+    // Provider responses are stored as Json; each provider names its own
+    // reference field, so narrow rather than cast to `any`.
+    const body = item.providerCalls[0]?.responseBody as
+      | { order_id?: string; txn_id?: string }
+      | null
+      | undefined;
+    const ref = body?.order_id ?? body?.txn_id;
     if (!ref) return { status: item.status };
 
     const { adapter, creds } = await this.registry.credentialsFor(item.fulfilledByProviderId);
@@ -252,7 +257,7 @@ export class ProviderEngine {
         endpoint: 'fulfil',
         idempotencyKey,
         requestBody: requestBody as Prisma.InputJsonValue,
-        responseBody: (outcome as any).raw ?? Prisma.JsonNull,
+        responseBody: (outcome.raw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
         success: outcome.status !== 'FAILED',
         errorCode: outcome.status === 'FAILED' ? outcome.errorCode : null,
         errorMessage: outcome.status === 'FAILED' ? outcome.errorMessage.slice(0, 500) : null,

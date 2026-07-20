@@ -49,9 +49,10 @@ export class WalletGateway implements PaymentGateway {
     return { status: exists?.status === 'CAPTURED' ? ('CAPTURED' as const) : ('FAILED' as const) };
   }
 
-  async refund(req: RefundRequest) {
+  refund(req: RefundRequest): Promise<{ gatewayRef: string }> {
     // The credit itself is posted by RefundsService inside its own transaction;
-    // the wallet gateway has no external system to call.
-    return { gatewayRef: `walletrefund_${req.gatewayRef}` };
+    // the wallet gateway has no external system to call, so there is nothing
+    // to await.
+    return Promise.resolve({ gatewayRef: `walletrefund_${req.gatewayRef}` });
   }
 }

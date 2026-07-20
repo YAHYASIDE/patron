@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateRoleDto, UpdateRoleDto } from './dto/role.dto';
+import { toAuditJson } from '../../common/audit/audit.service';
 
 @Injectable()
 export class RolesService {
@@ -41,7 +42,7 @@ export class RolesService {
         },
       });
       await tx.auditLog.create({
-        data: { userId: actorId, action: 'roles.create', entityType: 'Role', entityId: role.id, after: role as any },
+        data: { userId: actorId, action: 'roles.create', entityType: 'Role', entityId: role.id, after: toAuditJson(role) },
       });
       return role;
     });
@@ -71,7 +72,7 @@ export class RolesService {
       await tx.auditLog.create({
         data: {
           userId: actorId, action: 'roles.update', entityType: 'Role', entityId: id,
-          before: role as any, after: updated as any,
+          before: toAuditJson(role), after: toAuditJson(updated),
         },
       });
       return updated;
@@ -92,7 +93,7 @@ export class RolesService {
     await this.prisma.$transaction([
       this.prisma.role.delete({ where: { id } }),
       this.prisma.auditLog.create({
-        data: { userId: actorId, action: 'roles.delete', entityType: 'Role', entityId: id, before: role as any },
+        data: { userId: actorId, action: 'roles.delete', entityType: 'Role', entityId: id, before: toAuditJson(role) },
       }),
     ]);
     return { message: 'Role deleted' };

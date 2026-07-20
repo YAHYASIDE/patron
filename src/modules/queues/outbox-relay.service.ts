@@ -6,6 +6,21 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { QUEUES, JOBS, FULFILMENT_JOB_OPTS, DEFAULT_JOB_OPTS } from './queue.constants';
 
 /**
+ * The fields the routing switch reads. Outbox payloads are Json in the
+ * database, so this is the contract the emitters must satisfy — stating it
+ * here is what makes a missing `orderId` a compile error rather than an
+ * `undefined` in a BullMQ job id.
+ */
+interface OutboxPayload {
+  orderId?: string;
+  userId?: string;
+  paymentId?: string;
+  refundId?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Moves committed outbox events onto BullMQ.
  *
  * This is the only place that translates domain events into jobs. Delivery is
@@ -63,7 +78,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async publish(event: { id: string; eventType: string; payload: any }) {
+  private async publish(event: { id: string; eventType: string; payload: OutboxPayload }) {
     const { eventType, payload } = event;
 
     switch (eventType) {
@@ -94,7 +109,22 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private queueNotification(userId: string, templateKey: string, data: unknown, eventId: string) {
+  /**
+   * A notification with no recipient cannot be delivered. Emitters are expected
+   * to include `userId`; if one does not, that is a bug in the emitter, so log
+   * it rather than throwing and poisoning the relay.
+   */
+  private queueNotification(
+    userId: string | undefined,
+    templateKey: string,
+    data: unknown,
+    eventId: string,
+  ) {
+    if (!userId) {
+      this.logger.warn(`Outbox event ${eventId} (${templateKey}) has no userId; skipping notification`);
+      return Promise.resolve(null);
+    }
+
     return this.notifications.add(
       JOBS.SEND_NOTIFICATION,
       { userId, templateKey, data },

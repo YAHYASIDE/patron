@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { TxClient } from '../../common/outbox/outbox.service';
 import { D } from '../../common/money/money';
 import { LockRank, acquireLocks } from '../../common/locking/lock-order';
+import { toAuditJson } from '../../common/audit/audit.service';
 
 interface LedgerEntry {
   userId: string;
@@ -45,7 +46,7 @@ export class WalletService {
     });
   }
 
-  async history(userId: string, currency?: string, take = 50) {
+  history(userId: string, currency?: string, take = 50) {
     return this.prisma.walletTransaction.findMany({
       where: { userId, ...(currency && { currency }) },
       orderBy: { createdAt: 'desc' },
@@ -125,7 +126,7 @@ export class WalletService {
   }
 
   /** Admin adjustment — always audited, never silent. */
-  async adjust(userId: string, currency: string, amount: number, reason: string, actorId: string) {
+  adjust(userId: string, currency: string, amount: number, reason: string, actorId: string) {
     return this.prisma.$transaction(async (tx) => {
       const result = await this.post(
         {
@@ -139,7 +140,7 @@ export class WalletService {
       await tx.auditLog.create({
         data: {
           userId: actorId, action: 'wallet.adjust', entityType: 'Wallet', entityId: userId,
-          after: { amount, currency, reason } as any,
+          after: toAuditJson({ amount, currency, reason }),
         },
       });
       return result;
@@ -155,7 +156,7 @@ export class WalletService {
    * a multi-minute table scan at a hundred thousand. The nightly job checks
    * the last 48 hours; a full sweep is a weekly job.
    */
-  async findDrift(since?: Date) {
+  findDrift(since?: Date) {
     const cutoff = since ?? new Date(Date.now() - 48 * 3_600_000);
 
     return this.prisma.$queryRaw<Array<{ walletId: string; cached: string; ledger: string }>>`
