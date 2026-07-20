@@ -28,8 +28,8 @@ enum ProductType {
 
 enum DeliveryMode {
   AUTO_PROVIDER // fulfilled live via external provider API
-  CODE_POOL     // pulled from pre-purchased code inventory
-  MANUAL        // admin fulfils by hand
+  CODE_POOL // pulled from pre-purchased code inventory
+  MANUAL // admin fulfils by hand
 }
 
 enum OrderStatus {
@@ -133,20 +133,20 @@ enum DevicePlatform {
 // ═══════════════ USERS & ACCESS CONTROL ═══════════════
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique
-  phone         String?   @unique
-  passwordHash  String
-  fullName      String
-  avatarUrl     String?
-  locale        String    @default("ar")
-  isActive      Boolean   @default(true)
-  isBlocked     Boolean   @default(false)
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  phone           String?   @unique
+  passwordHash    String
+  fullName        String
+  avatarUrl       String?
+  locale          String    @default("ar")
+  isActive        Boolean   @default(true)
+  isBlocked       Boolean   @default(false)
   emailVerifiedAt DateTime?
   phoneVerifiedAt DateTime?
   twoFaSecretEnc  String?
-  twoFaEnabled    Boolean @default(false)
-  defaultCurrency String  @default("USD") @db.Char(3)
+  twoFaEnabled    Boolean   @default(false)
+  defaultCurrency String    @default("USD") @db.Char(3)
   lastLoginAt     DateTime?
   lastLoginIp     String?
 
@@ -246,14 +246,14 @@ model RefreshToken {
 
 // OTP / one-time links for verification, 2FA and password reset
 model VerificationToken {
-  id        String              @id @default(uuid()) @db.Uuid
-  userId    String              @db.Uuid
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  purpose   VerificationPurpose
-  codeHash  String
-  expiresAt DateTime
+  id         String              @id @default(uuid()) @db.Uuid
+  userId     String              @db.Uuid
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    VerificationPurpose
+  codeHash   String
+  expiresAt  DateTime
   consumedAt DateTime?
-  attempts  Int                 @default(0)
+  attempts   Int                 @default(0)
 
   createdAt DateTime @default(now())
 
@@ -276,13 +276,13 @@ model LoginAttempt {
 }
 
 model DeviceToken {
-  id        String         @id @default(uuid()) @db.Uuid
-  userId    String         @db.Uuid
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String         @unique
-  platform  DevicePlatform
-  isActive  Boolean        @default(true)
-  lastSeenAt DateTime      @default(now())
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String         @unique
+  platform   DevicePlatform
+  isActive   Boolean        @default(true)
+  lastSeenAt DateTime       @default(now())
 
   createdAt DateTime @default(now())
 
@@ -450,15 +450,15 @@ model Provider {
   apiSecretEnc String?
   extraConfig  Json? // per-provider knobs (currency, callback url, ...)
 
-  isActive       Boolean @default(true)
-  priority       Int     @default(0) // lower = tried first
-  balance        Decimal @default(0) @db.Decimal(14, 4)
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0) // lower = tried first
+  balance         Decimal  @default(0) @db.Decimal(14, 4)
   lowBalanceAlert Decimal? @db.Decimal(14, 4)
-  timeoutMs      Int     @default(20000)
-  maxRetries     Int     @default(2)
+  timeoutMs       Int      @default(20000)
+  maxRetries      Int      @default(2)
 
   lastHealthCheckAt DateTime?
-  isHealthy         Boolean  @default(true)
+  isHealthy         Boolean   @default(true)
 
   products ProductProvider[]
   calls    ProviderCall[]
@@ -494,23 +494,23 @@ model ProductProvider {
 
 // Full audit of every outbound provider request — billing disputes depend on this
 model ProviderCall {
-  id          String   @id @default(uuid()) @db.Uuid
-  providerId  String   @db.Uuid
-  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  id         String   @id @default(uuid()) @db.Uuid
+  providerId String   @db.Uuid
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Restrict)
 
   orderItemId String?    @db.Uuid
   orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
 
   endpoint       String
-  httpMethod     String   @default("POST")
-  idempotencyKey String?  @unique
+  httpMethod     String  @default("POST")
+  idempotencyKey String? @unique
   requestBody    Json // secrets redacted before persisting
   responseBody   Json?
   httpStatus     Int?
-  success        Boolean  @default(false)
+  success        Boolean @default(false)
   errorCode      String?
   errorMessage   String?
-  attemptNo      Int      @default(1)
+  attemptNo      Int     @default(1)
   durationMs     Int?
 
   createdAt DateTime @default(now())
@@ -530,14 +530,14 @@ model Order {
   user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   status      OrderStatus @default(PENDING_PAYMENT)
 
-  subtotal Decimal @db.Decimal(14, 4)
-  discount Decimal @default(0) @db.Decimal(14, 4)
-  fees     Decimal @default(0) @db.Decimal(14, 4)
+  subtotal     Decimal  @db.Decimal(14, 4)
+  discount     Decimal  @default(0) @db.Decimal(14, 4)
+  fees         Decimal  @default(0) @db.Decimal(14, 4)
   // MVP: always 0. Wiring VAT on later is a config change, not a migration.
-  taxAmount   Decimal  @default(0) @db.Decimal(14, 4)
-  taxRate     Decimal? @db.Decimal(6, 4)
-  taxInclusive Boolean @default(false)
-  total    Decimal @db.Decimal(14, 4)
+  taxAmount    Decimal  @default(0) @db.Decimal(14, 4)
+  taxRate      Decimal? @db.Decimal(6, 4)
+  taxInclusive Boolean  @default(false)
+  total        Decimal  @db.Decimal(14, 4)
 
   // Currency the customer transacted in, plus the rate snapshot used to
   // express this order in the platform base currency for reporting.
@@ -551,11 +551,11 @@ model Order {
   couponId String? @db.Uuid
   coupon   Coupon? @relation(fields: [couponId], references: [id], onDelete: SetNull)
 
-  quoteId        String? @unique @db.Uuid
+  quoteId        String?        @unique @db.Uuid
   quote          CheckoutQuote? @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   // Incremented on every write; concurrent updates lose and retry.
-  version        Int     @default(0)
-  idempotencyKey String? @unique // guards double-submit from mobile clients
+  version        Int            @default(0)
+  idempotencyKey String?        @unique // guards double-submit from mobile clients
   ipAddress      String?
   userAgent      String?
   notes          String?
@@ -674,8 +674,8 @@ model Payment {
   cardBrand String?
   cardLast4 String? @db.VarChar(4)
 
-  rawResponse  Json? // PAN/CVV never stored
-  failureCode  String?
+  rawResponse   Json? // PAN/CVV never stored
+  failureCode   String?
   failureReason String?
 
   refunds Refund[]
@@ -691,10 +691,10 @@ model Payment {
 }
 
 model Refund {
-  id        String  @id @default(uuid()) @db.Uuid
-  orderId   String  @db.Uuid
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  paymentId String? @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @db.Uuid
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentId String?  @db.Uuid
   payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   amount     Decimal      @db.Decimal(14, 4)
@@ -706,10 +706,10 @@ model Refund {
   gatewayRef String?
   toWallet   Boolean      @default(false)
 
-  requestedById String @db.Uuid
-  requestedBy   User   @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedById String  @db.Uuid
+  requestedBy   User    @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: Restrict)
   processedById String? @db.Uuid
-  processedBy   User?  @relation("RefundProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+  processedBy   User?   @relation("RefundProcessor", fields: [processedById], references: [id], onDelete: SetNull)
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -844,11 +844,11 @@ model DailyRollup {
 }
 
 model SystemSetting {
-  key         String   @id
+  key         String  @id
   value       Json
-  group       String   @default("general")
+  group       String  @default("general")
   description String?
-  isPublic    Boolean  @default(false) // exposed to the customer apps
+  isPublic    Boolean @default(false) // exposed to the customer apps
 
   updatedAt DateTime @updatedAt
 
@@ -856,26 +856,25 @@ model SystemSetting {
   @@map("system_settings")
 }
 
-
 // ═══════════════ CURRENCY & FX ═══════════════
 
 model Currency {
-  code     String  @id @db.Char(3) // USD, EUR, MRU, XOF
-  nameAr   String
-  nameEn   String
-  symbol   String
-  decimals Int     @default(2) // XOF = 0, MRU = 2, USD/EUR = 2
-  isBase   Boolean @default(false) // exactly one row may be true
-  isActive Boolean @default(true)
-  sortOrder Int    @default(0)
+  code      String  @id @db.Char(3) // USD, EUR, MRU, XOF
+  nameAr    String
+  nameEn    String
+  symbol    String
+  decimals  Int     @default(2) // XOF = 0, MRU = 2, USD/EUR = 2
+  isBase    Boolean @default(false) // exactly one row may be true
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
 
   // rounding applied after conversion: HALF_UP | UP | DOWN
-  roundingMode String @default("HALF_UP")
+  roundingMode String   @default("HALF_UP")
   // optional psychological rounding, e.g. 100 => nearest 100 XOF
   roundingStep Decimal? @db.Decimal(14, 4)
 
-  ratesFrom     FxRate[]        @relation("FxBase")
-  ratesTo       FxRate[]        @relation("FxQuote")
+  ratesFrom     FxRate[]       @relation("FxBase")
+  ratesTo       FxRate[]       @relation("FxQuote")
   productPrices ProductPrice[]
   wallets       Wallet[]
 
@@ -889,9 +888,9 @@ model Currency {
 // Immutable, append-only rate history. Never updated in place — a new rate
 // supersedes the previous one, so every historic order can be re-derived.
 model FxRate {
-  id            String @id @default(uuid()) @db.Uuid
-  baseCurrency  String @db.Char(3)
-  quoteCurrency String @db.Char(3)
+  id            String  @id @default(uuid()) @db.Uuid
+  baseCurrency  String  @db.Char(3)
+  quoteCurrency String  @db.Char(3)
   rate          Decimal @db.Decimal(20, 10) // 1 base = <rate> quote
 
   source      String    @default("MANUAL") // MANUAL | ECB | OPENEXCHANGE ...
@@ -906,7 +905,7 @@ model FxRate {
   payments Payment[]
   quotes   CheckoutQuote[]
 
-  createdById String? @db.Uuid
+  createdById String?  @db.Uuid
   createdAt   DateTime @default(now())
 
   @@unique([baseCurrency, quoteCurrency, effectiveAt])
@@ -917,10 +916,10 @@ model FxRate {
 // Optional manual price override per currency. When absent, the product's
 // base-currency sellPrice is converted with the live FxRate.
 model ProductPrice {
-  id           String  @id @default(uuid()) @db.Uuid
-  productId    String  @db.Uuid
-  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  currencyCode String  @db.Char(3)
+  id           String   @id @default(uuid()) @db.Uuid
+  productId    String   @db.Uuid
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  currencyCode String   @db.Char(3)
   currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: Restrict)
 
   sellPrice Decimal @db.Decimal(14, 4)
@@ -957,7 +956,6 @@ model Wallet {
   @@map("wallets")
 }
 
-
 // ═══════════════ CHECKOUT QUOTES ═══════════════
 
 /// A priced, time-boxed offer. Everything that can move between browsing and
@@ -971,13 +969,13 @@ model CheckoutQuote {
   status      QuoteStatus @default(ACTIVE)
 
   // ── frozen money ──
-  subtotal     Decimal @db.Decimal(14, 4)
-  discount     Decimal @default(0) @db.Decimal(14, 4)
-  fees         Decimal @default(0) @db.Decimal(14, 4)
-  taxAmount    Decimal @default(0) @db.Decimal(14, 4)
+  subtotal     Decimal  @db.Decimal(14, 4)
+  discount     Decimal  @default(0) @db.Decimal(14, 4)
+  fees         Decimal  @default(0) @db.Decimal(14, 4)
+  taxAmount    Decimal  @default(0) @db.Decimal(14, 4)
   taxRate      Decimal? @db.Decimal(6, 4)
-  taxInclusive Boolean @default(false)
-  total        Decimal @db.Decimal(14, 4)
+  taxInclusive Boolean  @default(false)
+  total        Decimal  @db.Decimal(14, 4)
 
   // ── frozen FX ──
   currency     String  @db.Char(3)
@@ -1097,18 +1095,18 @@ model IdempotencyRecord {
 /// Inbound provider/gateway callbacks. Stored before processing so a replayed
 /// webhook is detected rather than applied twice.
 model InboundWebhook {
-  id         String        @id @default(uuid()) @db.Uuid
-  source     String // fazercards, foxreload, stripe ...
-  eventId    String // provider's own event id
-  eventType  String
-  signature  String?
-  headers    Json?
-  payload    Json
-  status     WebhookStatus @default(RECEIVED)
-  error      String?
+  id        String        @id @default(uuid()) @db.Uuid
+  source    String // fazercards, foxreload, stripe ...
+  eventId   String // provider's own event id
+  eventType String
+  signature String?
+  headers   Json?
+  payload   Json
+  status    WebhookStatus @default(RECEIVED)
+  error     String?
 
   processedAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@unique([source, eventId])
   @@index([status, createdAt])
@@ -1117,20 +1115,19 @@ model InboundWebhook {
 
 /// Localised notification bodies, editable without a deploy.
 model NotificationTemplate {
-  key      String  @id // order.completed, payment.failed ...
+  key      String   @id // order.completed, payment.failed ...
   channels String[] // which channels this template supports
   titleAr  String
   titleEn  String
   bodyAr   String
   bodyEn   String
-  isActive Boolean @default(true)
+  isActive Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("notification_templates")
 }
-
 
 // ═══════════════ REPORTING ROLLUPS ═══════════════
 
@@ -1139,4 +1136,3 @@ model NotificationTemplate {
 /// Dashboards read this instead of scanning orders ⨝ order_items. Recomputed
 /// nightly for the previous few days, and re-computable for any single historic
 /// day after a correction — which a materialised view cannot do without a full
-
