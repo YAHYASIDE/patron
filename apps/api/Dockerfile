@@ -31,7 +31,13 @@ WORKDIR /app
 # Node and in-flight requests drain instead of being severed.
 RUN apk add --no-cache openssl dumb-init curl \
  && addgroup -g 1001 -S nodejs \
- && adduser -u 1001 -S patron -G nodejs
+ && adduser -u 1001 -S patron -G nodejs \
+ # The runtime only runs `node dist/main`; it never shells out to npm. Dropping
+ # the npm bundled in the base image removes its vulnerable transitive deps
+ # (tar, sigstore, picomatch, brace-expansion) from the production image and
+ # shrinks the attack surface. The app's own deps are installed by npm in the
+ # earlier stages and are unaffected.
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 ENV NODE_ENV=production \
     NODE_OPTIONS="--max-old-space-size=768" \
