@@ -93,9 +93,16 @@ describe('Checkout concurrency', () => {
   });
 
   it('refuses an expired quote even if the client still holds the id', async () => {
+    // Push the whole quote into the past. The `checkout_quotes_expiry_future`
+    // CHECK requires expiresAt > createdAt, so move createdAt back too rather
+    // than only expiring it — the quote reads as expired relative to now while
+    // still satisfying the constraint.
     await prisma.checkoutQuote.update({
       where: { id: quoteId },
-      data: { expiresAt: new Date(Date.now() - 1000) },
+      data: {
+        createdAt: new Date(Date.now() - 7_200_000),
+        expiresAt: new Date(Date.now() - 3_600_000),
+      },
     });
 
     await expect(orders.createFromQuote(userId, quoteId, {})).rejects.toThrow(/expired/);

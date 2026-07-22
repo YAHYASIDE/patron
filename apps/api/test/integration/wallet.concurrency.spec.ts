@@ -30,10 +30,21 @@ describe('WalletService concurrency', () => {
         email: `wallet-${Date.now()}@test.local`,
         fullName: 'Wallet Test',
         passwordHash: 'x',
-        wallets: { create: { currencyCode: 'USD', balance: 100 } },
       },
     });
     userId = user.id;
+
+    // Fund the opening balance through the ledger, not as a bare cached value.
+    // `findDrift` reconciles wallets.balance against SUM(wallet_transactions),
+    // so a balance with no matching ledger row is exactly the drift it exists
+    // to catch — seeding one directly would make the reconciliation test fail
+    // correctly.
+    await prisma.$transaction((tx) =>
+      wallet.credit(
+        { userId, currency: 'USD', amount: 100, type: 'ADMIN_ADJUSTMENT' },
+        tx,
+      ),
+    );
   });
 
   it('rejects the second of two concurrent debits that would overdraw', async () => {

@@ -38,12 +38,40 @@ describe('OutboxService', () => {
   });
 
   it('hands an event to only one concurrent relay', async () => {
-    await prisma.$transaction((tx) =>
+    const event = await prisma.$transaction((tx) =>
       outbox.emit(tx, { aggregate: 'Order', aggregateId: 'o3', eventType: 'order.paid', payload: {} }),
     );
 
-    const [a, b] = await Promise.all([outbox.claimBatch(), outbox.claimBatch()]);
-    expect(a.length + b.length).toBe(1);
+    // Relay A holds the event's row lock inside an open transaction; relay B
+    // then runs the real claim. SKIP LOCKED must make B come away empty — the
+    // event is being processed by A. Holding the lock open makes this
+    // deterministic rather than a `Promise.all` scheduling race.
+    const holder = new PrismaService();
+    await holder.$connect();
+    try {
+      let markLocked!: () => void;
+      const locked = new Promise<void>((resolve) => (markLocked = resolve));
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+
+      const holderTxn = holder.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT "id" FROM "outbox_events" WHERE "id" = ${event.id}::uuid FOR UPDATE`;
+          markLocked();
+          await held;
+        },
+        { timeout: 20_000 },
+      );
+
+      await locked; // A genuinely holds the row lock before B tries to claim it
+      const claimed = await outbox.claimBatch();
+      release();
+      await holderTxn;
+
+      expect(claimed).toHaveLength(0);
+    } finally {
+      await holder.$disconnect();
+    }
   });
 
   it('backs off rather than hot-looping on failure', async () => {
