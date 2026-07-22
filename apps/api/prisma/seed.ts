@@ -7,7 +7,7 @@
  */
 import { PrismaClient, ProductType, DeliveryMode, DiscountType } from '@prisma/client';
 import { Prisma } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import { hash as argon2Hash } from '@node-rs/argon2';
 import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
@@ -152,7 +152,7 @@ async function main() {
     create: {
       email: process.env.SEED_ADMIN_EMAIL ?? 'admin@patron.io',
       fullName: 'Patron Super Admin',
-      passwordHash: await bcrypt.hash(adminPassword, 12),
+      passwordHash: await argon2Hash(adminPassword),
       emailVerifiedAt: new Date(),
       locale: 'ar',
     },

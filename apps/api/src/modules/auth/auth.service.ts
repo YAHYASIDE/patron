@@ -93,10 +93,11 @@ export class AuthService {
     const user = await this.prisma.user.findFirst({ where: { email, deletedAt: null } });
 
     // Same failure path and timing whether the email exists or not —
-    // otherwise login doubles as an account-enumeration oracle.
+    // otherwise login doubles as an account-enumeration oracle. The fake verify
+    // runs the same Argon2 work as a real one.
     const passwordOk = user
       ? await this.crypto.verifyPassword(dto.password, user.passwordHash)
-      : await this.crypto.verifyPassword(dto.password, '$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidin');
+      : await this.crypto.fakeVerify(dto.password);
 
     if (!user || !passwordOk) {
       await this.recordAttempt(email, meta.ip, false, 'invalid_credentials');
@@ -112,10 +113,18 @@ export class AuthService {
     }
 
     await this.recordAttempt(email, meta.ip, true);
+
+    // Transparently upgrade a legacy bcrypt hash to Argon2id now that we hold
+    // the plaintext — no password reset is forced by the migration.
+    const rehashed = this.crypto.passwordNeedsRehash(user.passwordHash)
+      ? await this.crypto.hashPassword(dto.password)
+      : undefined;
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date(), lastLoginIp: meta.ip },
+      data: { lastLoginAt: new Date(), lastLoginIp: meta.ip, ...(rehashed && { passwordHash: rehashed }) },
     });
+    await this.auditAuth(user.id, 'auth.login', meta);
 
     return this.tokens.issue(user.id, user.email, { ip: meta.ip, deviceInfo: meta.deviceInfo });
   }
@@ -124,14 +133,28 @@ export class AuthService {
     return this.tokens.rotate(refreshToken, { ip: meta.ip, deviceInfo: meta.deviceInfo });
   }
 
-  async logout(refreshToken: string) {
+  async logout(refreshToken: string, meta: RequestMeta) {
+    // Resolve the owner before revoking so the audit entry names the user.
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: this.crypto.sha256(refreshToken) },
+      select: { userId: true },
+    });
     await this.tokens.revoke(refreshToken);
+    if (stored) await this.auditAuth(stored.userId, 'auth.logout', meta);
     return { message: 'Logged out' };
   }
 
-  async logoutAll(userId: string) {
+  async logoutAll(userId: string, meta: RequestMeta) {
     await this.tokens.revokeAllForUser(userId);
+    await this.auditAuth(userId, 'auth.logout_all', meta);
     return { message: 'All sessions revoked' };
+  }
+
+  /** A uniform auth audit row carrying the request's IP and user agent. */
+  private auditAuth(userId: string, action: string, meta: RequestMeta) {
+    return this.prisma.auditLog.create({
+      data: { userId, action, entityType: 'User', entityId: userId, ipAddress: meta.ip, userAgent: meta.userAgent },
+    });
   }
 
   // ─────────────── Profile & password ───────────────
