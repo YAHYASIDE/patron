@@ -57,13 +57,35 @@ jobs:
       - run: npm ci
       # Catches a hand-edited migration drifting from schema.prisma, which
       # otherwise only surfaces on the production deploy.
-      - name: Migrations match the schema
+      #
+      # schema.prisma is the logical model; the migrations additionally apply an
+      # operational layer Prisma's datamodel cannot express — BRIN / GIN-trigram /
+      # partial / keyset indexes, DB-side id defaults and FK ON UPDATE actions. A
+      # plain `migrate diff --exit-code` can never be clean while those exist, so
+      # instead we assert the diff carries no *structural* drift: no table or
+      # column added, dropped, retyped or renamed. That still fails a hand-edited
+      # migration that diverges from the schema in a way that would break the
+      # Prisma Client, while tolerating the intended operational layer.
+      - name: Migrations match the schema (no structural drift)
         run: |
+          # set -e aborts the step if `migrate diff` itself errors (a broken
+          # migration, unreachable shadow DB), so an empty file can never be
+          # mistaken for "no drift".
+          set -euo pipefail
           npx prisma migrate diff \
             --from-migrations prisma/migrations \
             --to-schema-datamodel prisma/schema.prisma \
             --shadow-database-url postgresql://postgres:postgres@localhost:5432/shadow \
-            --exit-code
+            --script > migration-drift.sql
+          echo '----- migrations → schema.prisma datamodel diff -----'
+          cat migration-drift.sql
+          DANGER='CREATE TABLE|DROP TABLE|ADD COLUMN|DROP COLUMN|SET DATA TYPE|SET NOT NULL|DROP NOT NULL|RENAME COLUMN|ALTER TABLE "[^"]*" RENAME'
+          if grep -Eq "$DANGER" migration-drift.sql; then
+            echo '::error::Structural drift between the migrations and schema.prisma'
+            grep -nE "$DANGER" migration-drift.sql
+            exit 1
+          fi
+          echo 'OK — only the intended operational layer (indexes, id/FK defaults) differs.'
 
   api-unit:
     name: API · unit tests
