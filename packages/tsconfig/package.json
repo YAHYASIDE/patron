@@ -1,0 +1,12 @@
+{
+  "name": "@patron/tsconfig",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Shared TypeScript base configurations for the Patron monorepo.",
+  "files": [
+    "base.json",
+    "nestjs.json",
+    "nextjs.json"
+  ]
+}
