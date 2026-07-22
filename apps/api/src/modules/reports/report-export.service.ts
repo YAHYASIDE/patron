@@ -4,6 +4,19 @@ import { ReportsService } from './reports.service';
 import { AnalyticsService } from './analytics.service';
 import { DateRangeDto } from './dto/report.dto';
 
+/** The exportable report names, listed back to the caller on an unknown report. */
+const REPORT_NAMES = [
+  'revenue',
+  'profit',
+  'products',
+  'providers',
+  'currencies',
+  'refunds',
+  'customers',
+  'ltv',
+  'failures',
+] as const;
+
 /**
  * CSV export.
  *
@@ -25,35 +38,41 @@ export class ReportExportService {
    */
   async export(report: string, dto: DateRangeDto): Promise<{ filename: string; csv: string }> {
     const { from, to } = dto.resolve();
-    const sources = this.sources(dto);
-    // A Map lookup, not object indexing: `sources[report]` with a user-supplied
-    // key would reach inherited members (`constructor`, `toString`, …) and
-    // dispatch to an unintended function. `Map.get` only ever returns entries we
-    // put in, so an unknown report is a clean miss.
-    const source = sources.get(report);
-    if (!source) {
-      throw new BadRequestException(
-        `Unknown report "${report}". Available: ${[...sources.keys()].join(', ')}`,
-      );
-    }
-
-    const rows = (await source()) as Array<Record<string, unknown>>;
+    const rows = (await this.rowsFor(report, dto)) as Array<Record<string, unknown>>;
     return { filename: this.filename(report, from, to), csv: this.toCsv(rows) };
   }
 
-  /** The set of exportable reports and how each maps onto a service call. */
-  private sources(dto: DateRangeDto): Map<string, () => Promise<unknown>> {
-    return new Map<string, () => Promise<unknown>>([
-      ['revenue', async () => (await this.reports.revenue(dto)).series],
-      ['profit', async () => (await this.reports.profit(dto)).series],
-      ['products', () => this.reports.productPerformance(dto)],
-      ['providers', () => this.reports.providerPerformance(dto)],
-      ['currencies', () => this.reports.currencyBreakdown(dto)],
-      ['refunds', async () => (await this.reports.refundReport(dto)).byReason],
-      ['customers', async () => (await this.reports.customerStats(dto)).topCustomers],
-      ['ltv', async () => (await this.analytics.customerLifetimeValue(dto)).cohorts],
-      ['failures', async () => (await this.analytics.failedOrders(dto)).byRevenueLost],
-    ]);
+  /**
+   * Map a report name to its rows. A static `switch` rather than dynamic
+   * dispatch on a user-supplied key: the report name never selects a method to
+   * call, so it can neither reach an inherited member nor invoke an unintended
+   * target — every branch is a fixed call decided at author time.
+   */
+  private async rowsFor(report: string, dto: DateRangeDto): Promise<unknown> {
+    switch (report) {
+      case 'revenue':
+        return (await this.reports.revenue(dto)).series;
+      case 'profit':
+        return (await this.reports.profit(dto)).series;
+      case 'products':
+        return this.reports.productPerformance(dto);
+      case 'providers':
+        return this.reports.providerPerformance(dto);
+      case 'currencies':
+        return this.reports.currencyBreakdown(dto);
+      case 'refunds':
+        return (await this.reports.refundReport(dto)).byReason;
+      case 'customers':
+        return (await this.reports.customerStats(dto)).topCustomers;
+      case 'ltv':
+        return (await this.analytics.customerLifetimeValue(dto)).cohorts;
+      case 'failures':
+        return (await this.analytics.failedOrders(dto)).byRevenueLost;
+      default:
+        throw new BadRequestException(
+          `Unknown report "${report}". Available: ${REPORT_NAMES.join(', ')}`,
+        );
+    }
   }
 
   toCsv(rows: Array<Record<string, unknown>>, columns?: string[]): string {
