@@ -1,11 +1,13 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import nock from 'nock';
 import { randomUUID } from 'crypto';
 
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
+import { CryptoService } from '../../src/common/crypto/crypto.service';
 import { ProviderEngine } from '../../src/modules/providers/provider-engine.service';
 
 /**
@@ -28,7 +30,16 @@ describe('Checkout (e2e)', () => {
   const PROVIDER_BASE = 'https://api.fazercards.test';
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      // Neutralise the rate limiter: this full-path suite makes many quote,
+      // order and payment calls from one IP in seconds, past the `strict`/
+      // `expensive` tiers, which would 429 steps the flow depends on. Overriding
+      // the injected storage always reports zero prior hits, so the guard admits
+      // every request (the guard itself is built by APP_GUARD from its class and
+      // is not overridable by token).
+      .overrideProvider(ThrottlerStorage)
+      .useValue({ increment: () => Promise.resolve({ totalHits: 0, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
+      .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
@@ -36,7 +47,12 @@ describe('Checkout (e2e)', () => {
     prisma = app.get(PrismaService);
     engine = app.get(ProviderEngine);
 
-    await seed(prisma, PROVIDER_BASE).then((ids) => { productId = ids.productId; });
+    // Encrypt the provider credential with the running app's key so the adapter
+    // can actually decrypt it during fulfilment. The previous placeholder only
+    // worked when TEST_PROVIDER_KEY_ENC was exported; unset (as in CI) it was an
+    // undecryptable string that failed with "Invalid authentication tag length".
+    const apiKeyEnc = app.get(CryptoService).encrypt('e2e-provider-api-key');
+    await seed(prisma, PROVIDER_BASE, apiKeyEnc).then((ids) => { productId = ids.productId; });
   });
 
   afterAll(async () => {
@@ -223,7 +239,7 @@ async function createQuote(agent: request.Test | any, token: string, productId: 
   return res.body.id;
 }
 
-async function seed(prisma: PrismaService, providerBase: string) {
+async function seed(prisma: PrismaService, providerBase: string, apiKeyEnc: string) {
   await prisma.currency.upsert({
     where: { code: 'USD' }, update: {},
     create: { code: 'USD', nameAr: 'دولار', nameEn: 'US Dollar', symbol: '$', isBase: true },
@@ -245,9 +261,9 @@ async function seed(prisma: PrismaService, providerBase: string) {
   const provider = await prisma.provider.create({
     data: {
       code: 'fazercards', name: 'FazerCards', baseUrl: providerBase,
-      // Ciphertext produced with the test ENCRYPTION_KEY; the adapter only
-      // needs it to be decryptable, not meaningful.
-      apiKeyEnc: process.env.TEST_PROVIDER_KEY_ENC ?? 'AAAA.BBBB.CCCC',
+      // Ciphertext produced with the running app's ENCRYPTION_KEY; the adapter
+      // only needs it to be decryptable, not meaningful.
+      apiKeyEnc,
       isActive: true, isHealthy: true,
     },
   });

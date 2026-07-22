@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
@@ -11,9 +12,20 @@ describe('Auth & permissions (e2e)', () => {
   const password = 'CorrectHorse1';
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      // Neutralise the rate limiter for this suite. It fires dozens of auth
+      // requests from one IP in seconds — well past the `strict` tier (10/60s) —
+      // so the real ThrottlerGuard would 429 requests that these auth/RBAC cases
+      // need to succeed. Overriding the injected storage (not the guard, which
+      // APP_GUARD builds from its class) is what actually takes effect: the
+      // guard always reports zero prior hits and lets every request through.
+      .overrideProvider(ThrottlerStorage)
+      .useValue({ increment: () => Promise.resolve({ totalHits: 0, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
+      .compile();
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    // Mirror production (main.ts): reject unknown properties rather than silently
+    // stripping them. The 'strips unknown properties' case asserts that 400.
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
     prisma = app.get(PrismaService);
 
@@ -24,6 +36,13 @@ describe('Auth & permissions (e2e)', () => {
     });
     email = `auth-${Date.now()}@test.local`;
   });
+
+  // Account lockout counts failed attempts by IP *or* identifier within a
+  // window. Across an ordered suite hitting the app from one IP, failures from
+  // the lockout case would leak into later cases and 403 their logins. Clearing
+  // the ledger before each test isolates them; the lockout case still records
+  // and asserts on its own five failures, which happen after this hook runs.
+  beforeEach(() => prisma.loginAttempt.deleteMany());
 
   afterAll(() => app.close());
   const http = () => request(app.getHttpServer());
