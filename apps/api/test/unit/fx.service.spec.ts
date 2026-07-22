@@ -95,7 +95,7 @@ describe('FxService', () => {
       prisma.currency.findMany.mockResolvedValue([{ code: 'EUR' }, { code: 'GBP' }]);
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ rates: { EUR: 0.92, GBP: 0.8 } }),
+        json: () => Promise.resolve({ rates: { EUR: 0.92, GBP: 0.8 } }),
       }) as any;
 
       const res = await service.syncFromFeed();
@@ -113,7 +113,7 @@ describe('FxService', () => {
       prisma.currency.findMany.mockResolvedValue([{ code: 'EUR' }, { code: 'XOF' }]);
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ rates: { EUR: 0.92 } }),
+        json: () => Promise.resolve({ rates: { EUR: 0.92 } }),
       }) as any;
 
       const res = await service.syncFromFeed();
@@ -157,7 +157,7 @@ describe('FxService', () => {
 
   describe('history', () => {
     it('reads newest-first, scoped to base+quote, honouring take', () => {
-      service.history('EUR', 10);
+      void service.history('EUR', 10);
       expect(prisma.fxRate.findMany).toHaveBeenCalledWith({
         where: { baseCurrency: 'USD', quoteCurrency: 'EUR' },
         orderBy: { effectiveAt: 'desc' },

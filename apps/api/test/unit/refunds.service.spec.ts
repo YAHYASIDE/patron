@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Prisma, RefundStatus, WalletTxnType } from '@prisma/client';
 import { RefundsService } from '../../src/modules/refunds/refunds.service';
 

@@ -18,7 +18,7 @@ const creds: ProviderCredentials = { baseUrl: 'https://api.test/', apiKey: 'k', 
 const okResponse = (body: unknown, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
-  text: async () => (body === undefined ? '' : JSON.stringify(body)),
+  text: () => Promise.resolve(body === undefined ? '' : JSON.stringify(body)),
 });
 
 describe('BaseHttpAdapter', () => {
@@ -64,7 +64,7 @@ describe('BaseHttpAdapter', () => {
     });
 
     it('wraps a non-JSON success body under a raw key', async () => {
-      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, text: async () => 'not json' }) as any;
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve('not json') }) as any;
       expect(await adapter.callRequest(creds, '/x')).toEqual({ raw: 'not json' });
     });
 

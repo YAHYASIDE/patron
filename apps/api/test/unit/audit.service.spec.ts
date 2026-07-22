@@ -76,7 +76,7 @@ describe('AuditService', () => {
     it('prefers the explicit actorId and pulls ip/userId from request context', () => {
       const tx: any = { auditLog: { create: jest.fn().mockReturnValue({}) } };
 
-      RequestContextStore.run(
+      void RequestContextStore.run(
         { correlationId: 'c1', userId: 'ctx-user', ip: '9.9.9.9' },
         () => service.record(tx, { ...entry, actorId: 'explicit-actor' }),
       );
@@ -89,7 +89,7 @@ describe('AuditService', () => {
     it('falls back to the context userId when no actorId is given', () => {
       const tx: any = { auditLog: { create: jest.fn().mockReturnValue({}) } };
 
-      RequestContextStore.run(
+      void RequestContextStore.run(
         { correlationId: 'c1', userId: 'ctx-user', ip: '1.1.1.1' },
         () => service.record(tx, entry),
       );
@@ -100,7 +100,7 @@ describe('AuditService', () => {
     it('leaves userId and ipAddress undefined outside any request context', () => {
       const tx: any = { auditLog: { create: jest.fn().mockReturnValue({}) } };
 
-      service.record(tx, entry);
+      void service.record(tx, entry);
 
       const data = tx.auditLog.create.mock.calls[0][0].data;
       expect(data.userId).toBeUndefined();

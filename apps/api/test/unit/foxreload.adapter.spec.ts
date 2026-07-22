@@ -20,7 +20,7 @@ const req: FulfilRequest = {
 const resp = (body: unknown, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
-  text: async () => JSON.stringify(body),
+  text: () => Promise.resolve(JSON.stringify(body)),
 });
 
 describe('FoxReloadAdapter', () => {

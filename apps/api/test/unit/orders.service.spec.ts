@@ -78,7 +78,7 @@ describe('OrdersService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       orderItem: { findUnique: jest.fn() },
-      $transaction: jest.fn(async (cb: any) => cb(tx)),
+      $transaction: jest.fn((cb: any) => cb(tx)),
     };
     crypto = { decrypt: jest.fn((v: string) => `dec:${v}`) };
     outbox = { emit: jest.fn().mockResolvedValue(undefined) };

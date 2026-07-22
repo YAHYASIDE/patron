@@ -33,13 +33,13 @@ describe('HealthController', () => {
 
   describe('ready', () => {
     it('checks the database and redis only', () => {
-      controller.ready();
+      void controller.ready();
       const checks = health.check.mock.calls[0][0];
       expect(checks).toHaveLength(2);
     });
 
     it('wires the database ping and redis check into its closures', async () => {
-      controller.ready();
+      void controller.ready();
       const [dbCheck, redisCheck] = health.check.mock.calls[0][0];
       await dbCheck();
       const redis = await redisCheck();
@@ -50,7 +50,7 @@ describe('HealthController', () => {
 
   describe('full', () => {
     it('runs the full six-way check set, exercising every closure', async () => {
-      controller.full();
+      void controller.full();
       const checks = health.check.mock.calls[0][0];
       expect(checks).toHaveLength(6);
       // Invoke each closure so the delegations are all covered.

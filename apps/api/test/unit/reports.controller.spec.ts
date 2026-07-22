@@ -41,12 +41,12 @@ describe('ReportsController', () => {
   });
 
   it('revenue uses the fast (rollup) path', () => {
-    controller.revenue(dto);
+    void controller.revenue(dto);
     expect(reports.revenueFast).toHaveBeenCalledWith(dto);
   });
 
   it('revenueLive uses the live path', () => {
-    controller.revenueLive(dto);
+    void controller.revenueLive(dto);
     expect(reports.revenue).toHaveBeenCalledWith(dto);
   });
 
@@ -65,7 +65,7 @@ describe('ReportsController', () => {
   });
 
   it('queues delegates to reports.queueStats', () => {
-    controller.queues();
+    void controller.queues();
     expect(reports.queueStats).toHaveBeenCalledTimes(1);
   });
 

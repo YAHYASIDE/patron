@@ -53,7 +53,7 @@ describe('CatalogPublicController', () => {
   });
 
   it('resolves a single product without a currency', () => {
-    controller.product('SKU1');
+    void controller.product('SKU1');
     expect(products.findOnePublic).toHaveBeenCalledWith('SKU1', undefined);
   });
 });

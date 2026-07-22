@@ -8,7 +8,9 @@ import { CurrentUser, AuthUser } from '../../src/common/decorators/current-user.
  */
 function factoryOf(decorator: (...a: any[]) => ParameterDecorator, arg?: any) {
   class Probe {
-    handler(@decorator(arg) _value: unknown) {}
+    handler(@decorator(arg) value: unknown) {
+      void value;
+    }
   }
   const meta = Reflect.getMetadata(ROUTE_ARGS_METADATA, Probe, 'handler');
   return meta[Object.keys(meta)[0]].factory as (field: keyof AuthUser | undefined, ctx: any) => any;

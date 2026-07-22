@@ -60,19 +60,19 @@ describe('WalletService', () => {
 
   describe('listForUser / history', () => {
     it('includes currency metadata for each wallet', () => {
-      service.listForUser('u1');
+      void service.listForUser('u1');
       expect(prisma.wallet.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1' } }),
       );
     });
 
     it('filters history by currency only when one is provided', () => {
-      service.history('u1', 'USD');
+      void service.history('u1', 'USD');
       expect(prisma.walletTransaction.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1', currency: 'USD' } }),
       );
 
-      service.history('u1');
+      void service.history('u1');
       expect(prisma.walletTransaction.findMany).toHaveBeenLastCalledWith(
         expect.objectContaining({ where: { userId: 'u1' } }),
       );

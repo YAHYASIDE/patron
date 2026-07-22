@@ -79,7 +79,7 @@ describe('ProviderRegistry', () => {
 
   describe('candidatesFor', () => {
     it('filters to active+healthy providers, best (priority then cost) first', () => {
-      registry.candidatesFor('prod-1');
+      void registry.candidatesFor('prod-1');
       const arg = prisma.productProvider.findMany.mock.calls[0][0];
       expect(arg.where).toEqual({
         productId: 'prod-1',

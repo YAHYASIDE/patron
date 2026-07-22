@@ -29,7 +29,7 @@ describe('CategoriesService', () => {
 
   describe('findTree', () => {
     it('queries only active top-level categories with active children', () => {
-      service.findTree();
+      void service.findTree();
       const args = prisma.category.findMany.mock.calls[0][0];
       expect(args.where).toEqual({ deletedAt: null, isActive: true, parentId: null });
       expect(args.include.children.where).toEqual({ deletedAt: null, isActive: true });
@@ -38,7 +38,7 @@ describe('CategoriesService', () => {
 
   describe('findAll', () => {
     it('returns non-deleted categories with product/game counts', () => {
-      service.findAll();
+      void service.findAll();
       const args = prisma.category.findMany.mock.calls[0][0];
       expect(args.where).toEqual({ deletedAt: null });
       expect(args.include._count.select).toEqual({ products: true, games: true });

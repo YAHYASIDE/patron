@@ -19,12 +19,12 @@ describe('WalletController', () => {
   });
 
   it('passes the optional currency filter through to history', () => {
-    controller.history('u1', 'USD');
+    void controller.history('u1', 'USD');
     expect(wallet.history).toHaveBeenCalledWith('u1', 'USD');
   });
 
   it('reads all history when no currency filter is given', () => {
-    controller.history('u1', undefined);
+    void controller.history('u1', undefined);
     expect(wallet.history).toHaveBeenCalledWith('u1', undefined);
   });
 

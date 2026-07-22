@@ -61,7 +61,7 @@ describe('QuotesService', () => {
         findMany: jest.fn(),
         updateMany: jest.fn(),
       },
-      $transaction: jest.fn(async (cb: any) => cb(tx)),
+      $transaction: jest.fn((cb: any) => cb(tx)),
     };
     pricing = {
       baseCurrency: 'USD',
