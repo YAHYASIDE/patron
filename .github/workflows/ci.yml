@@ -233,28 +233,40 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=sha,format=long
-            type=ref,event=branch
-            type=semver,pattern={{version}}
+      - name: Compute image ref
+        id: img
+        # ghcr requires a lowercase repository; github.repository keeps the
+        # owner's original case (e.g. YAHYASIDE), which is an invalid image
+        # reference and made Trivy fail to parse the name.
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      # Build into the local Docker daemon so the scan has a real image to read
+      # — the buildx cache alone is invisible to Trivy, and on a pull request the
+      # image is never pushed. A push to main additionally publishes below,
+      # reusing this cache so it is near-instant.
       - uses: docker/build-push-action@v6
         with:
           context: ./apps/api
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          load: true
+          tags: ${{ steps.img.outputs.ref }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: true          # supply-chain attestation
+          provenance: false          # `load` cannot export a provenance multi-manifest
 
       - name: Scan image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          image-ref: ${{ steps.img.outputs.ref }}
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true       # do not block on things with no patch
+
+      - name: Publish image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          push: true
+          tags: ${{ steps.img.outputs.ref }}
+          cache-from: type=gha
+          provenance: true           # supply-chain attestation
