@@ -1,5 +1,10 @@
-dist
-coverage
-node_modules
-prisma/migrations
+**/dist
+**/build
+**/.next
+**/coverage
+**/node_modules
+**/.turbo
+**/prisma/migrations
+**/package-lock.json
+apps/mobile
 *.md
