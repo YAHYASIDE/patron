@@ -48,3 +48,6 @@ backup/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Redis persistence dumps from local test runs
+dump.rdb
