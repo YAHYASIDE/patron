@@ -26,10 +26,14 @@ export class ReportExportService {
   async export(report: string, dto: DateRangeDto): Promise<{ filename: string; csv: string }> {
     const { from, to } = dto.resolve();
     const sources = this.sources(dto);
-    const source = sources[report];
+    // A Map lookup, not object indexing: `sources[report]` with a user-supplied
+    // key would reach inherited members (`constructor`, `toString`, …) and
+    // dispatch to an unintended function. `Map.get` only ever returns entries we
+    // put in, so an unknown report is a clean miss.
+    const source = sources.get(report);
     if (!source) {
       throw new BadRequestException(
-        `Unknown report "${report}". Available: ${Object.keys(sources).join(', ')}`,
+        `Unknown report "${report}". Available: ${[...sources.keys()].join(', ')}`,
       );
     }
 
@@ -38,18 +42,18 @@ export class ReportExportService {
   }
 
   /** The set of exportable reports and how each maps onto a service call. */
-  private sources(dto: DateRangeDto): Record<string, () => Promise<unknown>> {
-    return {
-      revenue: async () => (await this.reports.revenue(dto)).series,
-      profit: async () => (await this.reports.profit(dto)).series,
-      products: () => this.reports.productPerformance(dto),
-      providers: () => this.reports.providerPerformance(dto),
-      currencies: () => this.reports.currencyBreakdown(dto),
-      refunds: async () => (await this.reports.refundReport(dto)).byReason,
-      customers: async () => (await this.reports.customerStats(dto)).topCustomers,
-      ltv: async () => (await this.analytics.customerLifetimeValue(dto)).cohorts,
-      failures: async () => (await this.analytics.failedOrders(dto)).byRevenueLost,
-    };
+  private sources(dto: DateRangeDto): Map<string, () => Promise<unknown>> {
+    return new Map<string, () => Promise<unknown>>([
+      ['revenue', async () => (await this.reports.revenue(dto)).series],
+      ['profit', async () => (await this.reports.profit(dto)).series],
+      ['products', () => this.reports.productPerformance(dto)],
+      ['providers', () => this.reports.providerPerformance(dto)],
+      ['currencies', () => this.reports.currencyBreakdown(dto)],
+      ['refunds', async () => (await this.reports.refundReport(dto)).byReason],
+      ['customers', async () => (await this.reports.customerStats(dto)).topCustomers],
+      ['ltv', async () => (await this.analytics.customerLifetimeValue(dto)).cohorts],
+      ['failures', async () => (await this.analytics.failedOrders(dto)).byRevenueLost],
+    ]);
   }
 
   toCsv(rows: Array<Record<string, unknown>>, columns?: string[]): string {

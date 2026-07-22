@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Self-contained build config used by `nest build` (Nest picks up
+  // tsconfig.build.json automatically). The production image is built with the
+  // Docker context scoped to apps/api (see .github/workflows/ci.yml and rule 9
+  // in CLAUDE.md), so it cannot reach the shared ../../packages/tsconfig that
+  // the dev tsconfig.json extends. This mirrors @patron/tsconfig/nestjs.json +
+  // base.json so the isolated build applies the same options — crucially
+  // experimentalDecorators/emitDecoratorMetadata, without which every NestJS
+  // decorator fails to compile. Keep it in sync with packages/tsconfig.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true,
+    "incremental": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "paths": { "@/*": ["src/*"] }
+  },
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+}
