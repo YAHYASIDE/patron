@@ -60,7 +60,6 @@ import { ReportsModule } from './modules/reports/reports.module';
     ReferenceModule,
     MetricsModule,
     TracingModule,
-    AuditModule,
     HealthModule,
 
     // domain

@@ -40,6 +40,24 @@ export class ReportsService {
     return { day: 'day', week: 'week', month: 'month' }[granularity] ?? 'day';
   }
 
+  /**
+   * Collapse a revenue series into scalar totals. Shared by the live and
+   * rollup revenue paths, which produce the same columns.
+   */
+  private revenueTotals(
+    series: Array<{ orders: bigint; gross: string; refunds: string; net: string }>,
+  ) {
+    return series.reduce(
+      (acc, row) => ({
+        orders: acc.orders + Number(row.orders),
+        gross: acc.gross + Number(row.gross),
+        refunds: acc.refunds + Number(row.refunds),
+        net: acc.net + Number(row.net),
+      }),
+      { orders: 0, gross: 0, refunds: 0, net: 0 },
+    );
+  }
+
   // ─────────────── Revenue ───────────────
 
   /**
@@ -126,15 +144,7 @@ export class ReportsService {
       from, to, bucket,
     );
 
-    const totals = series.reduce(
-      (acc, row) => ({
-        orders: acc.orders + Number(row.orders),
-        gross: acc.gross + Number(row.gross),
-        refunds: acc.refunds + Number(row.refunds),
-        net: acc.net + Number(row.net),
-      }),
-      { orders: 0, gross: 0, refunds: 0, net: 0 },
-    );
+    const totals = this.revenueTotals(series);
 
     return { range: { from, to }, granularity: dto.granularity, totals, series, source: 'live' as const };
   }
@@ -156,15 +166,7 @@ export class ReportsService {
       from, to, bucket,
     );
 
-    const totals = series.reduce(
-      (acc, row) => ({
-        orders: acc.orders + Number(row.orders),
-        gross: acc.gross + Number(row.gross),
-        refunds: acc.refunds + Number(row.refunds),
-        net: acc.net + Number(row.net),
-      }),
-      { orders: 0, gross: 0, refunds: 0, net: 0 },
-    );
+    const totals = this.revenueTotals(series);
 
     return { range: { from, to }, granularity: dto.granularity, totals, series, source: 'rollup' as const };
   }

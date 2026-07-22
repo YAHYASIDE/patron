@@ -79,15 +79,14 @@ export class ReportsController {
    * CSV export. Streamed as an attachment rather than returned as JSON for the
    * client to convert — finance teams live in spreadsheets, and a
    * browser-side conversion is one more place to get encoding wrong.
+   *
+   * The report→source resolution and CSV rendering live in ReportExportService;
+   * this handler only wires the HTTP response.
    */
-  @ApiOperation({ summary: 'Export a report as CSV' })
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Export a report as CSV',
     description: 'UTF-8 with BOM, CRLF line endings, and formula-injection escaping for Excel.',
   })
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Export a report as CSV' })
   @Throttle({ expensive: { limit: 5, ttl: 60_000 } })
   @Get('export/:report')
   @Header('content-type', 'text/csv; charset=utf-8')
@@ -96,28 +95,8 @@ export class ReportsController {
     @Query() dto: DateRangeDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { from, to } = dto.resolve();
-
-    const sources: Record<string, () => Promise<unknown>> = {
-      revenue: async () => (await this.reports.revenue(dto)).series,
-      profit: async () => (await this.reports.profit(dto)).series,
-      products: () => this.reports.productPerformance(dto),
-      providers: () => this.reports.providerPerformance(dto),
-      currencies: () => this.reports.currencyBreakdown(dto),
-      refunds: async () => (await this.reports.refundReport(dto)).byReason,
-      customers: async () => (await this.reports.customerStats(dto)).topCustomers,
-      ltv: async () => (await this.analytics.customerLifetimeValue(dto)).cohorts,
-      failures: async () => (await this.analytics.failedOrders(dto)).byRevenueLost,
-    };
-
-    const source = sources[report];
-    if (!source) {
-      res.status(400);
-      return `Unknown report "${report}". Available: ${Object.keys(sources).join(', ')}`;
-    }
-
-    const rows = (await source()) as Array<Record<string, unknown>>;
-    res.setHeader('content-disposition', `attachment; filename="${this.exporter.filename(report, from, to)}"`);
-    return this.exporter.toCsv(rows);
+    const { filename, csv } = await this.exporter.export(report, dto);
+    res.setHeader('content-disposition', `attachment; filename="${filename}"`);
+    return csv;
   }
 }

@@ -63,9 +63,6 @@ export class WebhooksController {
       'Signature is verified against the raw body before parsing. Replays are ' +
       'rejected by a unique (source, eventId) constraint.',
   })
-  // Generous: a gateway retry storm must not be throttled into a lost capture.
-  @Throttle({ default: { limit: 300, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Inbound gateway webhook (signature verified against the raw body)' })
   // Gateways retry aggressively during an incident; the limit is high because
   // dropping a capture webhook is far worse than absorbing the load.
   @Throttle({ default: { limit: 600, ttl: 60_000 } })

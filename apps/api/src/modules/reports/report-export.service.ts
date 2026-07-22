@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+
+import { ReportsService } from './reports.service';
+import { AnalyticsService } from './analytics.service';
+import { DateRangeDto } from './dto/report.dto';
 
 /**
  * CSV export.
@@ -9,6 +13,45 @@ import { Injectable } from '@nestjs/common';
  */
 @Injectable()
 export class ReportExportService {
+  constructor(
+    private reports: ReportsService,
+    private analytics: AnalyticsService,
+  ) {}
+
+  /**
+   * Resolve a report name to its rows and render them as CSV. The
+   * report→source mapping and unknown-report handling live here rather than in
+   * the controller, which now only wires the HTTP response.
+   */
+  async export(report: string, dto: DateRangeDto): Promise<{ filename: string; csv: string }> {
+    const { from, to } = dto.resolve();
+    const sources = this.sources(dto);
+    const source = sources[report];
+    if (!source) {
+      throw new BadRequestException(
+        `Unknown report "${report}". Available: ${Object.keys(sources).join(', ')}`,
+      );
+    }
+
+    const rows = (await source()) as Array<Record<string, unknown>>;
+    return { filename: this.filename(report, from, to), csv: this.toCsv(rows) };
+  }
+
+  /** The set of exportable reports and how each maps onto a service call. */
+  private sources(dto: DateRangeDto): Record<string, () => Promise<unknown>> {
+    return {
+      revenue: async () => (await this.reports.revenue(dto)).series,
+      profit: async () => (await this.reports.profit(dto)).series,
+      products: () => this.reports.productPerformance(dto),
+      providers: () => this.reports.providerPerformance(dto),
+      currencies: () => this.reports.currencyBreakdown(dto),
+      refunds: async () => (await this.reports.refundReport(dto)).byReason,
+      customers: async () => (await this.reports.customerStats(dto)).topCustomers,
+      ltv: async () => (await this.analytics.customerLifetimeValue(dto)).cohorts,
+      failures: async () => (await this.analytics.failedOrders(dto)).byRevenueLost,
+    };
+  }
+
   toCsv(rows: Array<Record<string, unknown>>, columns?: string[]): string {
     if (rows.length === 0) return '';
     const headers = columns ?? Object.keys(rows[0]);
