@@ -88,10 +88,32 @@ Bring the whole stack up locally (builds images):
 docker compose --profile apps up --build
 ```
 
+## Project status
+
+_As of commit `8fa4666` — all 9 GitHub Actions checks green._
+
+| Part | Status |
+|---|---|
+| `apps/api` (NestJS backend) | Core commerce complete and test-covered; Identity & Access hardened (Sprint 1). |
+| `apps/admin` (Next.js) | Structural scaffold — builds/lints clean, no business features yet. |
+| `apps/mobile` (Flutter) | Structural scaffold — analyzes/tests clean, no business features yet. |
+
+Backend quality gates: **853 tests** (794 unit / 32 integration / 27 e2e), unit
+coverage **93% lines / 92% functions / 87% branches**, `npm audit` **clean**, and
+a Docker image built + Trivy-scanned in CI.
+
+## Documentation
+
+| Doc | Purpose |
+|---|---|
+| [`docs/HANDOVER.md`](./docs/HANDOVER.md) | Project handover: status, architecture, roadmap, lessons learned. **Start here.** |
+| [`docs/IMPLEMENTATION_STATUS.md`](./docs/IMPLEMENTATION_STATUS.md) | Module-by-module what's built / functional / scaffold. |
+| [`docs/DEVELOPER_GUIDE.md`](./docs/DEVELOPER_GUIDE.md) | Onboarding, coding standards, how to add a provider/gateway/product. |
+| [`docs/adr/README.md`](./docs/adr/README.md) | Architecture Decision Records (the *why*). |
+| [`docs/PRODUCTION_READINESS.md`](./docs/PRODUCTION_READINESS.md) | Pre-launch blockers and subsystem scores. |
+| [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) · [`DISASTER_RECOVERY.md`](./docs/DISASTER_RECOVERY.md) · [`OBSERVABILITY.md`](./docs/OBSERVABILITY.md) · [`SECURITY_AUDIT.md`](./docs/SECURITY_AUDIT.md) | Run, recover, observe, and secure the system. |
+| [`apps/api/DATABASE.md`](./apps/api/DATABASE.md) | Data-layer conventions. |
+
 ## Conventions
 
 Project-wide engineering rules live in [`CLAUDE.md`](./CLAUDE.md).
-
-> **Note on features:** this repository is currently the project *scaffold*.
-> `apps/api` carries the existing backend; the admin and mobile apps are
-> structural scaffolds with no business features yet.
