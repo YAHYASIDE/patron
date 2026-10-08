@@ -140,7 +140,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh]">
       {/* desktop sidebar */}
-      <aside className="surface fixed inset-y-0 start-0 z-30 hidden w-64 flex-col border-0 border-s border-[rgb(var(--line))] lg:flex">
+      <aside className="surface fixed inset-y-0 start-0 z-30 hidden w-64 flex-col border-0 border-e border-[rgb(var(--line))] lg:flex">
         {SidebarInner}
       </aside>
 
@@ -154,7 +154,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="lg:pe-64">
+      <div className="lg:ps-64">
         <header className="surface sticky top-0 z-20 flex h-16 items-center gap-3 border-0 border-b border-[rgb(var(--line))] px-4">
           <button
             className="grid h-10 w-10 place-items-center rounded-lg surface-2 lg:hidden"
