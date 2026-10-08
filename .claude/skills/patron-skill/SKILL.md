@@ -168,6 +168,20 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
 - **Migration "drift" with zero structural ops:** it's operational SQL
   (indexes, defaults, FKs) — the structural-only gate (ADR 020) is correct;
   don't rewrite migrations to chase it.
+- **CI `Security checks` red (`npm audit` in apps/api):** new advisories drop
+  against existing transitive deps over time, so a green audit goes red with no
+  code change. Fix at the source, never suppress: upgrade the direct dep that
+  pulls the vuln, or pin a patched transitive version via `overrides` in
+  `apps/api/package.json`. If a leaf has no patched release (e.g. `braces
+  <=3.0.3`), upgrade the parent that drops it (jest 30 removes micromatch/braces).
+  **npm gotcha:** `overrides` in the *root* package.json do **not** cascade into
+  a workspace's sub-deps, and a sub-dir `npm ci` inside the workspace is refused.
+  So regenerate the self-contained `apps/api/package-lock.json` **in isolation**
+  (copy its package.json to an empty dir outside the repo, `npm install
+  --package-lock-only`, `npm audit`), then copy the lockfile back. That isolated
+  lockfile is exactly what the CI Security job audits and what Docker builds —
+  it is the security-authoritative artifact. Verify with build + unit tests +
+  coverage before committing (a jest major bump must keep all 794 tests green).
 
 ## 8. Next phase: the visible product (scoped now)
 
