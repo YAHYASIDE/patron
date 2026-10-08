@@ -3,5 +3,68 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+  --bg: 244 246 246; /* ink-50 */
+  --surface: 255 255 255;
+  --surface-2: 238 242 241; /* ink-100 */
+  --line: 221 229 227; /* ink-200 */
+  --text: 13 26 22; /* ink-900 */
+  --muted: 93 112 108; /* ink-500 */
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: 6 17 15; /* ink-950 */
+  --surface: 13 26 22; /* ink-900 */
+  --surface-2: 22 36 31; /* ink-800 */
+  --line: 42 58 54; /* ink-700 */
+  --text: 238 242 241;
+  --muted: 144 166 160; /* ink-400 */
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text));
+    font-feature-settings: 'tnum' 0;
+  }
+  *:focus-visible {
+    outline: 2px solid #0d6d64;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* tabular figures wherever numbers line up */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .surface {
+    background-color: rgb(var(--surface));
+    border: 1px solid rgb(var(--line));
+  }
+  .surface-2 {
+    background-color: rgb(var(--surface-2));
+  }
+  .text-muted {
+    color: rgb(var(--muted));
+  }
+  .hairline {
+    border-color: rgb(var(--line));
+  }
+}
+
+/* slim, themed scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--line));
+  border-radius: 999px;
+  border: 2px solid rgb(var(--bg));
 }
