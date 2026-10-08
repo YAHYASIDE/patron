@@ -9,6 +9,11 @@ RUN npm ci
 FROM node:22-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# The admin talks to the API through this URL. NEXT_PUBLIC_* is inlined at
+# build time, so it must be set here (pass --build-arg NEXT_PUBLIC_API_URL=...).
+# Example: --build-arg NEXT_PUBLIC_API_URL=https://shop.etssadagha.com/api/v1
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
