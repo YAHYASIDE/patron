@@ -171,17 +171,24 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
 - **CI `Security checks` red (`npm audit` in apps/api):** new advisories drop
   against existing transitive deps over time, so a green audit goes red with no
   code change. Fix at the source, never suppress: upgrade the direct dep that
-  pulls the vuln, or pin a patched transitive version via `overrides` in
-  `apps/api/package.json`. If a leaf has no patched release (e.g. `braces
-  <=3.0.3`), upgrade the parent that drops it (jest 30 removes micromatch/braces).
-  **npm gotcha:** `overrides` in the *root* package.json do **not** cascade into
-  a workspace's sub-deps, and a sub-dir `npm ci` inside the workspace is refused.
-  So regenerate the self-contained `apps/api/package-lock.json` **in isolation**
-  (copy its package.json to an empty dir outside the repo, `npm install
-  --package-lock-only`, `npm audit`), then copy the lockfile back. That isolated
-  lockfile is exactly what the CI Security job audits and what Docker builds —
-  it is the security-authoritative artifact. Verify with build + unit tests +
-  coverage before committing (a jest major bump must keep all 794 tests green).
+  pulls the vuln, or pin a patched transitive version via `overrides`. If a leaf
+  has no patched release (e.g. `braces <=3.0.3`), upgrade the parent that drops
+  it (jest 30 removes micromatch/braces).
+  **Which lockfile does the audit read?** The Security job runs `cd apps/api &&
+  npm audit`, but *inside the workspace* npm resolves against the **root**
+  `package-lock.json`, not apps/api's self-contained one. So the pins must go in
+  the **root `package.json` `overrides`** to fix the gate. (Docker builds from
+  apps/api's own context, so keep the same `overrides` in `apps/api/package.json`
+  too — its standalone lockfile is what the image uses.) Put the override block
+  in **both** package.json files.
+  **npm gotcha — overrides only re-apply on a clean resolve:** `npm install`
+  reuses existing `node_modules` and reports "up to date" without applying a new
+  override. You must `rm -rf package-lock.json node_modules apps/*/node_modules`
+  then `npm install` (or `npm install --package-lock-only`) so npm re-resolves
+  from the registry. After a clean reinstall, run `npx prisma generate` before
+  building/testing or every spec fails on missing Prisma types.
+  Verify the exact CI command — `cd apps/api && npm audit --audit-level=moderate`
+  → 0 — plus build, typecheck, lint, 794 unit tests and coverage, before commit.
 
 ## 8. Next phase: the visible product (scoped now)
 
