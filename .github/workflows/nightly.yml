@@ -8,6 +8,9 @@ jobs:
   resilience:
     name: Resilience & stress
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
     services:
       postgres:
         image: postgres:16-alpine
@@ -23,7 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: npm }
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci && npx prisma generate && npx prisma migrate deploy
       # Long-running concurrency and chaos suites — too slow for every PR,
       # too important to never run.
@@ -32,10 +38,16 @@ jobs:
   audit:
     name: Dependency drift
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: npm }
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm audit --audit-level=low || true
       - run: npx npm-check-updates --format group

@@ -2,9 +2,14 @@
 node_modules/
 .npm/
 
+# ─── monorepo / turborepo ───
+.turbo/
+
 # ─── build output ───
 dist/
 build/
+.next/
+out/
 *.tsbuildinfo
 
 # ─── environment & secrets ───
@@ -23,7 +28,7 @@ junit.xml
 
 # ─── prisma ───
 # The generated client is a build artifact: `prisma generate` recreates it.
-prisma/generated/
+**/prisma/generated/
 node_modules/.prisma/
 
 # ─── logs & runtime ───
@@ -43,3 +48,6 @@ backup/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Redis persistence dumps from local test runs
+dump.rdb

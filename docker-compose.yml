@@ -1,3 +1,13 @@
+# ─────────────────────────────────────────────────────────────
+#  Patron — local development stack
+#
+#  Infrastructure (postgres, redis) starts by default:
+#      docker compose up -d
+#
+#  Application services (api, admin) are behind the `apps` profile
+#  so day-to-day work can run them on the host with hot reload:
+#      docker compose --profile apps up --build
+# ─────────────────────────────────────────────────────────────
 services:
   postgres:
     image: postgres:16-alpine
@@ -15,6 +25,36 @@ services:
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    profiles: ["apps"]
+    build:
+      context: ./apps/api
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://patron:patron@postgres:5432/patron?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports: ["3000:3000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  admin:
+    profiles: ["apps"]
+    build:
+      context: ./apps/admin
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+    ports: ["3001:3000"]
+    depends_on:
+      - api
 
 volumes:
   pgdata:

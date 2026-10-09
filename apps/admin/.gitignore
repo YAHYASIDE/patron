@@ -1,0 +1,18 @@
+# Next.js
+/.next/
+/out/
+
+# production build
+/build
+
+# env
+.env
+.env.*
+!.env.example
+
+# debug
+npm-debug.log*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts.timestamp
