@@ -106,21 +106,23 @@ In the DNS panel for **etssadagha.com**, add a single **CNAME** record:
 
 The API uses its free `*.up.railway.app` domain, so it needs no DNS record.
 
-## 6. Migrations + seed (once, securely)
+## 6. Migrations + seed (automatic)
 
-The production image has no `ts-node`/`prisma` CLI, so run these from your
-checkout through the Railway CLI, which injects `DATABASE_URL` **without
-printing it**:
+The API image **bootstraps its own database on boot**: the entrypoint runs
+`prisma migrate deploy` every start (idempotent), and seeds once when
+`SEED_ON_BOOT=true`. So no terminal/CLI step is needed — just two variables on
+the API service:
 
-```bash
-# in your local patron checkout, on the API service:
-railway link           # pick the project + the API service
-railway run npx prisma migrate deploy
-railway run npx prisma db seed
-```
+- `SEED_ADMIN_PASSWORD` = the admin login password you want.
+- `SEED_ON_BOOT` = `true` **for the first deploy only**. After the first boot
+  has seeded, set it to `false` (or remove it) to skip re-seeding. (The seed is
+  idempotent upserts, so leaving it on is harmless, just wasteful.)
 
-Set `SEED_ADMIN_PASSWORD` as a **variable on the API service** first (not on the
-command line, not in chat); the seed reads it from the injected env.
+The seed needs `ENCRYPTION_KEY` (already set in step 2). On the first deploy the
+API logs `applying migrations…` then `seeding database…` then `starting API…`.
+
+*(Advanced/opt-out: set `RUN_MIGRATIONS=false` to skip auto-migration and apply
+migrations yourself.)*
 
 ## 7. Verify
 

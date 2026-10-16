@@ -47,6 +47,7 @@ COPY --from=prod-deps --chown=patron:nodejs /app/node_modules ./node_modules
 COPY --from=build     --chown=patron:nodejs /app/dist ./dist
 COPY --from=build     --chown=patron:nodejs /app/prisma ./prisma
 COPY --chown=patron:nodejs package.json ./
+COPY --chown=patron:nodejs docker-entrypoint.sh ./
 
 # Never root. A container escape should not start with UID 0.
 USER patron
@@ -56,5 +57,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:3000/api/v1/health/live || exit 1
 
+# The entrypoint applies pending migrations (and seeds once when SEED_ON_BOOT=true)
+# before starting the API, so a fresh database bootstraps itself on first deploy.
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/main"]
+CMD ["sh", "./docker-entrypoint.sh"]
