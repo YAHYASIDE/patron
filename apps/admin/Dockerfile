@@ -16,6 +16,10 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# The committed tsconfig.json extends ../../packages/tsconfig, which is outside
+# this app-scoped build context. Swap in the self-contained config so `next
+# build` resolves the TypeScript base inside the image (see tsconfig.docker.json).
+RUN cp tsconfig.docker.json tsconfig.json
 RUN npm run build
 
 # ─────────────── Stage 3: runtime ───────────────

@@ -164,6 +164,16 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
 - **Quote/coupon 429:** throttler tier hit during rapid testing — wait out the
   window, don't "fix" it.
 - **CODE_POOL purchase fails `no_provider`:** expected — no dispenser yet (§4).
+- **Admin Docker image fails on `../../packages/tsconfig`:** CI only ever builds
+  the **API** image (ci.yml `build` job, context `./apps/api`); the admin image
+  is **not** built in CI, so its Docker build is unverified until a real deploy.
+  `apps/admin/tsconfig.json` extends `../../packages/tsconfig/nextjs.json`, which
+  is outside the app-scoped Docker context (rule 9) → `next build` can't resolve
+  it in the image. Fix mirrors the API's `tsconfig.build.json`: a self-contained
+  `apps/admin/tsconfig.docker.json`, and the admin Dockerfile does
+  `cp tsconfig.docker.json tsconfig.json` before `npm run build`. Keep it in sync
+  with `packages/tsconfig`. Verify an image-context build by copying **only**
+  `apps/admin` to a temp dir (no monorepo root), `npm ci`, `npm run build`.
 - **`UID` lost in bash:** `UID` is readonly; use another name (`CID`).
 - **Migration "drift" with zero structural ops:** it's operational SQL
   (indexes, defaults, FKs) — the structural-only gate (ADR 020) is correct;
@@ -224,7 +234,35 @@ The user asked that everything I say be governed by this skill. So, on Patron:
 - **Keep this skill current.** When we decide or discover something durable,
   edit this file in the same turn.
 
-## 10. Pointers (deeper detail lives here)
+## 10. Deployment
+
+- **Render (easiest, IaC):** `render.yaml` at the repo root provisions the whole
+  stack in one Blueprint — `patron-db` (free Postgres), `patron-kv` (free Key
+  Value / Redis, `maxmemoryPolicy: noeviction` for BullMQ), `etssadagha-api`
+  (web, docker), `etssadagha-shop` (admin, docker). Runbook: `docs/DEPLOY_RENDER.md`.
+  Key facts proven while building it:
+  - Internal Key Value has **no password** (`ipAllowList: []`), so the API wires
+    `REDIS_HOST`/`REDIS_PORT` via `fromService … property: host|port` — no code
+    change (the app already reads host/port/password separately; password is just
+    undefined).
+  - Render **passes service env vars as Docker build args**, so the admin's
+    `NEXT_PUBLIC_API_URL` (inlined by Next at build) is set as a normal env var
+    and reaches `ARG NEXT_PUBLIC_API_URL` in the admin Dockerfile.
+  - `generateValue` produces base64 (~44 chars) — fine for JWT/METRICS, but **not**
+    for `ENCRYPTION_KEY` (needs exactly 64 hex). So `ENCRYPTION_KEY` is `sync:false`
+    and generated on the user's device; don't change the crypto to accept base64.
+  - Free plan covers web + Key Value, **not** workers → the fulfilment worker is
+    commented out in `render.yaml` (enable on a paid plan with `dockerCommand:
+    node dist/worker`).
+  - Service public URL = `https://<name>.onrender.com`; distinctive names avoid
+    global collisions.
+- **Railway:** `docs/DEPLOY_RAILWAY.md`. **VPS:** `deploy/docker-compose.prod.yml`.
+- **Self-bootstrap:** the API image's `docker-entrypoint.sh` runs `prisma migrate
+  deploy` every boot and seeds once when `SEED_ON_BOOT=true`, so a fresh DB
+  bootstraps with no terminal. `tsconfig.build.json` (rootDir=src) gives a flat
+  `dist/` (`dist/main.js`, `dist/worker.js`, `dist/seed-runner.js`).
+
+## 11. Pointers (deeper detail lives here)
 
 - `CLAUDE.md` — authoritative engineering rules.
 - `docs/HANDOVER.md`, `docs/IMPLEMENTATION_STATUS.md` — status & handover.
