@@ -41,7 +41,7 @@ describe('configuration', () => {
     expect(c.otel.enabled).toBe(false);
     expect(c.otel.sampleRatio).toBe(0.1);
     expect(c.otel.serviceName).toBe('patron-api');
-    expect(c.security).toEqual({ maxLoginAttempts: 5, lockoutMinutes: 15, otpTtlSeconds: 300 });
+    expect(c.security).toEqual({ maxLoginAttempts: 5, lockoutMinutes: 15, otpTtlSeconds: 300, relayedOtpTtlSeconds: 1800 });
   });
 
   it('reads overrides and numeric-parses PORT and REDIS_PORT', () => {

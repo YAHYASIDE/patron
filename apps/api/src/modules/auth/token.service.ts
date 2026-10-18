@@ -25,7 +25,7 @@ export class TokenService {
    * Refresh tokens are opaque random strings stored as SHA-256 digests —
    * a database leak cannot be replayed as valid sessions.
    */
-  async issue(userId: string, email: string, meta: { deviceInfo?: string; ip?: string } = {}): Promise<TokenPair> {
+  async issue(userId: string, email: string | null, meta: { deviceInfo?: string; ip?: string } = {}): Promise<TokenPair> {
     const accessToken = await this.jwt.signAsync(
       { sub: userId, email, type: 'access' },
       { secret: this.config.getOrThrow('jwt.accessSecret'), expiresIn: this.config.get('jwt.accessTtl') },

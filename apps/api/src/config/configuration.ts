@@ -44,5 +44,11 @@ export default () => ({
     metricsToken: process.env.METRICS_TOKEN,
     logLevel: process.env.LOG_LEVEL,
   },
-  security: { maxLoginAttempts: 5, lockoutMinutes: 15, otpTtlSeconds: 300 },
+  security: {
+    maxLoginAttempts: 5,
+    lockoutMinutes: 15,
+    otpTtlSeconds: 300,
+    // codes the owner sends by hand over WhatsApp need time to reach the customer
+    relayedOtpTtlSeconds: 1800,
+  },
 });

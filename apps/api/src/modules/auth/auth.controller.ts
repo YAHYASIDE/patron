@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Ip, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Ip, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -6,9 +6,10 @@ import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import {
-  ChangePasswordDto, ForgotPasswordDto, LoginDto, RefreshDto,
-  RegisterDto, ResetPasswordDto, VerifyCodeDto,
+  ChangePasswordDto, ForgotPasswordDto, LoginDto, PhoneLoginDto, PhoneStartDto, RefreshDto,
+  RegisterDto, RequestPhoneCodeDto, ResetPasswordDto, VerifyCodeDto,
 } from './dto/auth.dto';
 
 @ApiTags('auth')
@@ -50,6 +51,58 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: Request, @Ip() ip: string) {
     return this.auth.login(dto, this.meta(req, ip, dto.deviceInfo));
+  }
+
+  @ApiOperation({
+    summary: 'Sign in with a WhatsApp number',
+    description:
+      'A new number (with a full name) signs straight in, unverified. A number that is ' +
+      'verified, has a password or has orders returns CODE_REQUIRED: the owner relays a ' +
+      'code over WhatsApp, then POST /auth/phone/login.',
+  })
+  @ApiResponse({ status: 200, description: '{ status: SIGNED_IN, ...tokens } or { status: CODE_REQUIRED }.' })
+  @ApiResponse({ status: 400, description: 'NAME_REQUIRED for a new number, or validation failure.' })
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('phone/start')
+  phoneStart(@Body() dto: PhoneStartDto, @Req() req: Request, @Ip() ip: string) {
+    return this.auth.phoneStart(dto, this.meta(req, ip, dto.deviceInfo));
+  }
+
+  @ApiOperation({ summary: 'Finish a WhatsApp sign-in with the relayed code' })
+  @ApiResponse({ status: 200, description: 'Token pair; the number is now verified.' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired code.' })
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('phone/login')
+  phoneLogin(@Body() dto: PhoneLoginDto, @Req() req: Request, @Ip() ip: string) {
+    return this.auth.phoneLogin(dto, this.meta(req, ip, dto.deviceInfo));
+  }
+
+  @ApiOperation({
+    summary: 'Ask for a code to verify the WhatsApp number',
+    description: 'The code goes to the owner, who sends it over WhatsApp. Asking again reuses the live code.',
+  })
+  @ApiResponse({ status: 200, description: '{ status: SENT | VERIFIED, phone }.' })
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 3, ttl: 300_000 } })
+  @HttpCode(200)
+  @Post('phone/request-code')
+  requestPhoneCode(@CurrentUser('id') userId: string, @Body() dto: RequestPhoneCodeDto) {
+    return this.auth.requestPhoneCode(userId, dto);
+  }
+
+  @ApiOperation({ summary: 'Verify the WhatsApp number with the relayed code' })
+  @ApiResponse({ status: 200, description: 'Number verified.' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired code.' })
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('phone/verify')
+  verifyPhone(@CurrentUser('id') userId: string, @Body() dto: VerifyCodeDto) {
+    return this.auth.verifyPhone(userId, dto);
   }
 
   @ApiOperation({
@@ -141,5 +194,31 @@ export class AuthController {
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.auth.resetPassword(dto);
+  }
+}
+
+/**
+ * The owner's queue of codes to send by hand over WhatsApp. Reading a code lets
+ * one sign in as that customer, so it takes the user-management permission.
+ */
+@ApiBearerAuth()
+@ApiTags('admin/verifications')
+@Controller('admin/verifications')
+export class VerificationsAdminController {
+  constructor(private auth: AuthService) {}
+
+  @ApiOperation({ summary: 'Codes waiting to be sent, with the customer and the code' })
+  @RequirePermissions('users.write')
+  @Get('pending')
+  pending() {
+    return this.auth.listRelayPending();
+  }
+
+  @ApiOperation({ summary: 'Record that the owner sent this code' })
+  @RequirePermissions('users.write')
+  @HttpCode(200)
+  @Post(':id/sent')
+  sent(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') actorId: string) {
+    return this.auth.markRelaySent(id, actorId);
   }
 }

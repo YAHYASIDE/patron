@@ -86,7 +86,7 @@ export class NotificationsService implements OnModuleInit {
         title: preferred.title,
         body: preferred.body,
         data: req.data,
-        email: user.email,
+        email: user.email ?? undefined,
         phone: user.phone ?? undefined,
         deviceTokens: user.devices.map((d) => d.token),
       });

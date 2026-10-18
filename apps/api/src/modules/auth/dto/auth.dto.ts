@@ -27,6 +27,42 @@ export class RegisterDto {
   @IsOptional() @IsIn(['ar', 'en', 'fr']) locale?: string;
 }
 
+const E164 = /^\+[1-9]\d{7,14}$/;
+const E164_MSG = 'Phone must be E.164, e.g. +22212345678';
+// Arabic or Latin letters (accents included), spaces and the usual name punctuation
+const FULL_NAME = /^[\p{Script=Arabic}\p{Script=Latin}][\p{Script=Arabic}\p{Script=Latin}\p{M}\s'’.-]{1,79}$/u;
+const FULL_NAME_MSG = 'Full name must be written in Arabic or French letters';
+
+export class PhoneStartDto {
+  @ApiProperty({ example: '+22222123456', description: 'WhatsApp number, E.164' })
+  @IsString() @Matches(E164, { message: E164_MSG }) phone!: string;
+
+  @ApiPropertyOptional({ example: 'سيدي أحمد', description: 'Required for a new number; ignored for an existing account' })
+  @IsOptional() @IsString() @Length(2, 80) @Matches(FULL_NAME, { message: FULL_NAME_MSG }) fullName?: string;
+
+  @ApiPropertyOptional({ enum: ['ar', 'fr', 'en'] })
+  @IsOptional() @IsIn(['ar', 'fr', 'en']) locale?: string;
+
+  @ApiPropertyOptional({ example: 'iPhone 15 · Safari' })
+  @IsOptional() @IsString() @Length(0, 120) deviceInfo?: string;
+}
+
+export class PhoneLoginDto {
+  @ApiProperty({ example: '+22222123456' })
+  @IsString() @Matches(E164, { message: E164_MSG }) phone!: string;
+
+  @ApiProperty({ example: '123456', minLength: 6, maxLength: 6 })
+  @IsString() @Matches(/^\d{6}$/, { message: 'The code is 6 digits' }) code!: string;
+
+  @ApiPropertyOptional({ example: 'iPhone 15 · Safari' })
+  @IsOptional() @IsString() @Length(0, 120) deviceInfo?: string;
+}
+
+export class RequestPhoneCodeDto {
+  @ApiPropertyOptional({ example: '+22222123456', description: 'Only for an account that has no number yet' })
+  @IsOptional() @IsString() @Matches(E164, { message: E164_MSG }) phone?: string;
+}
+
 export class LoginDto {
   @ApiProperty({ example: 'customer@example.com' })
   @IsEmail() email!: string;

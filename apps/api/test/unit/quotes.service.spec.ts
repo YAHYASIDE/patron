@@ -49,7 +49,7 @@ describe('QuotesService', () => {
       checkoutQuote: { create: jest.fn().mockResolvedValue(makeQuoteRow()) },
     };
     prisma = {
-      user: { findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'u1', defaultCurrency: 'USD' }) },
+      user: { findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'u1', defaultCurrency: 'USD', phoneVerifiedAt: new Date() }) },
       product: { findFirst: jest.fn().mockResolvedValue(makeProduct()) },
       productCode: { count: jest.fn().mockResolvedValue(100) },
       productProvider: { count: jest.fn().mockResolvedValue(1) },
@@ -82,6 +82,14 @@ describe('QuotesService', () => {
   });
 
   describe('create', () => {
+    it('refuses a customer whose WhatsApp number is not verified yet', async () => {
+      prisma.user.findFirstOrThrow.mockResolvedValueOnce({ id: 'u1', defaultCurrency: 'USD', phoneVerifiedAt: null });
+      await expect(service.create('u1', dto())).rejects.toMatchObject({
+        response: { error: 'PHONE_NOT_VERIFIED' },
+      });
+      expect(pricing.assertSupported).not.toHaveBeenCalled();
+    });
+
     it('freezes totals and builds the quote from priced items', async () => {
       const res = await service.create('u1', dto());
 

@@ -2,7 +2,8 @@ import { ExecutionContext, createParamDecorator } from '@nestjs/common';
 
 export interface AuthUser {
   id: string;
-  email: string;
+  email: string | null; // null for WhatsApp-number accounts
+  phone?: string | null;
   roles: string[];
   permissions: string[];
 }

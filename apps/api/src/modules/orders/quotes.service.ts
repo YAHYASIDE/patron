@@ -53,6 +53,10 @@ export class QuotesService {
 
   async create(userId: string, dto: CreateQuoteDto, ip?: string) {
     const user = await this.prisma.user.findFirstOrThrow({ where: { id: userId, deletedAt: null } });
+    // The owner confirms who buys: an order needs a WhatsApp number they have verified.
+    if (!user.phoneVerifiedAt) {
+      throw new ForbiddenException({ message: 'Verify your WhatsApp number before ordering', error: 'PHONE_NOT_VERIFIED' });
+    }
     const currency = dto.currency ?? user.defaultCurrency;
     const currencyRow = await this.pricing.assertSupported(currency);
 

@@ -101,6 +101,7 @@ enum VerificationPurpose {
   PHONE_VERIFY
   PASSWORD_RESET
   TWO_FACTOR
+  PHONE_LOGIN
 }
 
 enum QuoteStatus {
@@ -134,9 +135,9 @@ enum DevicePlatform {
 
 model User {
   id              String    @id @default(uuid()) @db.Uuid
-  email           String    @unique
-  phone           String?   @unique
-  passwordHash    String
+  email           String?   @unique // null for accounts made with a WhatsApp number only
+  phone           String?   @unique // E.164, e.g. +22222123456
+  passwordHash    String? // null for WhatsApp-number accounts (they sign in by code)
   fullName        String
   avatarUrl       String?
   locale          String    @default("ar")
@@ -251,6 +252,9 @@ model VerificationToken {
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   purpose    VerificationPurpose
   codeHash   String
+  // set only for codes the owner relays over WhatsApp: they must be able to read it
+  codeEnc    String?
+  sentAt     DateTime?
   expiresAt  DateTime
   consumedAt DateTime?
   attempts   Int                 @default(0)

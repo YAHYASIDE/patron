@@ -73,6 +73,25 @@ describe('Checkout (e2e)', () => {
     token = res.body.accessToken;
   });
 
+  it('refuses a quote until the WhatsApp number is verified, then verifies it with the relayed code', async () => {
+    const refused = await http().post('/checkout/quotes').set('authorization', `Bearer ${token}`)
+      .send({ items: [{ productId, quantity: 1 }], currency: 'USD' })
+      .expect(403);
+    expect(refused.body.error).toBe('PHONE_NOT_VERIFIED');
+
+    const phone = `+2223${String(Date.now()).slice(-7)}`;
+    const asked = await http().post('/auth/phone/request-code').set('authorization', `Bearer ${token}`)
+      .send({ phone }).expect(200);
+    expect(asked.body).toEqual({ status: 'SENT', phone });
+
+    // the owner reads the code from their queue and sends it over WhatsApp
+    const relayed = await prisma.verificationToken.findFirstOrThrow({
+      where: { purpose: 'PHONE_VERIFY', consumedAt: null, user: { phone } },
+    });
+    const code = app.get(CryptoService).decrypt(relayed.codeEnc!);
+    await http().post('/auth/phone/verify').set('authorization', `Bearer ${token}`).send({ code }).expect(200);
+  });
+
   it('rejects an unauthenticated quote request', () =>
     http().post('/checkout/quotes').send({ items: [{ productId, quantity: 1 }] }).expect(401));
 

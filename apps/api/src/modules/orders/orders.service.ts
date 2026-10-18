@@ -173,7 +173,7 @@ export class OrdersService {
       take: query.limit + 1,
       orderBy: [{ createdAt: query.order }, { id: query.order }],
       include: {
-        user: { select: { id: true, email: true, fullName: true } },
+        user: { select: { id: true, email: true, fullName: true, phone: true } },
         items: true,
         payments: { select: { id: true, gateway: true, status: true, amount: true } },
       },
@@ -216,7 +216,7 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, fullName: true, phone: true } },
+        user: { select: { id: true, email: true, fullName: true, phone: true, phoneVerifiedAt: true } },
         items: { include: { inputs: true, results: true, product: { select: { sku: true, delivery: true, imageUrl: true } } } },
         payments: {
           orderBy: { createdAt: 'desc' },

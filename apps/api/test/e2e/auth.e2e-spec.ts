@@ -4,6 +4,7 @@ import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
+import { CryptoService } from '../../src/common/crypto/crypto.service';
 
 describe('Auth & permissions (e2e)', () => {
   let app: INestApplication;
@@ -46,6 +47,48 @@ describe('Auth & permissions (e2e)', () => {
 
   afterAll(() => app.close());
   const http = () => request(app.getHttpServer());
+
+  describe('WhatsApp number sign-in', () => {
+    const phone = `+2224${String(Date.now()).slice(-7)}`;
+    const relayed = async (purpose: 'PHONE_VERIFY' | 'PHONE_LOGIN') => {
+      const t = await prisma.verificationToken.findFirstOrThrow({
+        where: { purpose, consumedAt: null, user: { phone } },
+        orderBy: { createdAt: 'desc' },
+      });
+      return app.get(CryptoService).decrypt(t.codeEnc!);
+    };
+
+    it('signs a new number straight in, unverified, and asks a name only for new numbers', async () => {
+      await http().post('/auth/phone/start').send({ phone }).expect(400);
+      const res = await http().post('/auth/phone/start').send({ phone, fullName: 'Sidi Ahmed' }).expect(200);
+      expect(res.body.status).toBe('SIGNED_IN');
+
+      const me = await http().get('/auth/me').set('authorization', `Bearer ${res.body.accessToken}`).expect(200);
+      expect(me.body).toMatchObject({ phone, fullName: 'Sidi Ahmed', email: null, phoneVerifiedAt: null });
+    });
+
+    it('rejects a name in neither Arabic nor Latin letters', () =>
+      http().post('/auth/phone/start').send({ phone: '+22249999999', fullName: 'Иван' }).expect(400));
+
+    it('once verified, the number needs the relayed code to sign in again', async () => {
+      const first = await http().post('/auth/phone/start').send({ phone, fullName: 'Sidi Ahmed' }).expect(200);
+      const auth = `Bearer ${first.body.accessToken}`;
+      await http().post('/auth/phone/request-code').set('authorization', auth).send({}).expect(200);
+      await http().post('/auth/phone/verify').set('authorization', auth).send({ code: await relayed('PHONE_VERIFY') }).expect(200);
+
+      const again = await http().post('/auth/phone/start').send({ phone, fullName: 'Someone Else' }).expect(200);
+      expect(again.body).toEqual({ status: 'CODE_REQUIRED' });
+
+      await http().post('/auth/phone/login').send({ phone, code: '000000' }).expect(400);
+      const ok = await http().post('/auth/phone/login').send({ phone, code: await relayed('PHONE_LOGIN') }).expect(200);
+      expect(ok.body.accessToken).toBeDefined();
+    });
+
+    it('keeps the relay queue to staff', async () => {
+      const res = await http().post('/auth/phone/start').send({ phone: `+2223${String(Date.now()).slice(-7)}`, fullName: 'Customer' });
+      await http().get('/admin/verifications/pending').set('authorization', `Bearer ${res.body.accessToken}`).expect(403);
+    });
+  });
 
   it('rejects a weak password at the boundary', () =>
     http().post('/auth/register').send({ email: `w-${Date.now()}@t.local`, password: 'short', fullName: 'W' })
