@@ -22,8 +22,13 @@ a first live deploy: no per-service clicking, and almost no secrets to paste.
 | PostgreSQL | `patron-db` | internal only |
 | Key Value (Redis) | `patron-kv` | internal only |
 
-The API **bootstraps its own database** on first boot: it runs `prisma migrate
-deploy`, then seeds once (because `SEED_ON_BOOT=true`). No terminal needed.
+The API **bootstraps its own database**: every boot runs `prisma migrate
+deploy`, and it seeds when `SEED_ON_BOOT=true` (admin, roles, currencies,
+categories, games, settings; no products). No terminal needed.
+
+> The blueprint now ships `SEED_ON_BOOT: "false"` because this store's database
+> is already seeded. **For a brand-new database, set it to `"true"` for the
+> first deploy**, then back to `"false"`.
 
 ## 0. Prerequisites
 
@@ -69,9 +74,13 @@ Key Value store, injects all the wired variables, and deploys.
 
 ## 4. After the first successful deploy
 
-- On the **API** service → **Environment**, set **`SEED_ON_BOOT`** to `false`
-  (or remove it). The seed is idempotent, so leaving it on is harmless, just
-  wasted work on every restart.
+- Set **`SEED_ON_BOOT`** to `"false"` in `render.yaml` (or on the API service →
+  **Environment**). The seed upserts categories, currencies and settings, so
+  leaving it on would undo edits you make in the dashboard every time the
+  service restarts (free instances restart often).
+- Add your real products from the dashboard (**المنتجات → + منتج جديد**). The
+  seed no longer creates sample products (opt in locally with
+  `SEED_DEMO_CATALOG=true`).
 
 ## 5. If a service URL is different
 
@@ -132,7 +141,7 @@ Source of truth: `apps/api/src/config/env.validation.ts`.
 | `METRICS_TOKEN` | `generateValue` | required in production |
 | `ENCRYPTION_KEY` | you (`sync: false`) | 64 hex chars |
 | `SEED_ADMIN_PASSWORD` | you (`sync: false`) | admin login password |
-| `SEED_ON_BOOT` | blueprint | `true` first deploy, then set `false` |
+| `SEED_ON_BOOT` | blueprint | `false` (set `true` only to bootstrap a new DB) |
 | `BASE_CURRENCY` | blueprint | `USD` |
 | `CORS_ORIGINS` | blueprint | the admin's public origin |
 

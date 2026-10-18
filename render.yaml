@@ -82,7 +82,11 @@ services:
       - key: SEED_ADMIN_PASSWORD
         sync: false             # the admin login password you choose
       - key: SEED_ON_BOOT
-        value: "true"           # first deploy seeds the DB; set to "false" afterwards
+        # The first deploy already seeded. Re-running the seed on every boot
+        # (free instances restart often) would overwrite admin edits to seeded
+        # categories, currencies and settings, so it stays off. Set "true" only
+        # to bootstrap a brand-new database.
+        value: "false"
       - key: BASE_CURRENCY
         value: USD
       - key: CORS_ORIGINS

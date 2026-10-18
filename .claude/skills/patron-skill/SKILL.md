@@ -154,8 +154,12 @@ node apps/api/dist/src/main.js           # serves on :3000, prefix /api/v1
 
 Seeded admin: `admin@patron.io` / `$SEED_ADMIN_PASSWORD`. Seed also loads 4
 currencies (USD base, EUR, MRU, XOF), FX rates, permissions/roles, categories,
-games, 7 products, providers, coupon `WELCOME10` (10% off, min order 25),
-templates, settings.
+games, providers, coupon `WELCOME10` (10% off, min order 25), templates,
+settings. The 7 **demo products** (and their overrides/provider routes) load
+only with `SEED_DEMO_CATALOG=true` (local dev); migration
+`20261018000000_retire_demo_catalog` soft-deleted them from the live DB at the
+user's request. Live `SEED_ON_BOOT` is `false` (the seed's upserts would
+overwrite dashboard edits on every restart).
 
 **The running API is NOT reachable from the user's browser** (it binds inside
 the cloud container). To show the user something visual, either build+publish a

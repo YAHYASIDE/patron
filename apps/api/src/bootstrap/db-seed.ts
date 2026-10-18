@@ -8,6 +8,11 @@
  *             SEED_ON_BOOT=true)
  *
  * Requires ENCRYPTION_KEY (32-byte hex) and SEED_ADMIN_PASSWORD in the env.
+ *
+ * The sample catalog (demo products, their price overrides and provider
+ * routes) is opt-in with SEED_DEMO_CATALOG=true, for local development only.
+ * A live store adds its real products from the admin dashboard; migration
+ * 20261018000000_retire_demo_catalog removes the samples from existing DBs.
  */
 import { PrismaClient, Prisma, ProductType, DeliveryMode, DiscountType } from '@prisma/client';
 import { hash as argon2Hash } from '@node-rs/argon2';
@@ -89,6 +94,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
   const prisma = client ?? new PrismaClient();
   const key = Buffer.from(process.env.ENCRYPTION_KEY ?? '', 'hex');
   const encrypt = (plain: string) => encryptWith(key, plain);
+  const demoCatalog = process.env.SEED_DEMO_CATALOG === 'true';
 
   try {
     console.log('→ currencies');
@@ -198,8 +204,8 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
       game[g.slug] = row.id;
     }
 
-    console.log('→ products');
-    const products = [
+    console.log(demoCatalog ? '→ demo products' : '→ demo products skipped (SEED_DEMO_CATALOG not set)');
+    const products = !demoCatalog ? [] : [
       { sku: 'PUBG-UC-60', type: ProductType.GAME_TOPUP, delivery: DeliveryMode.AUTO_PROVIDER, nameAr: '60 شدة ببجي', nameEn: 'PUBG 60 UC', currency: 'USD', costPrice: 3.2, sellPrice: 4.0, categoryId: cat['games'], gameId: game['pubg-mobile'], sortOrder: 1, isFeatured: true },
       { sku: 'PUBG-UC-325', type: ProductType.GAME_TOPUP, delivery: DeliveryMode.AUTO_PROVIDER, nameAr: '325 شدة ببجي', nameEn: 'PUBG 325 UC', currency: 'USD', costPrice: 15.5, sellPrice: 19.0, categoryId: cat['games'], gameId: game['pubg-mobile'], sortOrder: 2 },
       { sku: 'MLBB-DIA-86', type: ProductType.GAME_TOPUP, delivery: DeliveryMode.AUTO_PROVIDER, nameAr: '86 جوهرة ML', nameEn: 'MLBB 86 Diamonds', currency: 'USD', costPrice: 4.1, sellPrice: 5.25, categoryId: cat['games'], gameId: game['mobile-legends'], sortOrder: 1 },
@@ -215,7 +221,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
     }
 
     console.log('→ manual price overrides (XOF is rounded, not converted)');
-    const overrides = [
+    const overrides = !demoCatalog ? [] : [
       { sku: 'PUBG-UC-60', currencyCode: 'XOF', sellPrice: 2500 },
       { sku: 'PUBG-UC-325', currencyCode: 'XOF', sellPrice: 11500 },
       { sku: 'PUBG-UC-60', currencyCode: 'MRU', sellPrice: 160 },
@@ -250,7 +256,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
     }
 
     console.log('→ product ↔ provider mapping');
-    const mappings = [
+    const mappings = !demoCatalog ? [] : [
       { sku: 'PUBG-UC-60', provider: 'fazercards', providerSku: 'PUBGM_UC_60', providerCost: 3.2, priority: 0 },
       { sku: 'PUBG-UC-60', provider: 'foxreload', providerSku: 'pubg-uc-60', providerCost: 3.35, priority: 1 },
       { sku: 'PUBG-UC-325', provider: 'fazercards', providerSku: 'PUBGM_UC_325', providerCost: 15.5, priority: 0 },
