@@ -189,6 +189,33 @@ type). URLs are `${STOREFRONT_URL}/art/...` (`STOREFRONT_URL` is in
 `render.yaml`). Adding SKUs later: add them to a new pack, rerun the generator
 (`npm i --no-save simple-icons@15`), commit the SVGs.
 
+**Catalog pack v3** (`catalog.pack.v3`): Mauritania first. A "شحن رصيد الهاتف"
+(mobile top-up) section with Mattel, Mauritel and Chinguitel as "games" (one
+`phone` input, regex `^(\+?222)?[234][0-9]{7}$`) and 100/200/500/1000 MRU airtime
+each. USD base price = face / 39.8; the MRU price is a `ProductPrice` override at
+face value, so FX moves never change it. It sets MRU `roundingStep` to 1 only if
+it is still null (whole ouguiya). Its SKUs are built in code
+(`TOP-${op.sku}-${mru}`), so the art generator derives them from `OPERATORS` x
+`AIRTIME_MRU`.
+
+**Selling flow (manual transfer, the only live payment):** the owner sets their
+accounts in admin Settings (`PUT /admin/payments/manual-accounts`, presets for
+Bankily, Masrvi, Sedad, Click, BimBank and others; stored as SystemSetting
+`payments.manual_accounts`). MANUAL appears at checkout only once an account
+exists. Customer: checkout creates the order → `/orders/:id?pay=MANUAL` →
+`POST /payments {gateway: MANUAL}` (payment stays INITIATED) → the customer sends
+money and submits the reference (`POST /payments/:id/transfer` → AUTHORIZED; an
+AUTHORIZED order is never auto-expired) → owner approves or rejects in admin
+Orders (`/admin/payments/:id/approve|reject`) → owner delivers per item
+(`POST /admin/orders/:id/items/:itemId/deliver`, encrypted codes or a message;
+PAID→PROCESSING→COMPLETED) → the customer reveals it on the order page. Stripe is
+listed by the API when keys exist, but the storefront hides it: there is no card
+form (Stripe.js) yet. The wallet is offered only when its balance covers the total.
+
+**Storefront currency:** ouguiya by default, with a header switch (MRU / USD,
+`lib/currency.ts`, stored in localStorage). Every catalog call and the quote pass
+`currency`, and a switch re-prices the cart lines.
+
 **The running API is NOT reachable from the user's browser** (it binds inside
 the cloud container). To show the user something visual, either build+publish a
 real frontend, or publish an Artifact preview — and say plainly which one it is.
@@ -202,6 +229,19 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
   money-moving request (POST /checkout/quotes, POST /payments, wallet ops).
 - **Quote/coupon 429:** throttler tier hit during rapid testing — wait out the
   window, don't "fix" it.
+- **Throttler v6 applies every named tier to every route.** The `strict` and
+  `expensive` tiers carry `skipIf: optInTier(name)`
+  (`src/common/guards/throttle-tiers.ts`), so they only bind where a route opts in
+  with `@Throttle({ expensive: ... })`. Without that, the 5/min tier capped the
+  whole API. The rate-limit key is `req.ip`. Behind Render's balancer,
+  `TRUST_PROXY_HOPS=1` (render.yaml) makes that the customer's address instead of
+  the balancer's.
+- **Lookup by SKU/slug returned 500:** `OR: [{ id }, { sku }]` made Postgres cast
+  a SKU to uuid. Catalog lookups add the `id` branch only when `isUUID(value)`.
+- **`next build` then "Can't resolve '../lib/is-error'":** a second local build
+  trips over the stub `apps/{admin,storefront}/node_modules/next` that the first
+  build leaves behind. `rm -rf apps/<app>/node_modules apps/<app>/.next` and
+  rebuild. Local only; Docker builds are fresh.
 - **CODE_POOL purchase fails `no_provider`:** expected — no dispenser yet (§4).
 - **No endpoint to upload codes:** there is no admin route to add `ProductCode`
   rows, so a CODE_POOL product is always `inStock:false` in the store, and an
