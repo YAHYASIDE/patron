@@ -5,6 +5,7 @@ import { auth, ApiError } from '@/lib/api';
 import { refreshMe, useMe } from '@/lib/session';
 import { DEFAULT_COUNTRY, nationalNumberProblem, toE164 } from '@/lib/countries';
 import PhoneField from './PhoneField';
+import WhatsAppHelp from './WhatsAppHelp';
 import { CheckIcon, CloseIcon, ShieldIcon } from './icons';
 
 function friendly(err: unknown): string {
@@ -20,7 +21,16 @@ function friendly(err: unknown): string {
  * Verifying the WhatsApp number: the customer asks for a code, the shop owner
  * sends it to them on WhatsApp, the customer types it here.
  */
-export default function VerifyPanel({ onVerified }: { onVerified?: () => void }) {
+export default function VerifyPanel({
+  onVerified,
+  onSkip,
+  skipLabel = 'تخطَّ الآن',
+}: {
+  onVerified?: () => void;
+  /** Shown as a "not now" button when given. */
+  onSkip?: () => void;
+  skipLabel?: string;
+}) {
   const { me } = useMe();
   const [stage, setStage] = useState<'ask' | 'code' | 'done'>('ask');
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -128,6 +138,24 @@ export default function VerifyPanel({ onVerified }: { onVerified?: () => void })
           >
             {busy ? 'جارٍ الطلب…' : 'أرسل لي رمز التحقق'}
           </button>
+          {me?.phone && (
+            <WhatsAppHelp
+              name={me.fullName}
+              phone={me.phone}
+              need="verify"
+              // the same tap asks for the code, so the owner finds it waiting in the dashboard
+              onOpen={() => {
+                auth
+                  .requestPhoneCode()
+                  .then((r) => {
+                    if (r.status === 'VERIFIED') return finish();
+                    setSentTo(r.phone);
+                    setStage('code');
+                  })
+                  .catch(() => undefined);
+              }}
+            />
+          )}
         </>
       ) : (
         <form onSubmit={verify} className="flex flex-col gap-3">
@@ -170,7 +198,14 @@ export default function VerifyPanel({ onVerified }: { onVerified?: () => void })
           >
             لم يصلك الرمز؟ أعد الطلب
           </button>
+          <WhatsAppHelp name={me?.fullName} phone={sentTo ?? me?.phone} need="verify" />
         </form>
+      )}
+
+      {onSkip && (
+        <button onClick={onSkip} className="py-1 text-sm font-bold text-muted hover:text-[rgb(var(--text))]">
+          {skipLabel}
+        </button>
       )}
     </div>
   );
@@ -205,7 +240,7 @@ export function VerifySheet({ onClose }: { onClose: () => void }) {
             <CloseIcon size={18} />
           </button>
         </div>
-        <VerifyPanel onVerified={() => setTimeout(onClose, 1600)} />
+        <VerifyPanel onVerified={() => setTimeout(onClose, 1600)} onSkip={onClose} />
       </div>
     </div>
   );

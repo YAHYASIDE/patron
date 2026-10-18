@@ -6,6 +6,8 @@ import { auth, ApiError, warmUp } from '@/lib/api';
 import { refreshMe } from '@/lib/session';
 import { DEFAULT_COUNTRY, nationalNumberProblem, toE164 } from '@/lib/countries';
 import PhoneField from '@/components/PhoneField';
+import WhatsAppHelp from '@/components/WhatsAppHelp';
+import { browseAsGuest } from '@/lib/guest';
 import { ShieldIcon } from '@/components/icons';
 
 // Same rule as the API: Arabic or Latin (French) letters, spaces and name punctuation.
@@ -49,6 +51,18 @@ function LoginInner() {
     refreshMe();
     router.replace(next);
   }
+
+  // browse first; signing in is asked again only to buy
+  function skip() {
+    browseAsGuest();
+    router.replace(/^\/(checkout|orders|account)/.test(next) ? '/' : next);
+  }
+
+  const skipLink = (
+    <button type="button" onClick={skip} className="py-1 text-sm font-bold text-teal hover:underline">
+      تخطَّ الآن وتصفّح المتجر
+    </button>
+  );
 
   async function start(e: React.FormEvent) {
     e.preventDefault();
@@ -147,6 +161,7 @@ function LoginInner() {
               >
                 {busy ? 'جارٍ الدخول…' : 'دخول'}
               </button>
+              {skipLink}
             </form>
 
             <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-muted">
@@ -220,7 +235,7 @@ function LoginInner() {
           <>
             <h1 className="text-2xl font-extrabold">أدخل رمز الدخول</h1>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              هذا الرقم موثّق مسبقًا. سيرسل لك المتجر رمزًا من 6 أرقام على واتساب{' '}
+              هذا الرقم مسجّل لدينا. لحماية حسابك، سيرسل لك المتجر رمزًا من 6 أرقام على واتساب{' '}
               <span dir="ltr" className="font-bold text-[rgb(var(--text))]">
                 {phone}
               </span>
@@ -257,17 +272,27 @@ function LoginInner() {
               >
                 {busy ? 'جارٍ التحقق…' : 'دخول'}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('details');
-                  setCode('');
-                  setError(null);
-                }}
-                className="text-sm font-bold text-muted hover:text-[rgb(var(--text))]"
-              >
-                تغيير الرقم
-              </button>
+              <WhatsAppHelp name={name.trim()} phone={phone} need="login" />
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('details');
+                    setCode('');
+                    setError(null);
+                  }}
+                  className="py-2 text-sm font-bold text-muted hover:text-[rgb(var(--text))]"
+                >
+                  تغيير الرقم
+                </button>
+                <button
+                  type="button"
+                  onClick={skip}
+                  className="py-2 text-sm font-bold text-teal hover:underline"
+                >
+                  تخطَّ الآن
+                </button>
+              </div>
             </form>
           </>
         )}

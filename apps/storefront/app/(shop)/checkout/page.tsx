@@ -127,7 +127,11 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-page px-4 py-10">
         <div className="surface mx-auto max-w-[460px] rounded-2xl p-5 shadow-card sm:p-6">
-          <VerifyPanel onVerified={() => setTimeout(() => buildQuote(coupon), 1200)} />
+          <VerifyPanel
+            onVerified={() => setTimeout(() => buildQuote(coupon), 1200)}
+            onSkip={() => router.push('/products')}
+            skipLabel="ليس الآن، أكمل التسوّق"
+          />
         </div>
       </div>
     );

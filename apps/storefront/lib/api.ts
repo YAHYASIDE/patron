@@ -317,6 +317,10 @@ export const shop = {
       idempotent: true,
     });
   },
+  /** The shop's own WhatsApp number (null when the owner has not set one). */
+  info() {
+    return request<{ supportWhatsapp: string | null }>('/shop/info');
+  },
   manualAccounts() {
     return request<{ accounts: ManualAccount[]; note: string | null }>('/payments/manual-accounts');
   },
