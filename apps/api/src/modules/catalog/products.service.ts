@@ -72,6 +72,8 @@ export class ProductsService {
           ...withoutCost(product),
           prices: undefined,
           sellPrice: price.amount,
+          listPrice: price.listAmount,
+          discountPercent: price.discountPercent,
           currency: price.currency,
           priceIsOverride: price.isOverride,
           inStock: stock.get(product.id) ?? true,
@@ -98,6 +100,8 @@ export class ProductsService {
     return {
       ...withoutCost(product),
       sellPrice: price.amount,
+      listPrice: price.listAmount,
+      discountPercent: price.discountPercent,
       currency: price.currency,
       priceIsOverride: price.isOverride,
       inStock: await this.isInStock(product.id, product.delivery, product.stockQty),
@@ -151,9 +155,7 @@ export class ProductsService {
 
   async create(dto: CreateProductDto, actorId: string) {
     await this.assertValidRelations(dto);
-    if (dto.sellPrice < dto.costPrice) {
-      throw new BadRequestException('sellPrice is below costPrice — this product would sell at a loss');
-    }
+    this.assertNotAtLoss(dto);
     for (const p of dto.prices ?? []) await this.pricing.assertSupported(p.currencyCode);
 
     const { prices, ...scalars } = dto;
@@ -175,6 +177,7 @@ export class ProductsService {
     const before = await this.prisma.product.findFirst({ where: { id, deletedAt: null }, include: { prices: true } });
     if (!before) throw new NotFoundException('Product not found');
     await this.assertValidRelations(dto);
+    this.assertNotAtLoss(dto);
 
     const { prices, ...scalars } = dto;
 
@@ -258,6 +261,21 @@ export class ProductsService {
       return providers > 0;
     }
     return stockQty === null || stockQty > 0;
+  }
+
+  /**
+   * The price a customer actually pays (after the owner's discount) must not
+   * fall below cost. Checked on create and on update.
+   */
+  private assertNotAtLoss(dto: Pick<CreateProductDto, 'sellPrice' | 'costPrice' | 'discountPercent'>) {
+    if (typeof dto.sellPrice !== 'number' || typeof dto.costPrice !== 'number') return;
+    if (dto.sellPrice < dto.costPrice) {
+      throw new BadRequestException('sellPrice is below costPrice — this product would sell at a loss');
+    }
+    const effective = dto.sellPrice * (1 - (dto.discountPercent ?? 0) / 100);
+    if (effective < dto.costPrice) {
+      throw new BadRequestException('discountPercent brings the price below costPrice — this product would sell at a loss');
+    }
   }
 
   private async assertValidRelations(dto: CreateProductDto | UpdateProductDto) {

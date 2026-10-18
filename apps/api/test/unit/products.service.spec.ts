@@ -221,6 +221,17 @@ describe('ProductsService', () => {
       expect(prisma.product.create).not.toHaveBeenCalled();
     });
 
+    it('stores the owner discount', async () => {
+      await service.create({ ...dto(), discountPercent: 20 }, 'admin1');
+      expect(prisma.product.create.mock.calls[0][0].data.discountPercent).toBe(20);
+    });
+
+    it('rejects a discount that would sell below cost', async () => {
+      // 10 at 70% off = 3, below the cost of 4
+      await expect(service.create({ ...dto(), discountPercent: 70 }, 'admin1')).rejects.toThrow('discountPercent');
+      expect(prisma.product.create).not.toHaveBeenCalled();
+    });
+
     it('rejects an invalid categoryId', async () => {
       prisma.category.findFirst.mockResolvedValue(null);
       await expect(service.create(dto(), 'admin1')).rejects.toThrow('Invalid categoryId');
@@ -244,6 +255,16 @@ describe('ProductsService', () => {
       expect(prisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ action: 'catalog.product.update' }) }),
       );
+    });
+
+    it('applies the loss guard on update too, including the discount', async () => {
+      await expect(
+        service.update('p1', { categoryId: 'c1', sellPrice: 10, costPrice: 4, discountPercent: 70 } as any, 'admin1'),
+      ).rejects.toThrow('discountPercent');
+      await expect(
+        service.update('p1', { categoryId: 'c1', sellPrice: 3, costPrice: 4 } as any, 'admin1'),
+      ).rejects.toThrow('sellPrice is below costPrice');
+      expect(prisma.product.update).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when the product is missing', async () => {

@@ -5,7 +5,7 @@ import { catalog } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import type { Category, Paginated, Product } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
-import { money } from '@/lib/format';
+import Price from '@/components/Price';
 import { BoltIcon, ShieldIcon, CheckIcon } from '@/components/icons';
 
 function SkeletonCard() {
@@ -90,7 +90,7 @@ export default function HomePage() {
                       )}
                     </div>
                     <div className="line-clamp-1 text-[13px] font-bold">{p.nameAr || p.nameEn}</div>
-                    <div className="tnum text-sm font-extrabold text-teal">{money(p.sellPrice, p.currency)}</div>
+                    <Price product={p} size="sm" />
                   </Link>
                 ))}
           </div>

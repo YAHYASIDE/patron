@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Product } from '@/lib/types';
-import { money } from '@/lib/format';
+import Price from './Price';
 import { BoltIcon } from './icons';
 
 function deliveryLabel(delivery?: string): string | null {
@@ -57,7 +57,7 @@ export default function ProductCard({ product }: { product: Product }) {
         <h3 className="line-clamp-2 text-[15px] font-bold leading-snug">{name}</h3>
         {product.game?.nameAr && <p className="text-xs text-muted">{product.game.nameAr}</p>}
         <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="tnum text-lg font-extrabold text-teal">{money(product.sellPrice, product.currency)}</span>
+          <Price product={product} />
           <span className="rounded-lg bg-teal/10 px-3 py-1.5 text-xs font-bold text-teal transition group-hover:bg-teal group-hover:text-white">
             عرض
           </span>

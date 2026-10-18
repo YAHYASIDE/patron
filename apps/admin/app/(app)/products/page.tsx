@@ -16,6 +16,7 @@ type Product = {
   stockQty: number | null;
   isActive: boolean;
   isFeatured: boolean;
+  discountPercent?: number | null;
   category?: { nameEn?: string };
   game?: { nameEn?: string };
 };
@@ -159,6 +160,11 @@ export default function ProductsPage() {
                         >
                           {out ? 'نفد' : p.isActive ? 'نشط' : 'موقوف'}
                         </span>
+                        {(p.discountPercent ?? 0) > 0 && (
+                          <span className="rounded-full bg-teal/12 px-2.5 py-1 text-xs font-bold text-teal">
+                            خصم {num(p.discountPercent)}%
+                          </span>
+                        )}
                         {p.isFeatured && (
                           <span className="rounded-full bg-gold/15 px-2.5 py-1 text-xs font-bold text-gold-deep">
                             مميّز

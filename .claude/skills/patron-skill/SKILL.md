@@ -194,11 +194,20 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
   AUTO_PROVIDER one is out of stock unless it has an active+healthy
   `ProductProvider`. Today only **MANUAL** delivery sells end to end; the admin
   product form defaults to MANUAL and explains each mode.
-- **Store price ≠ admin sell price:** `currency.fx_markup_percent` (seeded 2.5)
-  is multiplied in by `pricing.priceProduct` even for the **base** currency
-  (rate 1), so a USD 11.50 product shows 11.79. Product overrides
-  (`ProductPrice`) bypass it. The admin Settings page is read-only, so the
-  markup cannot be changed from the UI yet.
+- **Pricing (owner's rules):** the customer pays exactly the sell price the
+  owner sets. `PricingService` never applies `currency.fx_markup_percent` to the
+  **base** currency (nothing is converted), and migration
+  `20261018201210_product_discount_no_markup` set that markup to 0 at the
+  owner's request. Discounts are per product: `Product.discountPercent` (int
+  0-90, null = none), applied inside `priceLoadedProduct` to every currency,
+  overrides included, so the store, the quote and the charged total always agree.
+  The public API returns `sellPrice` (after discount), `listPrice` (before) and
+  `discountPercent`; `baseAmount` is post-discount, so profit reports stay true.
+  The loss guard (`assertNotAtLoss`, create **and** update) rejects a discount
+  that takes the price below cost. The sample coupon `WELCOME10` was deactivated
+  (discounts are the owner's per-product choice) and the seed only creates it
+  with `SEED_DEMO_CATALOG=true`. Starter-pack margins are ~10%, so larger
+  discounts on those products are refused until the price or cost changes.
 - **Admin product CRUD:** `/products/new` and `/products/[id]` share
   `apps/admin/components/ProductForm.tsx`. The API's ValidationPipe uses
   `forbidNonWhitelisted`, so the form builds the body from DTO fields only.

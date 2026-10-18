@@ -31,7 +31,9 @@ export interface PricingContext {
 }
 
 export interface PricedAmount {
-  amount: Prisma.Decimal;      // in the requested currency
+  amount: Prisma.Decimal;      // in the requested currency, after the product discount
+  listAmount: Prisma.Decimal;  // same, before the discount (equals amount when none)
+  discountPercent: number;     // the product's own discount, 0 when none
   currency: string;
   baseAmount: Prisma.Decimal;  // same value in the platform base currency
   baseCurrency: string;
@@ -115,21 +117,32 @@ export class PricingService {
    * Used by list endpoints to price a page in one pass.
    */
   async priceLoadedProduct(
-    product: { id: string; sellPrice: Prisma.Decimal; prices: Array<{ currencyCode: string; sellPrice: Prisma.Decimal; isActive: boolean }> },
+    product: {
+      id: string;
+      sellPrice: Prisma.Decimal;
+      discountPercent?: number | null;
+      prices: Array<{ currencyCode: string; sellPrice: Prisma.Decimal; isActive: boolean }>;
+    },
     currencyCode: string,
     preloaded?: PricingContext,
   ): Promise<PricedAmount> {
     // `?? await` would build the context even when preloaded is supplied, so
     // resolve it explicitly and only when needed.
     const ctx: PricingContext = preloaded ?? (await this.pricingContext(currencyCode));
+    const { decimals, roundingMode, roundingStep } = ctx.currency;
+    const discountPercent = product.discountPercent ?? 0;
+    const factor = PricingService.discountFactor(discountPercent);
 
     const override = product.prices.find((p) => p.currencyCode === currencyCode && p.isActive);
 
     if (override) {
+      // The owner's discount applies to a per-currency override too.
       return {
-        amount: this.round(override.sellPrice, ctx.currency.decimals, ctx.currency.roundingMode, ctx.currency.roundingStep),
+        amount: this.round(override.sellPrice.mul(factor), decimals, roundingMode, roundingStep),
+        listAmount: this.round(override.sellPrice, decimals, roundingMode, roundingStep),
+        discountPercent,
         currency: currencyCode,
-        baseAmount: override.sellPrice.div(ctx.rate).toDecimalPlaces(4),
+        baseAmount: override.sellPrice.mul(factor).div(ctx.rate).toDecimalPlaces(4),
         baseCurrency: this.baseCurrency,
         fxRate: ctx.rate,
         fxRateId: null,
@@ -137,13 +150,13 @@ export class PricingService {
       };
     }
 
+    const list = product.sellPrice.mul(ctx.rate).mul(ctx.markup);
     return {
-      amount: this.round(
-        product.sellPrice.mul(ctx.rate).mul(ctx.markup),
-        ctx.currency.decimals, ctx.currency.roundingMode, ctx.currency.roundingStep,
-      ),
+      amount: this.round(list.mul(factor), decimals, roundingMode, roundingStep),
+      listAmount: this.round(list, decimals, roundingMode, roundingStep),
+      discountPercent,
       currency: currencyCode,
-      baseAmount: product.sellPrice,
+      baseAmount: product.sellPrice.mul(factor).toDecimalPlaces(4),
       baseCurrency: this.baseCurrency,
       fxRate: ctx.rate,
       fxRateId: ctx.fxRateId,
@@ -151,14 +164,28 @@ export class PricingService {
     };
   }
 
+  /** 15 → 0.85. The DTO caps the percent at 0–90. */
+  private static discountFactor(percent: number): Prisma.Decimal {
+    return new Prisma.Decimal(1).minus(new Prisma.Decimal(percent).div(100));
+  }
+
   /** Batch context so a page of products shares one rate and one markup read. */
   async pricingContext(currencyCode: string): Promise<PricingContext> {
     const [currency, rate, markup] = await Promise.all([
       this.assertSupported(currencyCode),
       this.getRate(currencyCode),
-      this.fxMarkup(),
+      this.markupFor(currencyCode),
     ]);
     return { currency, rate: rate.rate, fxRateId: rate.id, markup };
+  }
+
+  /**
+   * The FX markup covers exchange spread, so it only applies to converted
+   * currencies. In the base currency there is no conversion: the customer pays
+   * exactly the sell price the owner set.
+   */
+  private markupFor(currencyCode: string): Promise<Prisma.Decimal> {
+    return currencyCode === this.baseCurrency ? Promise.resolve(new Prisma.Decimal(1)) : this.fxMarkup();
   }
 
   /**
@@ -175,34 +202,13 @@ export class PricingService {
     });
     if (!product) throw new NotFoundException('Product not found');
 
-    const { rate, id: fxRateId } = await this.getRate(currencyCode);
-    const override = product.prices[0];
-
-    if (override) {
-      // Reverse the override back into base currency for reporting.
-      return {
-        amount: this.round(override.sellPrice, currency.decimals, currency.roundingMode, currency.roundingStep),
-        currency: currencyCode,
-        baseAmount: override.sellPrice.div(rate).toDecimalPlaces(4),
-        baseCurrency: this.baseCurrency,
-        fxRate: rate,
-        fxRateId: null,
-        isOverride: true,
-      };
-    }
-
-    const markup = await this.fxMarkup();
-    const converted = product.sellPrice.mul(rate).mul(markup);
-
-    return {
-      amount: this.round(converted, currency.decimals, currency.roundingMode, currency.roundingStep),
-      currency: currencyCode,
-      baseAmount: product.sellPrice,
-      baseCurrency: this.baseCurrency,
-      fxRate: rate,
-      fxRateId,
-      isOverride: false,
-    };
+    // One pricing path for catalog pages, product pages and quotes, so the
+    // store, the cart and the charged total can never disagree.
+    const [{ rate, id: fxRateId }, markup] = await Promise.all([
+      this.getRate(currencyCode),
+      this.markupFor(currencyCode),
+    ]);
+    return this.priceLoadedProduct(product, currencyCode, { currency, rate, fxRateId, markup });
   }
 
   /** Convert an arbitrary base-currency amount (fees, coupon caps, refunds). */
@@ -211,8 +217,11 @@ export class PricingService {
     const { rate, id } = await this.getRate(currencyCode);
     const base = new Prisma.Decimal(baseAmount);
 
+    const amount = this.round(base.mul(rate), currency.decimals, currency.roundingMode, currency.roundingStep);
     return {
-      amount: this.round(base.mul(rate), currency.decimals, currency.roundingMode, currency.roundingStep),
+      amount,
+      listAmount: amount,
+      discountPercent: 0,
       currency: currencyCode,
       baseAmount: base,
       baseCurrency: this.baseCurrency,

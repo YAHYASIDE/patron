@@ -75,7 +75,9 @@ export type Product = {
   sortOrder?: number;
   category?: Pick<Category, 'id' | 'slug' | 'nameAr' | 'nameEn'>;
   game?: Pick<Game, 'id' | 'slug' | 'nameAr' | 'nameEn' | 'inputSchema'>;
-  sellPrice: string;
+  sellPrice: string; // what the customer pays (after the owner's discount)
+  listPrice?: string; // before the discount; equals sellPrice when there is none
+  discountPercent?: number;
   currency: string;
   priceIsOverride?: boolean;
   inStock?: boolean;

@@ -20,6 +20,7 @@ export type ProductInput = {
   gameId?: string | null;
   costPrice: number | string;
   sellPrice: number | string;
+  discountPercent?: number | string | null;
   description?: string | null;
   imageUrl?: string | null;
   stockQty?: number | null;
@@ -59,6 +60,7 @@ const EMPTY: ProductInput = {
   gameId: '',
   costPrice: '',
   sellPrice: '',
+  discountPercent: null,
   description: '',
   imageUrl: '',
   stockQty: null,
@@ -81,6 +83,7 @@ function friendly(err: unknown): string {
   if (!(err instanceof ApiError)) return 'تعذّر الاتصال بالخادم.';
   if (err.status === 409) return 'رمز SKU مستخدم لمنتج آخر. غيّره ثم أعد المحاولة.';
   const m = err.message;
+  if (/discountPercent/i.test(m)) return 'الخصم كبير: السعر بعده أقل من التكلفة، أي بيع بخسارة.';
   if (/below costPrice/i.test(m)) return 'سعر البيع أقل من التكلفة، أي أنّ المنتج سيُباع بخسارة.';
   if (/GAME_TOPUP/i.test(m)) return 'منتج «شحن ألعاب» يجب ربطه بلعبة.';
   if (/Invalid categoryId/i.test(m)) return 'اختر فئة صحيحة.';
@@ -134,12 +137,16 @@ export default function ProductForm({
     });
   }
 
+  const discount = String(f.discountPercent ?? '') === '' ? 0 : Number(f.discountPercent);
+
+  // What the customer actually pays, and what is left after cost.
   const margin = useMemo(() => {
     const s = parseFloat(String(f.sellPrice));
     const c = parseFloat(String(f.costPrice));
     if (!isFinite(s) || !isFinite(c)) return null;
-    return { profit: s - c, pct: s > 0 ? ((s - c) / s) * 100 : 0 };
-  }, [f.sellPrice, f.costPrice]);
+    const pays = isFinite(discount) ? s * (1 - discount / 100) : s;
+    return { pays, profit: pays - c, pct: pays > 0 ? ((pays - c) / pays) * 100 : 0 };
+  }, [f.sellPrice, f.costPrice, discount]);
 
   const delivery = DELIVERIES.find((d) => d.v === f.delivery);
 
@@ -150,6 +157,9 @@ export default function ProductForm({
     const cost = parseFloat(String(f.costPrice));
     if (!isFinite(sell) || !isFinite(cost)) return setError('أدخل سعر البيع والتكلفة بالأرقام.');
     if (sell < cost) return setError('سعر البيع أقل من التكلفة، أي أنّ المنتج سيُباع بخسارة.');
+    if (!/^\d*$/.test(String(f.discountPercent ?? '')) || discount > 90)
+      return setError('الخصم رقم صحيح من 0 إلى 90.');
+    if (sell * (1 - discount / 100) < cost) return setError('الخصم كبير: السعر بعده أقل من التكلفة، أي بيع بخسارة.');
     if (f.sku.trim().length < 3) return setError('رمز SKU يجب أن يكون 3 أحرف على الأقل.');
     if (f.type === 'GAME_TOPUP' && !f.gameId) return setError('منتج «شحن ألعاب» يجب ربطه بلعبة.');
     const wholeOrBlank = (v: unknown) => v === null || v === undefined || String(v) === '' || /^\d+$/.test(String(v));
@@ -168,6 +178,8 @@ export default function ProductForm({
       gameId: f.gameId || null,
       costPrice: cost,
       sellPrice: sell,
+      // blank or 0 clears it (null), so the store shows no discount
+      discountPercent: discount > 0 ? discount : null,
       description: f.description?.trim() || null,
       imageUrl: f.imageUrl?.trim() || null,
       stockQty: f.stockQty === null || f.stockQty === undefined || String(f.stockQty) === '' ? null : Number(f.stockQty),
@@ -246,18 +258,42 @@ export default function ProductForm({
         <section className="surface flex flex-col gap-4 rounded-2xl p-5 shadow-card">
           <h2 className="text-base font-bold">السعر</h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="سعر البيع ($) *" hint="ما يدفعه الزبون.">
+            <Field label="سعر البيع ($) *" hint="السعر الأصلي قبل أي خصم. يراه الزبون كما هو بالضبط.">
               <input required inputMode="decimal" dir="ltr" value={f.sellPrice} onChange={(e) => set('sellPrice', e.target.value)} className={input + ' text-right tnum'} placeholder="26.50" />
             </Field>
             <Field label="التكلفة ($) *" hint="ما تدفعه أنت للمورّد. لا تظهر للزبون.">
               <input required inputMode="decimal" dir="ltr" value={f.costPrice} onChange={(e) => set('costPrice', e.target.value)} className={input + ' text-right tnum'} placeholder="24.00" />
             </Field>
           </div>
+          <Field label="الخصم % (اختياري)" hint="اكتب نسبة الخصم فيظهر للزبون السعر القديم مشطوبًا. اتركه فارغًا = بلا خصم.">
+            <input
+              inputMode="numeric"
+              dir="ltr"
+              value={f.discountPercent ?? ''}
+              onChange={(e) => set('discountPercent', e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+              className={input + ' text-right tnum sm:w-40'}
+              placeholder="مثال: 10"
+            />
+          </Field>
           {margin && (
-            <p className={'text-sm font-semibold ' + (margin.profit < 0 ? 'text-bad' : 'text-ok')}>
-              الربح لكل قطعة: <span className="tnum">{margin.profit.toFixed(2)} $</span> (
-              <span className="tnum">{margin.pct.toFixed(1)}%</span>)
-            </p>
+            <div className="surface-2 flex flex-col gap-1 rounded-xl px-4 py-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted">يدفع الزبون</span>
+                {/* dir=ltr keeps "$" and the struck price in reading order inside RTL text */}
+                <span dir="ltr" className="tnum font-bold">
+                  {discount > 0 && (
+                    <span className="me-2 text-muted line-through">${parseFloat(String(f.sellPrice)).toFixed(2)}</span>
+                  )}
+                  ${margin.pays.toFixed(2)}
+                </span>
+              </div>
+              <div className={'flex items-center justify-between font-semibold ' + (margin.profit < 0 ? 'text-bad' : 'text-ok')}>
+                <span>ربحك لكل قطعة</span>
+                <span dir="ltr" className="tnum">
+                  ${margin.profit.toFixed(2)} ({margin.pct.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
           )}
         </section>
 

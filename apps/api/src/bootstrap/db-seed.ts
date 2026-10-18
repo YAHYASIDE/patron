@@ -10,7 +10,7 @@
  * Requires ENCRYPTION_KEY (32-byte hex) and SEED_ADMIN_PASSWORD in the env.
  *
  * The sample catalog (demo products, their price overrides and provider
- * routes) is opt-in with SEED_DEMO_CATALOG=true, for local development only.
+ * routes, and the WELCOME10 coupon) is opt-in with SEED_DEMO_CATALOG=true, for local development only.
  * A live store adds its real products from the admin dashboard; migration
  * 20261018000000_retire_demo_catalog removes the samples from existing DBs.
  */
@@ -271,8 +271,8 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
       });
     }
 
-    console.log('→ coupons');
-    await prisma.coupon.upsert({
+    console.log(demoCatalog ? '→ demo coupon' : '→ demo coupon skipped');
+    if (demoCatalog) await prisma.coupon.upsert({
       where: { code: 'WELCOME10' },
       update: {},
       create: {
@@ -299,7 +299,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
       { key: 'platform.name', value: 'Patron', group: 'general', isPublic: true },
       { key: 'platform.base_currency', value: 'USD', group: 'currency', isPublic: true },
       { key: 'platform.enabled_currencies', value: ['USD', 'EUR', 'MRU', 'XOF'], group: 'currency', isPublic: true },
-      { key: 'currency.fx_markup_percent', value: 2.5, group: 'currency', description: 'Margin added on top of the raw FX rate at checkout' },
+      { key: 'currency.fx_markup_percent', value: 0, group: 'currency', description: 'Margin added on top of the raw FX rate for converted (non-base) currencies' },
       { key: 'currency.fx_refresh_minutes', value: 60, group: 'currency' },
       { key: 'tax.enabled', value: false, group: 'tax', description: 'MVP: off. Turning this on activates the taxAmount columns.' },
       { key: 'tax.default_rate', value: 0, group: 'tax' },

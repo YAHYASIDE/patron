@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional,
-  IsString, IsUUID, Length, Matches, Min,
+  IsString, IsUUID, Length, Matches, Max, Min,
 } from 'class-validator';
 import { DeliveryMode, ProductType } from '@prisma/client';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
@@ -75,6 +75,8 @@ export class CreateProductDto {
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsInt() @Min(0) stockQty?: number;
   @IsOptional() @IsInt() @Min(1) maxPerOrder?: number;
+  /** The owner's own discount (whole percent), applied to every currency. null clears it. */
+  @IsOptional() @IsInt() @Min(0) @Max(90) discountPercent?: number | null;
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsBoolean() isFeatured?: boolean;

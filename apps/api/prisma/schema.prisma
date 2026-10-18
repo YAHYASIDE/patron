@@ -359,9 +359,12 @@ model Product {
   description String?
   imageUrl    String?
 
-  costPrice Decimal @db.Decimal(14, 4) // reference cost, actual cost per provider
-  sellPrice Decimal @db.Decimal(14, 4)
-  currency  String  @default("SAR") @db.Char(3)
+  costPrice       Decimal @db.Decimal(14, 4) // reference cost, actual cost per provider
+  sellPrice       Decimal @db.Decimal(14, 4)
+  // Owner-set discount, whole percent (0-90, validated in the DTO). null = none.
+  // Applied by PricingService to every currency, overrides included.
+  discountPercent Int?
+  currency        String  @default("SAR") @db.Char(3)
 
   // null stockQty = unlimited (provider-backed); CODE_POOL derives from code inventory
   stockQty      Int?

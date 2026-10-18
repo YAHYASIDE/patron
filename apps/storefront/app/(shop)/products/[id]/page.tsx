@@ -7,7 +7,7 @@ import { catalog } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { cart } from '@/lib/cart';
 import type { GameInput, Paginated, Product } from '@/lib/types';
-import { money } from '@/lib/format';
+import Price from '@/components/Price';
 import { BoltIcon, CheckIcon, ShieldIcon, ChevronIcon } from '@/components/icons';
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -152,7 +152,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <h1 className="mt-1 text-2xl font-extrabold md:text-3xl">{name}</h1>
 
           <div className="mt-3 flex items-center gap-3">
-            <span className="tnum text-3xl font-extrabold text-teal">{money(product.sellPrice, product.currency)}</span>
+            <Price product={product} size="lg" />
             {product.inStock === false ? (
               <span className="rounded-full bg-bad/10 px-2.5 py-1 text-xs font-bold text-bad">غير متوفّر</span>
             ) : (

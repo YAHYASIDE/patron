@@ -103,6 +103,52 @@ describe('PricingService', () => {
       expect(result.amount.toString()).toBe('102.5');
     });
 
+    it('never applies the FX markup in the base currency (nothing is converted)', async () => {
+      prisma.systemSetting.findUnique.mockResolvedValue({ value: 2.5 });
+      prisma.currency.findUnique.mockResolvedValue(currency());
+      prisma.product.findFirst.mockResolvedValue({ id: 'p1', sellPrice: new Prisma.Decimal('11.50'), prices: [] });
+
+      const result = await pricing.priceProduct('p1', 'USD');
+      expect(result.amount.toString()).toBe('11.5');
+      expect(prisma.systemSetting.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('applies the owner discount and reports the list price beside it', async () => {
+      prisma.currency.findUnique.mockResolvedValue(currency());
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'p1', sellPrice: new Prisma.Decimal('10.60'), discountPercent: 15, prices: [],
+      });
+
+      const result = await pricing.priceProduct('p1', 'USD');
+      expect(result.amount.toString()).toBe('9.01'); // 10.60 x 0.85
+      expect(result.listAmount.toString()).toBe('10.6');
+      expect(result.discountPercent).toBe(15);
+      expect(result.baseAmount.toString()).toBe('9.01'); // cost/profit reporting sees the real price
+    });
+
+    it('applies the owner discount to a per-currency override too', async () => {
+      prisma.currency.findUnique.mockResolvedValue(currency({ code: 'XOF', decimals: 0, roundingStep: new Prisma.Decimal(5) }));
+      prisma.fxRate.findFirst.mockResolvedValue({ id: 'r1', rate: new Prisma.Decimal(600) });
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'p1', sellPrice: new Prisma.Decimal('4'), discountPercent: 10,
+        prices: [{ currencyCode: 'XOF', sellPrice: new Prisma.Decimal(2500), isActive: true }],
+      });
+
+      const result = await pricing.priceProduct('p1', 'XOF');
+      expect(result.amount.toString()).toBe('2250');
+      expect(result.listAmount.toString()).toBe('2500');
+      expect(result.isOverride).toBe(true);
+    });
+
+    it('treats a missing discount as none', async () => {
+      prisma.currency.findUnique.mockResolvedValue(currency());
+      prisma.product.findFirst.mockResolvedValue({ id: 'p1', sellPrice: new Prisma.Decimal('5'), discountPercent: null, prices: [] });
+
+      const result = await pricing.priceProduct('p1', 'USD');
+      expect(result.amount.equals(result.listAmount)).toBe(true);
+      expect(result.discountPercent).toBe(0);
+    });
+
     it('rejects an unsupported currency instead of defaulting', async () => {
       prisma.currency.findUnique.mockResolvedValue(null);
       await expect(pricing.priceProduct('p1', 'GBP')).rejects.toThrow(BadRequestException);
