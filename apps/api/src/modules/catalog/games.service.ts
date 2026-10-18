@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { CreateGameDto, QueryCatalogDto, UpdateGameDto } from './dto/catalog.dto';
 import { toAuditJson } from '../../common/audit/audit.service';
+import { isUUID } from 'class-validator';
 
 @Injectable()
 export class GamesService {
@@ -42,7 +43,7 @@ export class GamesService {
 
   async findOne(idOrSlug: string) {
     const game = await this.prisma.game.findFirst({
-      where: { deletedAt: null, OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+      where: { deletedAt: null, OR: [...(isUUID(idOrSlug) ? [{ id: idOrSlug }] : []), { slug: idOrSlug }] },
       include: { category: true },
     });
     if (!game) throw new NotFoundException('Game not found');

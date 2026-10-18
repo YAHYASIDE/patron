@@ -50,7 +50,7 @@ describe('CategoriesService', () => {
       const res = await service.findOne('games');
       expect(res).toEqual(category());
       const where = prisma.category.findFirst.mock.calls[0][0].where;
-      expect(where.OR).toEqual([{ id: 'games' }, { slug: 'games' }]);
+      expect(where.OR).toEqual([{ slug: 'games' }]); // a slug is never compared to the uuid id column
     });
 
     it('throws NotFound when missing', async () => {

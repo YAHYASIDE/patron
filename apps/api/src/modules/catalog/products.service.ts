@@ -5,6 +5,7 @@ import { paginate } from '../../common/dto/pagination.dto';
 import { PricingService } from './pricing.service';
 import { CreateProductDto, QueryCatalogDto, UpdateProductDto } from './dto/catalog.dto';
 import { toAuditJson } from '../../common/audit/audit.service';
+import { isUUID } from 'class-validator';
 
 /**
  * Strip the internal cost from a storefront payload.
@@ -87,7 +88,7 @@ export class ProductsService {
   async findOnePublic(idOrSku: string, currencyCode?: string) {
     const currency = currencyCode ?? this.pricing.baseCurrency;
     const product = await this.prisma.product.findFirst({
-      where: { deletedAt: null, isActive: true, OR: [{ id: idOrSku }, { sku: idOrSku }] },
+      where: { deletedAt: null, isActive: true, OR: [...(isUUID(idOrSku) ? [{ id: idOrSku }] : []), { sku: idOrSku }] },
       include: {
         category: { select: { id: true, slug: true, nameAr: true, nameEn: true } },
         game: { select: { id: true, slug: true, nameAr: true, nameEn: true, inputSchema: true } },

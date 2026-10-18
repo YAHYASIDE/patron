@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/catalog.dto';
 import { toAuditJson } from '../../common/audit/audit.service';
+import { isUUID } from 'class-validator';
 
 @Injectable()
 export class CategoriesService {
@@ -31,7 +32,7 @@ export class CategoriesService {
 
   async findOne(idOrSlug: string) {
     const category = await this.prisma.category.findFirst({
-      where: { deletedAt: null, OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+      where: { deletedAt: null, OR: [...(isUUID(idOrSlug) ? [{ id: idOrSlug }] : []), { slug: idOrSlug }] },
       include: { children: { where: { deletedAt: null } }, parent: true },
     });
     if (!category) throw new NotFoundException('Category not found');

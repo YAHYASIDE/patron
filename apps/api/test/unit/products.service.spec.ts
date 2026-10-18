@@ -134,10 +134,17 @@ describe('ProductsService', () => {
     it('returns a priced, cost-stripped product resolved by id or sku', async () => {
       const res: any = await service.findOnePublic('SKU1');
       const where = prisma.product.findFirst.mock.calls[0][0].where;
-      expect(where.OR).toEqual([{ id: 'SKU1' }, { sku: 'SKU1' }]);
+      // a SKU is not a UUID, so it must not be compared to the uuid id column (Postgres rejects it)
+      expect(where.OR).toEqual([{ sku: 'SKU1' }]);
       expect(res.costPrice).toBeUndefined();
       expect(res.sellPrice).toEqual(D('10'));
       expect(pricing.priceProduct).toHaveBeenCalledWith('p1', 'USD');
+    });
+
+    it('matches a UUID against id or sku', async () => {
+      const id = '7d052398-e9a0-466b-bda8-ffdd7d2dd940';
+      await service.findOnePublic(id);
+      expect(prisma.product.findFirst.mock.calls[0][0].where.OR).toEqual([{ id }, { sku: id }]);
     });
 
     it('uses the requested currency', async () => {
