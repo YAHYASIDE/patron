@@ -30,6 +30,7 @@ import { PrismaClient, ProductType, DeliveryMode, Prisma } from '@prisma/client'
 export const CATALOG_PACK_KEY = 'catalog.pack.v1';
 export const CATALOG_PACK_V2_KEY = 'catalog.pack.v2';
 export const CATALOG_PACK_V3_KEY = 'catalog.pack.v3';
+export const CATALOG_PACK_V4_KEY = 'catalog.pack.v4';
 
 type Input = {
   key: string;
@@ -418,10 +419,45 @@ async function applyV3(prisma: Db) {
   return created;
 }
 
+// ───────────────────────── pack v4 ─────────────────────────
+// Brands the owner asked to see first that the catalog lacked: Claude Pro.
+
+const GAMES_V4 = [
+  { slug: 'claude', nameAr: 'كلود', nameEn: 'Claude', category: 'subscriptions', publisher: 'Anthropic', inputSchema: accountEmail, sortOrder: 5 },
+];
+
+const PRODUCTS_V4: P[] = [
+  // priced like ChatGPT Plus: the same $20 list price plus the same margin
+  { sku: 'SUB-CLAUDE-PRO-1M', type: S, game: 'claude', category: 'subscriptions', nameAr: 'كلود برو شهر', nameEn: 'Claude Pro 1 Month', sell: 24, cost: 20.5, description: sub(1), isFeatured: true },
+];
+
+async function applyV4(prisma: Db) {
+  const created = { categories: 0, games: 0, products: 0 };
+  const cat = await ensureCategories(prisma, CATEGORIES.filter((c) => c.slug === 'subscriptions'), created);
+  const game: Record<string, string> = {};
+  for (const g of GAMES_V4) {
+    const existing = await prisma.game.findUnique({ where: { slug: g.slug } });
+    game[g.slug] = existing
+      ? existing.id
+      : (
+          await prisma.game.create({
+            data: {
+              slug: g.slug, nameAr: g.nameAr, nameEn: g.nameEn, publisher: g.publisher, categoryId: cat[g.category],
+              inputSchema: g.inputSchema as unknown as Prisma.InputJsonValue, sortOrder: g.sortOrder,
+            },
+          })
+        ).id;
+    if (!existing) created.games++;
+  }
+  await createProducts(prisma, PRODUCTS_V4, cat, game, created, true);
+  return created;
+}
+
 const PACKS: Array<{ key: string; description: string; apply: (prisma: Db) => Promise<Record<string, number>> }> = [
   { key: CATALOG_PACK_KEY, description: 'Starter catalog pack applied (insert-only, once).', apply: applyV1 },
   { key: CATALOG_PACK_V2_KEY, description: 'Catalog pack v2: more brands, wallets/crypto sections, product art (once).', apply: applyV2 },
   { key: CATALOG_PACK_V3_KEY, description: 'Catalog pack v3: Mauritanian mobile airtime priced in MRU (once).', apply: applyV3 },
+  { key: CATALOG_PACK_V4_KEY, description: 'Catalog pack v4: Claude Pro (once).', apply: applyV4 },
 ];
 
 /** Apply every pack not yet recorded, in order. */
@@ -450,6 +486,6 @@ export async function applyCatalogPack(client?: PrismaClient): Promise<void> {
 }
 
 /** Exposed for tests/tooling: every pack product SKU (v1 + v2). */
-export const CATALOG_PACK_SKUS = [...PRODUCTS, ...PRODUCTS_V2, ...PRODUCTS_V3].map((p) => p.sku);
+export const CATALOG_PACK_SKUS = [...PRODUCTS, ...PRODUCTS_V2, ...PRODUCTS_V3, ...PRODUCTS_V4].map((p) => p.sku);
 /** v2 products that are created hidden (crypto vouchers). */
 export const CATALOG_PACK_HIDDEN_SKUS = PRODUCTS_V2.filter((p) => p.isActive === false).map((p) => p.sku);

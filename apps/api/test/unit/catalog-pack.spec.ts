@@ -7,6 +7,7 @@ import {
   CATALOG_PACK_SKUS,
   CATALOG_PACK_V2_KEY,
   CATALOG_PACK_V3_KEY,
+  CATALOG_PACK_V4_KEY,
 } from '../../src/bootstrap/catalog-pack';
 
 type Row = Record<string, unknown> & { id: string };
@@ -118,7 +119,7 @@ describe('applyCatalogPack', () => {
       expect(p.imageUrl).toBe(artUrl(p.sku as string));
       if (p.type === 'GAME_TOPUP') expect(p.gameId).toBeTruthy(); // the API enforces this too
     }
-    expect([CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY].every((k) => settings.has(k))).toBe(true);
+    expect([CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY].every((k) => settings.has(k))).toBe(true);
   });
 
   it('creates crypto vouchers and their section hidden', async () => {
@@ -131,7 +132,7 @@ describe('applyCatalogPack', () => {
   });
 
   it('does nothing once every marker exists', async () => {
-    const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY] });
+    const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY] });
     await applyCatalogPack(asClient(client));
 
     expect(client.category.create).not.toHaveBeenCalled();
@@ -153,8 +154,8 @@ describe('applyCatalogPack', () => {
     });
     await applyCatalogPack(asClient(client));
 
-    // v1 skipped: only v3's operators are new games
-    expect(client.game.create.mock.calls.map(([a]) => a.data.slug)).toEqual(['mattel', 'mauritel', 'chinguitel']);
+    // v1 skipped: only v3's operators and v4's Claude are new games
+    expect(client.game.create.mock.calls.map(([a]) => a.data.slug)).toEqual(['mattel', 'mauritel', 'chinguitel', 'claude']);
     expect(products.get('TOP-PUBG-660')?.imageUrl).toBe(artUrl('TOP-PUBG-660'));
     expect(products.get('GC-APPLE-US-25')?.imageUrl).toBe(ownImage);
     expect(products.get('GC-RAZER-10')?.categoryId).not.toBe('cat-gift-cards'); // moved to wallets
@@ -178,7 +179,7 @@ describe('applyCatalogPack', () => {
     expect(prices.get(`${mattel200.id}:MRU`)?.sellPrice).toBe(200);
     expect(mattel200.sellPrice as number).toBeCloseTo(200 / 39.8, 2);
 
-    const games = client.game.create.mock.calls.map(([a]) => a.data);
+    const games = client.game.create.mock.calls.map(([a]) => a.data).filter((g) => g.slug !== 'claude');
     expect(games.map((g) => g.slug)).toEqual(['mattel', 'mauritel', 'chinguitel']);
     const regex = new RegExp(games[0].inputSchema[0].regex);
     for (const ok of ['22123456', '+22232123456', '44123456']) expect(regex.test(ok)).toBe(true);
@@ -198,6 +199,22 @@ describe('applyCatalogPack', () => {
 
     expect(prices.get('prod-TOP-MATTEL-100:MRU')?.sellPrice).toBe(110);
     expect(currencies.get('MRU')?.roundingStep).toBe(5);
+  });
+
+  it('v4 adds Claude Pro with an account-email input, featured, with art', async () => {
+    const { client, products } = fakePrisma({
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY],
+      categories: ['subscriptions'],
+    });
+    await applyCatalogPack(asClient(client));
+
+    const claude = products.get('SUB-CLAUDE-PRO-1M')!;
+    expect(claude).toMatchObject({ isFeatured: true, categoryId: 'cat-subscriptions', imageUrl: artUrl('SUB-CLAUDE-PRO-1M') });
+    expect(claude.sellPrice as number).toBeGreaterThan(claude.costPrice as number);
+    const game = client.game.create.mock.calls[0][0].data;
+    expect(game).toMatchObject({ slug: 'claude', publisher: 'Anthropic' });
+    expect(game.inputSchema[0].key).toBe('email');
+    expect(client.category.create).not.toHaveBeenCalled();
   });
 
   it('never re-adds a product the owner deleted (its SKU still exists)', async () => {
