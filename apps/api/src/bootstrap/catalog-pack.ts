@@ -8,9 +8,12 @@
  * the dashboard stay exactly as they left them (a soft-deleted product still
  * owns its SKU, so it is never re-added).
  *
- * A SystemSetting marker (`catalog.pack.v1`) records the run, so later boots
- * skip it. If a run is interrupted, the next boot finishes it: every step is
- * idempotent.
+ * Packs are versioned (`catalog.pack.v1`, `catalog.pack.v2`, ...): each one
+ * records a SystemSetting marker when it finishes, so later boots skip it, and
+ * a new pack ships as a new key, never as an edit to an applied one. If a run
+ * is interrupted, the next boot finishes it: every step is idempotent. The one
+ * kind of update a pack makes is filling a field the owner left empty (product
+ * art where imageUrl is null) or re-filing rows still where the pack put them.
  *
  * Run by the Docker entrypoint when CATALOG_PACK=true (dist/catalog-pack-runner.js).
  *
@@ -25,6 +28,7 @@
 import { PrismaClient, ProductType, DeliveryMode, Prisma } from '@prisma/client';
 
 export const CATALOG_PACK_KEY = 'catalog.pack.v1';
+export const CATALOG_PACK_V2_KEY = 'catalog.pack.v2';
 
 type Input = {
   key: string;
@@ -195,86 +199,177 @@ const PRODUCTS: P[] = [
   { sku: 'LIC-M365-FAMILY-12M', type: L, category: 'software', nameAr: 'مايكروسوفت 365 فاميلي سنة', nameEn: 'Microsoft 365 Family 12 Months', sell: 135, cost: 124, description: 'اشتراك رسمي لمدّة سنة حتى 6 أشخاص، لكل شخص 1 تيرابايت تخزين.', metadata: { licenseTerm: '12 months', seats: 6 } },
 ];
 
+// ───────────────────────── pack v2 ─────────────────────────
+// Brands the owner asked for that v1 lacked, the sections they described
+// (digital wallets, crypto), and product art for every pack SKU.
+
+const CATEGORIES_V2 = [
+  { slug: 'digital-wallets', nameAr: 'البطاقات والمحافظ الرقمية', nameEn: 'Digital Wallets', sortOrder: 3, isActive: true },
+  // Hidden until the owner decides to sell crypto vouchers (they asked "if you deal in crypto").
+  { slug: 'crypto', nameAr: 'العملات الرقمية', nameEn: 'Crypto', sortOrder: 7, isActive: false },
+];
+
+const RIOT = 'كود رقمي يصلك بعد الدفع، تفعّله بنفسك. صالح لحسابات رايوت جيمز: تشحن به ليج أوف ليجندز وفالورانت.';
+
+const PRODUCTS_V2: Array<P & { isActive?: boolean }> = [
+  { sku: 'GC-NETFLIX-US-25', type: C, category: 'gift-cards', nameAr: 'بطاقة نتفلكس 25$', nameEn: 'Netflix Gift Card $25 (US)', sell: 26.9, cost: 24.6, description: card('نتفلكس الأمريكية (US)'), metadata: { region: 'US' } },
+  { sku: 'GC-NETFLIX-US-50', type: C, category: 'gift-cards', nameAr: 'بطاقة نتفلكس 50$', nameEn: 'Netflix Gift Card $50 (US)', sell: 53.5, cost: 49.2, description: card('نتفلكس الأمريكية (US)'), metadata: { region: 'US' } },
+  { sku: 'GC-SPOTIFY-US-10', type: C, category: 'gift-cards', nameAr: 'بطاقة سبوتيفاي 10$', nameEn: 'Spotify Gift Card $10 (US)', sell: 10.9, cost: 9.7, description: card('سبوتيفاي الأمريكية (US)'), metadata: { region: 'US' } },
+  { sku: 'GC-SPOTIFY-US-30', type: C, category: 'gift-cards', nameAr: 'بطاقة سبوتيفاي 30$', nameEn: 'Spotify Gift Card $30 (US)', sell: 32, cost: 29, description: card('سبوتيفاي الأمريكية (US)'), metadata: { region: 'US' } },
+  { sku: 'GC-RIOT-10', type: C, category: 'gift-cards', nameAr: 'بطاقة رايوت جيمز 10$ (ليج أوف ليجندز وفالورانت)', nameEn: 'Riot Games Gift Card $10 (League of Legends, Valorant)', sell: 10.9, cost: 9.8, description: RIOT, metadata: { region: 'GLOBAL' } },
+  { sku: 'GC-RIOT-25', type: C, category: 'gift-cards', nameAr: 'بطاقة رايوت جيمز 25$ (ليج أوف ليجندز وفالورانت)', nameEn: 'Riot Games Gift Card $25 (League of Legends, Valorant)', sell: 26.9, cost: 24.5, description: RIOT, metadata: { region: 'GLOBAL' }, isFeatured: true },
+  { sku: 'GC-RIOT-50', type: C, category: 'gift-cards', nameAr: 'بطاقة رايوت جيمز 50$ (ليج أوف ليجندز وفالورانت)', nameEn: 'Riot Games Gift Card $50 (League of Legends, Valorant)', sell: 53.5, cost: 49, description: RIOT, metadata: { region: 'GLOBAL' } },
+  { sku: 'GC-BATTLENET-20', type: C, category: 'gift-cards', nameAr: 'بطاقة بليزارد Battle.net 20$', nameEn: 'Blizzard Battle.net $20', sell: 21.6, cost: 19.6, description: card('بليزارد Battle.net'), metadata: { region: 'GLOBAL' } },
+  { sku: 'GC-BATTLENET-50', type: C, category: 'gift-cards', nameAr: 'بطاقة بليزارد Battle.net 50$', nameEn: 'Blizzard Battle.net $50', sell: 53.5, cost: 49, description: card('بليزارد Battle.net'), metadata: { region: 'GLOBAL' } },
+  { sku: 'GC-MINECRAFT-JAVA-BEDROCK', type: C, category: 'gift-cards', nameAr: 'ماين كرافت: نسخة Java و Bedrock كاملة', nameEn: 'Minecraft: Java & Bedrock Edition', sell: 31.5, cost: 28.5, description: 'كود رسمي للعبة ماين كرافت الكاملة (Java و Bedrock للكمبيوتر)، يصلك بعد الدفع.', metadata: { region: 'GLOBAL', platform: 'pc' } },
+  { sku: 'GC-MINECRAFT-1720', type: C, category: 'gift-cards', nameAr: 'ماين كرافت 1720 ماين كوين', nameEn: 'Minecraft 1,720 Minecoins', sell: 10.6, cost: 9.4, description: card('ماين كرافت'), metadata: { region: 'GLOBAL' } },
+  { sku: 'GC-TWITCH-US-25', type: C, category: 'gift-cards', nameAr: 'بطاقة تويتش 25$', nameEn: 'Twitch Gift Card $25 (US)', sell: 26.9, cost: 24.5, description: card('تويتش الأمريكية (US)'), metadata: { region: 'US' } },
+  { sku: 'GC-TWITCH-US-50', type: C, category: 'gift-cards', nameAr: 'بطاقة تويتش 50$', nameEn: 'Twitch Gift Card $50 (US)', sell: 53.5, cost: 49, description: card('تويتش الأمريكية (US)'), metadata: { region: 'US' } },
+  { sku: 'SUB-DISCORD-NITRO-12M', type: S, category: 'subscriptions', nameAr: 'ديسكورد نيترو سنة', nameEn: 'Discord Nitro 12 Months', sell: 105, cost: 96, description: year, metadata: { durationDays: 365 } },
+  // crypto vouchers: created hidden, like their category
+  { sku: 'GC-BINANCE-10', type: C, category: 'crypto', nameAr: 'بطاقة هدايا بينانس 10 USDT', nameEn: 'Binance Gift Card 10 USDT', sell: 10.6, cost: 10, description: 'بطاقة هدايا بينانس بقيمة 10 USDT، تُضاف إلى حسابك في بينانس بعد الدفع.', metadata: { asset: 'USDT' }, isActive: false },
+  { sku: 'GC-BINANCE-25', type: C, category: 'crypto', nameAr: 'بطاقة هدايا بينانس 25 USDT', nameEn: 'Binance Gift Card 25 USDT', sell: 26.3, cost: 25, description: 'بطاقة هدايا بينانس بقيمة 25 USDT، تُضاف إلى حسابك في بينانس بعد الدفع.', metadata: { asset: 'USDT' }, isActive: false },
+  { sku: 'GC-BINANCE-50', type: C, category: 'crypto', nameAr: 'بطاقة هدايا بينانس 50 USDT', nameEn: 'Binance Gift Card 50 USDT', sell: 52.3, cost: 50, description: 'بطاقة هدايا بينانس بقيمة 50 USDT، تُضاف إلى حسابك في بينانس بعد الدفع.', metadata: { asset: 'USDT' }, isActive: false },
+];
+
+/** Razer Gold is a wallet top-up: v2 moves it to the wallets section, but only if the owner has not re-filed it. */
+const RAZER_SKUS = ['GC-RAZER-10', 'GC-RAZER-25', 'GC-RAZER-50'];
+
+/** Every pack SKU has generated art at <storefront>/art/<sku lowercase>.svg (apps/storefront/public/art). */
+export function artUrl(sku: string): string {
+  const base = (process.env.STOREFRONT_URL ?? 'https://etssadagha-store.onrender.com').replace(/\/+$/, '');
+  return `${base}/art/${sku.toLowerCase()}.svg`;
+}
+
+type Db = PrismaClient;
+
+async function ensureCategories(prisma: Db, cats: Array<{ slug: string; nameAr: string; nameEn: string; sortOrder: number; isActive?: boolean }>, created: { categories: number }) {
+  const ids: Record<string, string> = {};
+  for (const c of cats) {
+    const existing = await prisma.category.findUnique({ where: { slug: c.slug } });
+    ids[c.slug] = existing ? existing.id : (await prisma.category.create({ data: c })).id;
+    if (!existing) created.categories++;
+  }
+  return ids;
+}
+
+async function createProducts(
+  prisma: Db,
+  products: Array<P & { isActive?: boolean }>,
+  cat: Record<string, string>,
+  game: Record<string, string>,
+  created: { products: number },
+  withArt: boolean,
+) {
+  for (const [i, p] of products.entries()) {
+    // includes soft-deleted rows: a product the owner removed is not re-added
+    if (await prisma.product.findUnique({ where: { sku: p.sku } })) continue;
+    await prisma.product.create({
+      data: {
+        sku: p.sku,
+        type: p.type,
+        delivery: DeliveryMode.MANUAL,
+        nameAr: p.nameAr,
+        nameEn: p.nameEn,
+        description: p.description,
+        imageUrl: withArt ? artUrl(p.sku) : undefined,
+        costPrice: p.cost,
+        sellPrice: p.sell,
+        currency: 'USD',
+        categoryId: cat[p.category],
+        gameId: p.game ? game[p.game] : null,
+        isFeatured: p.isFeatured ?? false,
+        isActive: p.isActive ?? true,
+        sortOrder: i,
+        metadata: p.metadata as Prisma.InputJsonValue | undefined,
+      },
+    });
+    created.products++;
+  }
+}
+
+async function applyV1(prisma: Db) {
+  const created = { categories: 0, games: 0, products: 0 };
+  const cat = await ensureCategories(prisma, CATEGORIES, created);
+
+  const game: Record<string, string> = {};
+  for (const g of GAMES) {
+    const existing = await prisma.game.findUnique({ where: { slug: g.slug } });
+    if (existing) {
+      game[g.slug] = existing.id;
+      continue;
+    }
+    const row = await prisma.game.create({
+      data: {
+        slug: g.slug,
+        nameAr: g.nameAr,
+        nameEn: g.nameEn,
+        publisher: g.publisher,
+        categoryId: cat[g.category],
+        inputSchema: g.inputSchema as unknown as Prisma.InputJsonValue,
+        isFeatured: g.isFeatured ?? false,
+        sortOrder: g.sortOrder,
+      },
+    });
+    game[g.slug] = row.id;
+    created.games++;
+  }
+
+  await createProducts(prisma, PRODUCTS, cat, game, created, false);
+  return created;
+}
+
+async function applyV2(prisma: Db) {
+  const created = { categories: 0, games: 0, products: 0, images: 0, moved: 0 };
+  const cat = await ensureCategories(prisma, [...CATEGORIES, ...CATEGORIES_V2], created);
+  await createProducts(prisma, PRODUCTS_V2, cat, {}, created, true);
+
+  // Fill in art only where the product has no image yet: an image the owner
+  // set is never replaced.
+  for (const sku of [...PRODUCTS.map((p) => p.sku), ...PRODUCTS_V2.map((p) => p.sku)]) {
+    const res = await prisma.product.updateMany({ where: { sku, imageUrl: null }, data: { imageUrl: artUrl(sku) } });
+    created.images += res.count;
+  }
+
+  const moved = await prisma.product.updateMany({
+    where: { sku: { in: RAZER_SKUS }, categoryId: cat['gift-cards'] },
+    data: { categoryId: cat['digital-wallets'] },
+  });
+  created.moved = moved.count;
+  return created;
+}
+
+const PACKS: Array<{ key: string; description: string; apply: (prisma: Db) => Promise<Record<string, number>> }> = [
+  { key: CATALOG_PACK_KEY, description: 'Starter catalog pack applied (insert-only, once).', apply: applyV1 },
+  { key: CATALOG_PACK_V2_KEY, description: 'Catalog pack v2: more brands, wallets/crypto sections, product art (once).', apply: applyV2 },
+];
+
+/** Apply every pack not yet recorded, in order. */
 export async function applyCatalogPack(client?: PrismaClient): Promise<void> {
   const prisma = client ?? new PrismaClient();
   try {
-    const done = await prisma.systemSetting.findUnique({ where: { key: CATALOG_PACK_KEY } });
-    if (done) {
-      console.log(`catalog pack: ${CATALOG_PACK_KEY} already applied, skipping`);
-      return;
-    }
-
-    const created = { categories: 0, games: 0, products: 0 };
-
-    const cat: Record<string, string> = {};
-    for (const c of CATEGORIES) {
-      const existing = await prisma.category.findUnique({ where: { slug: c.slug } });
-      cat[c.slug] = existing ? existing.id : (await prisma.category.create({ data: c })).id;
-      if (!existing) created.categories++;
-    }
-
-    const game: Record<string, string> = {};
-    for (const g of GAMES) {
-      const existing = await prisma.game.findUnique({ where: { slug: g.slug } });
-      if (existing) {
-        game[g.slug] = existing.id;
+    for (const pack of PACKS) {
+      if (await prisma.systemSetting.findUnique({ where: { key: pack.key } })) {
+        console.log(`catalog pack: ${pack.key} already applied, skipping`);
         continue;
       }
-      const row = await prisma.game.create({
+      const result = await pack.apply(prisma);
+      await prisma.systemSetting.create({
         data: {
-          slug: g.slug,
-          nameAr: g.nameAr,
-          nameEn: g.nameEn,
-          publisher: g.publisher,
-          categoryId: cat[g.category],
-          inputSchema: g.inputSchema as unknown as Prisma.InputJsonValue,
-          isFeatured: g.isFeatured ?? false,
-          sortOrder: g.sortOrder,
+          key: pack.key,
+          group: 'catalog',
+          description: pack.description,
+          value: { appliedAt: new Date().toISOString(), ...result } as Prisma.InputJsonValue,
         },
       });
-      game[g.slug] = row.id;
-      created.games++;
+      console.log(`catalog pack: ${pack.key} applied`, JSON.stringify(result));
     }
-
-    for (const [i, p] of PRODUCTS.entries()) {
-      // includes soft-deleted rows: a product the owner removed is not re-added
-      if (await prisma.product.findUnique({ where: { sku: p.sku } })) continue;
-      await prisma.product.create({
-        data: {
-          sku: p.sku,
-          type: p.type,
-          delivery: DeliveryMode.MANUAL,
-          nameAr: p.nameAr,
-          nameEn: p.nameEn,
-          description: p.description,
-          costPrice: p.cost,
-          sellPrice: p.sell,
-          currency: 'USD',
-          categoryId: cat[p.category],
-          gameId: p.game ? game[p.game] : null,
-          isFeatured: p.isFeatured ?? false,
-          sortOrder: i,
-          metadata: p.metadata as Prisma.InputJsonValue | undefined,
-        },
-      });
-      created.products++;
-    }
-
-    await prisma.systemSetting.create({
-      data: {
-        key: CATALOG_PACK_KEY,
-        group: 'catalog',
-        description: 'Starter catalog pack applied (insert-only, once).',
-        value: { appliedAt: new Date().toISOString(), ...created } as Prisma.InputJsonValue,
-      },
-    });
-    console.log(
-      `catalog pack: created ${created.categories} categories, ${created.games} games, ${created.products} products`,
-    );
   } finally {
     if (!client) await prisma.$disconnect();
   }
 }
 
-/** Exposed for tests/tooling: the pack's product SKUs. */
-export const CATALOG_PACK_SKUS = PRODUCTS.map((p) => p.sku);
+/** Exposed for tests/tooling: every pack product SKU (v1 + v2). */
+export const CATALOG_PACK_SKUS = [...PRODUCTS, ...PRODUCTS_V2].map((p) => p.sku);
+/** v2 products that are created hidden (crypto vouchers). */
+export const CATALOG_PACK_HIDDEN_SKUS = PRODUCTS_V2.filter((p) => p.isActive === false).map((p) => p.sku);

@@ -92,6 +92,9 @@ services:
         # once; a DB marker makes later boots a no-op, and it never edits or
         # re-adds products the owner changed or deleted.
         value: "true"
+      - key: STOREFRONT_URL
+        # where the catalog pack's product art is served (apps/storefront/public/art)
+        value: https://etssadagha-store.onrender.com
       - key: BASE_CURRENCY
         value: USD
       - key: CORS_ORIGINS

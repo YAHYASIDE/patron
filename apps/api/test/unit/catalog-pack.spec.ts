@@ -1,14 +1,30 @@
 import { PrismaClient } from '@prisma/client';
-import { applyCatalogPack, CATALOG_PACK_KEY, CATALOG_PACK_SKUS } from '../../src/bootstrap/catalog-pack';
+import {
+  applyCatalogPack,
+  artUrl,
+  CATALOG_PACK_HIDDEN_SKUS,
+  CATALOG_PACK_KEY,
+  CATALOG_PACK_SKUS,
+  CATALOG_PACK_V2_KEY,
+} from '../../src/bootstrap/catalog-pack';
 
-/** In-memory stand-in for the four tables the pack touches. */
-function fakePrisma(seed: { settings?: string[]; categories?: string[]; games?: string[]; skus?: string[] } = {}) {
+type Row = Record<string, unknown> & { id: string };
+
+/** In-memory stand-in for the tables the packs touch. */
+function fakePrisma(seed: { settings?: string[]; categories?: string[]; games?: string[]; products?: Array<Partial<Row> & { sku: string }> } = {}) {
   let n = 0;
   const id = () => `id-${++n}`;
   const settings = new Map((seed.settings ?? []).map((k) => [k, { key: k }]));
-  const categories = new Map((seed.categories ?? []).map((s) => [s, { id: `cat-${s}`, slug: s }]));
-  const games = new Map((seed.games ?? []).map((s) => [s, { id: `game-${s}`, slug: s }]));
-  const products = new Map((seed.skus ?? []).map((s) => [s, { id: `prod-${s}`, sku: s }]));
+  const categories = new Map<string, Row>((seed.categories ?? []).map((s) => [s, { id: `cat-${s}`, slug: s }]));
+  const games = new Map<string, Row>((seed.games ?? []).map((s) => [s, { id: `game-${s}`, slug: s }]));
+  const products = new Map<string, Row>((seed.products ?? []).map((p) => [p.sku, { id: `prod-${p.sku}`, imageUrl: null, ...p }]));
+
+  const matches = (row: Row, where: Record<string, unknown>) =>
+    Object.entries(where).every(([k, v]) =>
+      v !== null && typeof v === 'object' && 'in' in (v as object)
+        ? ((v as { in: unknown[] }).in).includes(row[k])
+        : (row[k] ?? null) === v,
+    );
 
   const client = {
     systemSetting: {
@@ -34,64 +50,113 @@ function fakePrisma(seed: { settings?: string[]; categories?: string[]; games?: 
     product: {
       findUnique: jest.fn(({ where }) => Promise.resolve(products.get(where.sku) ?? null)),
       create: jest.fn(({ data }) => {
-        const row = { ...data, id: id() };
+        const row = { imageUrl: null, ...data, id: id() };
         products.set(data.sku, row);
         return Promise.resolve(row);
+      }),
+      updateMany: jest.fn(({ where, data }) => {
+        let count = 0;
+        for (const row of products.values()) {
+          if (matches(row, where)) {
+            Object.assign(row, data);
+            count++;
+          }
+        }
+        return Promise.resolve({ count });
       }),
       update: jest.fn(),
       upsert: jest.fn(),
     },
     $disconnect: jest.fn(),
   };
-  return { client, products, settings };
+  return { client, products, settings, categories };
 }
+
+const asClient = (c: unknown) => c as PrismaClient;
 
 describe('applyCatalogPack', () => {
   beforeEach(() => jest.spyOn(console, 'log').mockImplementation(() => undefined));
   afterEach(() => jest.restoreAllMocks());
 
-  it('creates every product as MANUAL delivery in USD, priced at or above cost', async () => {
+  it('on an empty database creates every product as MANUAL, in USD, at or above cost, with art', async () => {
     const { client, products, settings } = fakePrisma();
-    await applyCatalogPack(client as unknown as PrismaClient);
+    await applyCatalogPack(asClient(client));
 
     expect(products.size).toBe(CATALOG_PACK_SKUS.length);
-    for (const p of products.values() as Iterable<Record<string, unknown>>) {
+    for (const p of products.values()) {
       expect(p.delivery).toBe('MANUAL');
       expect(p.currency).toBe('USD');
       expect(p.sellPrice as number).toBeGreaterThanOrEqual(p.costPrice as number);
       expect(p.categoryId).toBeTruthy();
-      // game top-ups must be linked to a game (the API enforces this too)
-      if (p.type === 'GAME_TOPUP') expect(p.gameId).toBeTruthy();
+      expect(p.imageUrl).toBe(artUrl(p.sku as string));
+      if (p.type === 'GAME_TOPUP') expect(p.gameId).toBeTruthy(); // the API enforces this too
     }
-    expect(settings.has(CATALOG_PACK_KEY)).toBe(true);
+    expect(settings.has(CATALOG_PACK_KEY) && settings.has(CATALOG_PACK_V2_KEY)).toBe(true);
   });
 
-  it('does nothing once the marker exists', async () => {
-    const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY] });
-    await applyCatalogPack(client as unknown as PrismaClient);
+  it('creates crypto vouchers and their section hidden', async () => {
+    const { client, products, categories } = fakePrisma();
+    await applyCatalogPack(asClient(client));
+
+    expect(CATALOG_PACK_HIDDEN_SKUS.length).toBeGreaterThan(0);
+    for (const sku of CATALOG_PACK_HIDDEN_SKUS) expect(products.get(sku)?.isActive).toBe(false);
+    expect(categories.get('crypto')?.isActive).toBe(false);
+  });
+
+  it('does nothing once both markers exist', async () => {
+    const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY] });
+    await applyCatalogPack(asClient(client));
 
     expect(client.category.create).not.toHaveBeenCalled();
     expect(client.product.create).not.toHaveBeenCalled();
+    expect(client.product.updateMany).not.toHaveBeenCalled();
   });
 
-  it('is insert-only: existing (or soft-deleted) SKUs, categories and games are never modified or re-added', async () => {
-    const kept = CATALOG_PACK_SKUS[0];
-    const { client } = fakePrisma({ categories: ['games'], games: ['pubg-mobile'], skus: [kept] });
-    await applyCatalogPack(client as unknown as PrismaClient);
+  it('on a store that already has v1 (the live case) only adds v2, fills missing art and keeps the owner image', async () => {
+    const ownImage = 'https://example.com/my-own-photo.jpg';
+    const { client, products } = fakePrisma({
+      settings: [CATALOG_PACK_KEY],
+      categories: ['games', 'gift-cards', 'subscriptions', 'software', 'apps-topup'],
+      products: [
+        { sku: 'TOP-PUBG-660', imageUrl: null },
+        { sku: 'GC-APPLE-US-25', imageUrl: ownImage },
+        { sku: 'GC-RAZER-10', categoryId: 'cat-gift-cards' },
+        { sku: 'GC-RAZER-25', categoryId: 'cat-subscriptions' }, // re-filed by the owner
+      ],
+    });
+    await applyCatalogPack(asClient(client));
 
-    const createdSkus = client.product.create.mock.calls.map(([arg]) => arg.data.sku);
-    expect(createdSkus).not.toContain(kept);
-    expect(createdSkus).toHaveLength(CATALOG_PACK_SKUS.length - 1);
-    expect(client.category.create.mock.calls.map(([a]) => a.data.slug)).not.toContain('games');
-    expect(client.game.create.mock.calls.map(([a]) => a.data.slug)).not.toContain('pubg-mobile');
+    expect(client.game.create).not.toHaveBeenCalled(); // v1 skipped
+    expect(products.get('TOP-PUBG-660')?.imageUrl).toBe(artUrl('TOP-PUBG-660'));
+    expect(products.get('GC-APPLE-US-25')?.imageUrl).toBe(ownImage);
+    expect(products.get('GC-RAZER-10')?.categoryId).not.toBe('cat-gift-cards'); // moved to wallets
+    expect(products.get('GC-RAZER-25')?.categoryId).toBe('cat-subscriptions'); // owner's choice kept
+    expect(products.has('GC-RIOT-25')).toBe(true);
     expect(client.product.update).not.toHaveBeenCalled();
     expect(client.product.upsert).not.toHaveBeenCalled();
   });
 
-  it('never reuses a retired demo SKU (those rows still exist, soft-deleted)', () => {
+  it('never re-adds a product the owner deleted (its SKU still exists)', async () => {
+    const { client } = fakePrisma({ products: [{ sku: 'GC-RIOT-10', deletedAt: new Date() }] });
+    await applyCatalogPack(asClient(client));
+
+    const created = client.product.create.mock.calls.map(([a]) => a.data.sku);
+    expect(created).not.toContain('GC-RIOT-10');
+    expect(created).toHaveLength(CATALOG_PACK_SKUS.length - 1);
+  });
+
+  it('keeps SKUs unique, within the DTO limit, and clear of the retired demo SKUs', () => {
     const demo = ['PUBG-UC-60', 'PUBG-UC-325', 'MLBB-DIA-86', 'GC-ITUNES-50', 'GC-PSN-100', 'SUB-NETFLIX-1M', 'LIC-WIN11-PRO'];
     expect(CATALOG_PACK_SKUS.filter((s) => demo.includes(s))).toEqual([]);
     expect(new Set(CATALOG_PACK_SKUS).size).toBe(CATALOG_PACK_SKUS.length);
-    for (const s of CATALOG_PACK_SKUS) expect(s.length).toBeLessThanOrEqual(40); // DTO limit
+    for (const s of CATALOG_PACK_SKUS) expect(s.length).toBeLessThanOrEqual(40);
+  });
+
+  it('builds art URLs from STOREFRONT_URL', () => {
+    const prev = process.env.STOREFRONT_URL;
+    process.env.STOREFRONT_URL = 'https://shop.example.com/';
+    expect(artUrl('GC-RIOT-25')).toBe('https://shop.example.com/art/gc-riot-25.svg');
+    if (prev === undefined) delete process.env.STOREFRONT_URL;
+    else process.env.STOREFRONT_URL = prev;
   });
 });
