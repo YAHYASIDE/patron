@@ -171,6 +171,25 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
 - **Quote/coupon 429:** throttler tier hit during rapid testing — wait out the
   window, don't "fix" it.
 - **CODE_POOL purchase fails `no_provider`:** expected — no dispenser yet (§4).
+- **No endpoint to upload codes:** there is no admin route to add `ProductCode`
+  rows, so a CODE_POOL product is always `inStock:false` in the store, and an
+  AUTO_PROVIDER one is out of stock unless it has an active+healthy
+  `ProductProvider`. Today only **MANUAL** delivery sells end to end; the admin
+  product form defaults to MANUAL and explains each mode.
+- **Store price ≠ admin sell price:** `currency.fx_markup_percent` (seeded 2.5)
+  is multiplied in by `pricing.priceProduct` even for the **base** currency
+  (rate 1), so a USD 11.50 product shows 11.79. Product overrides
+  (`ProductPrice`) bypass it. The admin Settings page is read-only, so the
+  markup cannot be changed from the UI yet.
+- **Admin product CRUD:** `/products/new` and `/products/[id]` share
+  `apps/admin/components/ProductForm.tsx`. The API's ValidationPipe uses
+  `forbidNonWhitelisted`, so the form builds the body from DTO fields only.
+  `UpdateProductDto` extends `CreateProductDto` (PATCH needs the full body).
+  `maxPerOrder` is non-nullable (default 10): omit it, never send null. There is
+  no admin get-by-id, so the edit page finds the row in the admin list.
+- **`nest build` emits only `.d.ts` locally:** a stale
+  `apps/api/tsconfig.build.tsbuildinfo` (incremental + `deleteOutDir`) makes tsc
+  think nothing changed. Delete it and rebuild. Docker builds are unaffected.
 - **Admin Docker image fails on `../../packages/tsconfig`:** CI only ever builds
   the **API** image (ci.yml `build` job, context `./apps/api`); the admin image
   is **not** built in CI, so its Docker build is unverified until a real deploy.

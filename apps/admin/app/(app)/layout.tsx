@@ -109,7 +109,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
         {NAV.map((item) => {
-          const active = pathname === item.href;
+          // highlight the section on its sub-pages too (e.g. /products/new)
+          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

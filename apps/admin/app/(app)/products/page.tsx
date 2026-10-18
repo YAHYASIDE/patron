@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
 import { num, money } from '@/lib/format';
 
@@ -12,7 +13,7 @@ type Product = {
   nameAr: string;
   nameEn: string;
   sellPrice: number | string;
-  stockQty: number;
+  stockQty: number | null;
   isActive: boolean;
   isFeatured: boolean;
   category?: { nameEn?: string };
@@ -36,6 +37,17 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  // brief confirmation after returning from the add/edit form (?saved=1)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('saved')) {
+      setSaved(true);
+      window.history.replaceState(null, '', '/products');
+      const t = setTimeout(() => setSaved(false), 3500);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   const qs = new URLSearchParams({ page: String(page), limit: '20' });
   if (query) qs.set('search', query);
@@ -60,7 +72,7 @@ export default function ProductsPage() {
             setPage(1);
             setQuery(search.trim());
           }}
-          className="flex gap-2"
+          className="flex flex-wrap gap-2"
         >
           <input
             value={search}
@@ -68,11 +80,23 @@ export default function ProductsPage() {
             placeholder="ابحث بالاسم أو SKU…"
             className="surface-2 hairline w-56 rounded-xl border px-3.5 py-2 text-sm outline-none focus:border-teal"
           />
-          <button className="rounded-xl bg-teal px-4 py-2 text-sm font-bold text-white hover:bg-teal-deep">
+          <button className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold">
             بحث
           </button>
+          <Link
+            href="/products/new"
+            className="rounded-xl bg-teal px-4 py-2 text-sm font-bold text-white hover:bg-teal-deep"
+          >
+            + منتج جديد
+          </Link>
         </form>
       </div>
+
+      {saved && (
+        <div className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-sm font-semibold text-ok">
+          تم حفظ المنتج بنجاح.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">
@@ -109,11 +133,14 @@ export default function ProductsPage() {
               )}
               {data?.data?.map((p) => {
                 const auto = p.delivery === 'AUTO_PROVIDER';
-                const out = !auto && p.stockQty <= 0;
+                // null stockQty means unlimited, not "sold out"
+                const out = !auto && p.stockQty !== null && p.stockQty <= 0;
                 return (
                   <tr key={p.id} className="border-t hairline">
                     <td className="px-5 py-3">
-                      <div className="font-semibold">{p.nameAr}</div>
+                      <Link href={`/products/${p.id}`} className="font-semibold text-teal hover:underline">
+                        {p.nameAr}
+                      </Link>
                       <div className="text-xs text-muted" dir="ltr">
                         {p.sku}
                         {p.game?.nameEn ? ` · ${p.game.nameEn}` : ''}
@@ -121,7 +148,7 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-5 py-3 text-muted">{TYPE_LABEL[p.type] ?? p.type}</td>
                     <td className="px-5 py-3 text-muted">{DELIVERY_LABEL[p.delivery] ?? p.delivery}</td>
-                    <td className="px-5 py-3 tnum">{auto ? '∞' : num(p.stockQty)}</td>
+                    <td className="px-5 py-3 tnum">{auto || p.stockQty === null ? '∞' : num(p.stockQty)}</td>
                     <td className="px-5 py-3 tnum font-semibold">{money(p.sellPrice)}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1.5">

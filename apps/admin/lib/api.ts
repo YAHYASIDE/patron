@@ -108,6 +108,7 @@ export const api = {
   get: <T>(path: string) => raw<T>(path, { method: 'GET' }),
   post: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'POST', body }),
   patch: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'PATCH', body }),
+  del: <T>(path: string) => raw<T>(path, { method: 'DELETE' }),
 };
 
 export async function login(email: string, password: string): Promise<Tokens> {
