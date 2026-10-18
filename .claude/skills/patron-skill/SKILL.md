@@ -212,6 +212,23 @@ PAID→PROCESSING→COMPLETED) → the customer reveals it on the order page. St
 listed by the API when keys exist, but the storefront hides it: there is no card
 form (Stripe.js) yet. The wallet is offered only when its balance covers the total.
 
+**Customers sign in with a WhatsApp number** (no password). Every store page
+sends a signed-out visitor to /login (`components/AuthGate.tsx`; the owner wants
+it). `POST /auth/phone/start {phone E.164, fullName}` creates the account and
+signs in, unverified. A number that is verified, has a password or has orders
+answers `CODE_REQUIRED` instead, and `POST /auth/phone/login {phone, code}`
+finishes it, so typing someone's number never opens their account. Verifying:
+`POST /auth/phone/request-code` → the code goes to the owner, not to an SMS
+provider: it is stored encrypted (`verification_tokens.codeEnc`, 30 min TTL, a
+second request reuses the live code) and listed at `GET /admin/verifications/pending`
+(users.write). The admin "رموز التحقق" page opens `wa.me/<number>?text=<code>`
+and records `sentAt`. The customer enters it at `POST /auth/phone/verify`.
+**Quotes require `phoneVerifiedAt`** (403 `PHONE_NOT_VERIFIED`; checkout shows
+the verify panel). `users.email`/`passwordHash` are nullable since migration
+`20261019000000_whatsapp_sign_in`; email/password login stays for staff and
+older accounts. Country picker: `lib/countries.ts` (ISO + dial codes, names
+from `Intl.DisplayNames`, Mauritania first).
+
 **Storefront browsing is by brand, not by SKU** (`lib/brands.ts`). The catalog has
 one product per denomination; the shop groups them: by `game` when there is
 one, else by the SKU minus its last segment (`GC-APPLE-US-25` → `gc-apple-us`).
