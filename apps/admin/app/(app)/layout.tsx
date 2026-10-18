@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { isAuthed, logout } from '@/lib/api';
+import WakeBanner from '@/components/WakeBanner';
 
 const NAV = [
   { href: '/', label: 'لوحة القيادة', icon: 'grid' },
@@ -173,7 +174,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6">
+          <WakeBanner />
+          <div>{children}</div>
+        </main>
       </div>
     </div>
   );

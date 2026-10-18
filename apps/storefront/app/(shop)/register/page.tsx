@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth, ApiError } from '@/lib/api';
+import { auth, ApiError, warmUp } from '@/lib/api';
 
 function RegisterInner() {
   const router = useRouter();
@@ -11,11 +11,15 @@ function RegisterInner() {
   const next = params.get('next') || '/account';
   const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '' });
   const [busy, setBusy] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
   function set(k: keyof typeof form, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
   }
+
+  // the submit is a POST (never auto-retried): wake the API while the form is filled
+  useEffect(() => warmUp(), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

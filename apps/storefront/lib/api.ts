@@ -82,6 +82,54 @@ type Opts = {
   retry?: boolean;
 };
 
+/*
+ * Cold starts. On the hosting free tier the API sleeps after ~15 idle minutes
+ * and takes up to a minute to wake. While it does, requests fail at the
+ * network level or get a non-JSON gateway page. GETs are safe to repeat, so
+ * they are retried with backoff for about 75s, and the shop shows a "waking
+ * up" banner (WakeBanner) instead of an error. Writes are never auto-retried.
+ */
+export const WAKING_EVENT = 'patron-api-waking';
+const WAKE_DELAYS_MS = [1500, 2500, 4000, 6000, 8000, 10000, 10000, 10000, 12000, 12000];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Several requests can be waiting at once; the banner shows while any is.
+let waiting = 0;
+function setWaiting(delta: 1 | -1) {
+  waiting = Math.max(0, waiting + delta);
+  try {
+    window.dispatchEvent(new CustomEvent(WAKING_EVENT, { detail: waiting > 0 }));
+  } catch {
+    /* SSR */
+  }
+}
+
+async function fetchWaking(url: string, init: RequestInit, retryable: boolean): Promise<Response> {
+  let counted = false;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      let res: Response | null = null;
+      try {
+        res = await fetch(url, init);
+      } catch {
+        res = null; // network error: asleep, or offline
+      }
+      const gatewayPage =
+        res !== null && res.status >= 502 && res.status <= 504 && !(res.headers.get('content-type') ?? '').includes('json');
+      if (res !== null && !gatewayPage) return res;
+      if (!retryable || attempt >= WAKE_DELAYS_MS.length) {
+        throw new ApiError(0, 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت ثم حدّث الصفحة.');
+      }
+      if (!counted) {
+        counted = true;
+        setWaiting(1);
+      }
+      await sleep(WAKE_DELAYS_MS[attempt]);
+    }
+  } finally {
+    if (counted) setWaiting(-1);
+  }
+}
+
 async function request<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = 'GET', body, auth = false, idempotent = false, retry = true } = opts;
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -92,17 +140,16 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let res: Response;
-  try {
-    res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWaking(
+    `${BASE}${path}`,
+    {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
       cache: 'no-store',
-    });
-  } catch {
-    throw new ApiError(0, 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.');
-  }
+    },
+    method === 'GET',
+  );
 
   // transparent refresh once on 401 for authed requests
   if (res.status === 401 && auth && retry) {
@@ -151,6 +198,11 @@ const qs = (params: Record<string, string | number | boolean | undefined>) => {
   const s = sp.toString();
   return s ? `?${s}` : '';
 };
+
+/** Wake a sleeping API early (a retried GET), before a POST that is not retried. */
+export function warmUp() {
+  request('/health/live').catch(() => undefined);
+}
 
 // ─────────────── auth ───────────────
 export const auth = {

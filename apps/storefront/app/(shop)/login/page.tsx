@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth, ApiError } from '@/lib/api';
+import { auth, ApiError, warmUp } from '@/lib/api';
 
 function LoginInner() {
   const router = useRouter();
@@ -13,6 +13,9 @@ function LoginInner() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // the submit is a POST (never auto-retried): wake the API while the form is filled
+  useEffect(() => warmUp(), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

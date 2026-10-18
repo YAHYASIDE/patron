@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { login, ApiError } from '@/lib/api';
+import { api, login, ApiError } from '@/lib/api';
+import WakeBanner from '@/components/WakeBanner';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,6 +11,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Wake the API while the user types: login is a POST, which is never
+  // auto-retried, so it would fail against a sleeping free-tier instance.
+  useEffect(() => {
+    api.get('/health/live').catch(() => undefined);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,6 +59,9 @@ export default function LoginPage() {
           </span>
         </div>
 
+        <div className="mb-4">
+          <WakeBanner />
+        </div>
         <div className="surface rounded-2xl p-7 shadow-card">
           <h1 className="text-xl font-bold">تسجيل الدخول</h1>
           <p className="mt-1 text-sm text-muted">ادخل إلى لوحة تحكم المتجر.</p>
