@@ -35,7 +35,13 @@ product (a code, a manual fulfilment, or an automatic provider top-up).
 **Maturity (honest):**
 - **Backend (`apps/api`): built and working.** 15 modules, 95 HTTP endpoints,
   40 DB models, 15 migrations, 86 test files, CI green, coverage ~93%.
-- **Admin (`apps/admin`): Next.js scaffold.** Structure only, no real screens yet.
+- **Admin (`apps/admin`): built.** Real Next.js dashboard (login, dashboard,
+  products, orders, currencies, settings) on the live `/api/v1`. Deployed.
+- **Storefront (`apps/storefront`): built (phase 1).** Customer-facing Next.js
+  store: home, catalog browse + search + category filter, product detail (game
+  inputs + denominations), cart (localStorage), customer register/login,
+  checkout (quote → order → pay), orders + code reveal, account + wallet. Talks
+  to the PUBLIC `/api/v1`. **No guest checkout** — a quote needs a customer JWT.
 - **Mobile (`apps/mobile`): Flutter scaffold.** Structure only.
 
 The gap the user feels ("there's nothing to see") is real and expected: the
@@ -47,9 +53,10 @@ next phase and is now explicitly scoped.
 Turborepo + npm workspaces. Drive everything from the **repo root**.
 
 ```
-apps/api      NestJS 11 + Prisma 6 + PostgreSQL 16 + Redis/BullMQ   (built)
-apps/admin    Next.js 15 (App Router) + React 19 + Tailwind 3       (scaffold)
-apps/mobile   Flutter                                               (scaffold)
+apps/api        NestJS 11 + Prisma 6 + PostgreSQL 16 + Redis/BullMQ (built)
+apps/admin      Next.js 15 (App Router) + React 19 + Tailwind 3     (built)
+apps/storefront Next.js 15 customer store + React 19 + Tailwind 3   (built, phase 1)
+apps/mobile     Flutter                                             (scaffold)
 packages/tsconfig   shared TS base configs (@patron/tsconfig)
 packages/types      shared framework-agnostic type contracts (@patron/types)
 deploy/ docs/ root compose   cross-cutting infra

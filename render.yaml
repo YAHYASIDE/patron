@@ -86,7 +86,8 @@ services:
       - key: BASE_CURRENCY
         value: USD
       - key: CORS_ORIGINS
-        value: https://etssadagha-shop.onrender.com
+        # admin dashboard + customer storefront origins (comma-separated; the API splits on ",")
+        value: https://etssadagha-shop.onrender.com,https://etssadagha-store.onrender.com
       - key: OTEL_ENABLED
         value: "false"
 
@@ -113,6 +114,31 @@ services:
       # Render passes service env vars as Docker build args; the admin Dockerfile
       # declares ARG NEXT_PUBLIC_API_URL, and Next.js inlines it at build time.
       # This points at the API service's public URL above.
+      - key: NEXT_PUBLIC_API_URL
+        value: https://etssadagha-api.onrender.com/api/v1
+
+  # ─────────────── Customer storefront (Next.js) ───────────────
+  - type: web
+    name: etssadagha-store
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: apps/storefront/Dockerfile
+    dockerContext: apps/storefront
+    branch: claude/patron-monorepo-setup-1o2gl7
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - apps/storefront/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: HOSTNAME
+        value: 0.0.0.0
+      # Build-time (Render passes env vars as Docker build args; the Dockerfile
+      # declares ARG NEXT_PUBLIC_API_URL and Next.js inlines it). Points at the API.
       - key: NEXT_PUBLIC_API_URL
         value: https://etssadagha-api.onrender.com/api/v1
 

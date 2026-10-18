@@ -12,6 +12,7 @@
   "workspaces": [
     "apps/api",
     "apps/admin",
+    "apps/storefront",
     "packages/tsconfig",
     "packages/types"
   ],
