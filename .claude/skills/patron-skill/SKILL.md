@@ -212,6 +212,16 @@ PAID→PROCESSING→COMPLETED) → the customer reveals it on the order page. St
 listed by the API when keys exist, but the storefront hides it: there is no card
 form (Stripe.js) yet. The wallet is offered only when its balance covers the total.
 
+**Storefront browsing is by brand, not by SKU** (`lib/brands.ts`). The catalog has
+one product per denomination; the shop groups them: by `game` when there is
+one, else by the SKU minus its last segment (`GC-APPLE-US-25` → `gc-apple-us`).
+Home and /products show one tile per brand (art at `public/art/brand/<key>.svg`,
+generated with the SKU art). `/brands/[key]` and `/products/[id|sku]` render the
+same brand page: account inputs → denomination tiles → buy, with a fixed buy bar
+on phones. Denomination labels come from stripping the brand name / shared words
+from the product names. The whole active catalog loads once per currency (two
+`limit=100` pages) and is cached in memory.
+
 **Storefront currency:** ouguiya by default, with a header switch (MRU / USD,
 `lib/currency.ts`, stored in localStorage). Every catalog call and the quote pass
 `currency`, and a switch re-prices the cart lines.
