@@ -114,7 +114,9 @@ function specFor(sku) {
   return null;
 }
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// also used inside attribute values (aria-label), so quotes are escaped too
+const esc = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /** Mix a hex colour toward black by `t` (0..1). */
 function darken(hex, t) {
