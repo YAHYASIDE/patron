@@ -81,6 +81,12 @@ Key Value store, injects all the wired variables, and deploys.
 - Add your real products from the dashboard (**المنتجات → + منتج جديد**). The
   seed no longer creates sample products (opt in locally with
   `SEED_DEMO_CATALOG=true`).
+- **Starter catalog:** with `CATALOG_PACK=true` (set in `render.yaml`) the API
+  adds a starter catalog once on boot (`src/bootstrap/catalog-pack.ts`: game
+  and app top-ups, gift cards, subscriptions, software; all MANUAL delivery).
+  It is insert-only and records a `catalog.pack.v1` marker, so it never edits
+  or re-adds products you change or delete in the dashboard. Its prices are a
+  starting point: review them.
 
 ## 5. If a service URL is different
 
@@ -142,6 +148,7 @@ Source of truth: `apps/api/src/config/env.validation.ts`.
 | `ENCRYPTION_KEY` | you (`sync: false`) | 64 hex chars |
 | `SEED_ADMIN_PASSWORD` | you (`sync: false`) | admin login password |
 | `SEED_ON_BOOT` | blueprint | `false` (set `true` only to bootstrap a new DB) |
+| `CATALOG_PACK` | blueprint | `true`: add the starter catalog once (insert-only) |
 | `BASE_CURRENCY` | blueprint | `USD` |
 | `CORS_ORIGINS` | blueprint | the admin's public origin |
 

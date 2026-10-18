@@ -87,6 +87,11 @@ services:
         # categories, currencies and settings, so it stays off. Set "true" only
         # to bootstrap a brand-new database.
         value: "false"
+      - key: CATALOG_PACK
+        # Insert-only starter catalog (src/bootstrap/catalog-pack.ts), applied
+        # once; a DB marker makes later boots a no-op, and it never edits or
+        # re-adds products the owner changed or deleted.
+        value: "true"
       - key: BASE_CURRENCY
         value: USD
       - key: CORS_ORIGINS

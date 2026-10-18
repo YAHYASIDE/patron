@@ -4,7 +4,7 @@
   "testRegex": "test/unit/.*\\.spec\\.ts$",
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
   "collectCoverageFrom": ["src/**/*.(t|j)s"],
-  "coveragePathIgnorePatterns": ["\\.module\\.ts$", "\\.dto\\.ts$", "main\\.ts$", "worker\\.ts$", "seed-runner\\.ts$", "bootstrap/db-seed\\.ts$"],
+  "coveragePathIgnorePatterns": ["\\.module\\.ts$", "\\.dto\\.ts$", "main\\.ts$", "worker\\.ts$", "seed-runner\\.ts$", "catalog-pack-runner\\.ts$", "bootstrap/db-seed\\.ts$"],
   "coverageThreshold": { "global": { "branches": 70, "functions": 80, "lines": 80 } },
   "coverageDirectory": "../coverage",
   "testEnvironment": "node",

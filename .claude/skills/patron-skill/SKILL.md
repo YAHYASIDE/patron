@@ -161,6 +161,20 @@ only with `SEED_DEMO_CATALOG=true` (local dev); migration
 user's request. Live `SEED_ON_BOOT` is `false` (the seed's upserts would
 overwrite dashboard edits on every restart).
 
+**Starter catalog pack** (`src/bootstrap/catalog-pack.ts`, run by the
+entrypoint when `CATALOG_PACK=true`): the owner asked Claude to pick a full
+catalog for them to prune. ~75 products across games (PUBG, Free Fire, MLBB,
+COD Mobile, Genshin, Yalla Ludo, Jawaker), app top-ups (TikTok, Bigo), gift
+cards (Apple, Google Play, PSN, Xbox, Steam, Roblox, Razer, Amazon, Fortnite,
+Nintendo), subscriptions (Netflix, Shahid, OSN+, Disney+, YouTube, Spotify,
+Anghami, Apple Music, Snapchat+, Telegram Premium, ChatGPT Plus, Canva,
+Discord, Game Pass, PS Plus) and Microsoft 365. All MANUAL, USD; prices are
+estimates for the owner to review. **Insert-only + once** (marker
+`catalog.pack.v1` in `system_settings`): never update or re-add — the owner
+curates from the dashboard. To ship more products later, add a new pack key
+(`catalog.pack.v2`), never edit v1's expectations. Grey-market Windows/Office
+keys were deliberately left out.
+
 **The running API is NOT reachable from the user's browser** (it binds inside
 the cloud container). To show the user something visual, either build+publish a
 real frontend, or publish an Artifact preview — and say plainly which one it is.
