@@ -28,6 +28,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ShopModule } from './modules/shop/shop.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { ProvidersModule } from './modules/providers/providers.module';
@@ -73,6 +74,7 @@ import { optInTier } from './common/guards/throttle-tiers';
     WalletModule,
     RefundsModule,
     PaymentsModule,
+    ShopModule,
     ProvidersModule,
     NotificationsModule,
     FxModule,
