@@ -51,12 +51,12 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-muted">طرق استلام الدفع، وحسابك.</p>
       </div>
 
+      <ShopWhatsapp />
+
       <PaymentAccounts />
 
       {error && (
-        <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">
-          {error}
-        </div>
+        <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
       )}
 
       <section className="surface rounded-2xl p-5 shadow-card">
@@ -69,15 +69,81 @@ export default function SettingsPage() {
             <Row k="البريد" v={data?.email ?? '—'} dir="ltr" />
             <Row k="العملة الافتراضية" v={data?.defaultCurrency ?? '—'} />
             <Row k="اللغة" v={data?.locale ?? '—'} />
-            <Row
-              k="الصلاحيات"
-              v={data?.roles?.length ? data.roles.join('، ') : '—'}
-            />
+            <Row k="الصلاحيات" v={data?.roles?.length ? data.roles.join('، ') : '—'} />
             <Row k="تاريخ الإنشاء" v={date(data?.createdAt)} />
           </dl>
         )}
       </section>
     </div>
+  );
+}
+
+/** The shop's WhatsApp: customers in a hurry message it (with their name and number filled in). */
+function ShopWhatsapp() {
+  const { data, error } = useFetch<{ supportWhatsapp: string | null }>('/shop/info');
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (data) setValue(data.supportWhatsapp ?? '');
+  }, [data]);
+
+  async function save() {
+    // "00222 22 22 72 68" and "+222 22227268" both become +22222227268
+    const normalized = value.trim() ? '+' + value.replace(/\D/g, '').replace(/^00/, '') : '';
+    if (normalized && !/^\+[1-9]\d{7,14}$/.test(normalized)) {
+      setMsg({ ok: false, text: 'اكتب الرقم مع رمز الدولة، مثال: 22222227268+' });
+      return;
+    }
+    setSaving(true);
+    setMsg(null);
+    try {
+      const saved = await api.put<{ supportWhatsapp: string | null }>('/admin/shop/info', {
+        supportWhatsapp: normalized,
+      });
+      setValue(saved.supportWhatsapp ?? '');
+      setMsg({
+        ok: true,
+        text: saved.supportWhatsapp ? 'تم الحفظ. يظهر زر واتساب للزبائن.' : 'تم الحفظ. زر واتساب مخفي.',
+      });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof ApiError ? e.message : 'تعذّر الحفظ.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="surface rounded-2xl p-5 shadow-card">
+      <h2 className="text-base font-bold">واتساب المتجر</h2>
+      <p className="mt-1 text-sm text-muted">
+        يظهر للزبون زر «مستعجل؟ راسلنا على واتساب» برسالة جاهزة فيها اسمه ورقمه وحالة حسابه. اتركه فارغًا
+        لإخفاء الزر.
+      </p>
+      {error && <p className="mt-3 text-sm text-bad">{error}</p>}
+      <div className="mt-4 flex gap-2">
+        <input
+          dir="ltr"
+          inputMode="tel"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setMsg(null);
+          }}
+          placeholder="+22222227268"
+          className="surface-2 hairline min-w-0 flex-1 rounded-xl border px-3.5 py-2.5 text-[15px] outline-none transition focus:border-teal"
+        />
+        <button
+          onClick={save}
+          disabled={saving || !data}
+          className="rounded-xl bg-teal px-5 text-sm font-bold text-white transition hover:bg-teal-deep disabled:opacity-60"
+        >
+          {saving ? 'جارٍ…' : 'حفظ'}
+        </button>
+      </div>
+      {msg && <p className={`mt-3 text-sm font-semibold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
+    </section>
   );
 }
 
@@ -106,7 +172,8 @@ function PaymentAccounts() {
 
   async function save() {
     const bad = accounts.findIndex(
-      (a) => a.method.trim().length < 2 || a.accountName.trim().length < 2 || a.accountNumber.trim().length < 2,
+      (a) =>
+        a.method.trim().length < 2 || a.accountName.trim().length < 2 || a.accountNumber.trim().length < 2,
     );
     if (bad >= 0) {
       setMsg({ ok: false, text: `أكمل الطريقة واسم صاحب الحساب والرقم في الحساب رقم ${bad + 1}.` });
@@ -137,7 +204,12 @@ function PaymentAccounts() {
     } catch (e) {
       setMsg({
         ok: false,
-        text: e instanceof ApiError && e.status === 403 ? 'ليست لديك صلاحية تعديل الإعدادات.' : e instanceof ApiError ? e.message : 'تعذّر الحفظ.',
+        text:
+          e instanceof ApiError && e.status === 403
+            ? 'ليست لديك صلاحية تعديل الإعدادات.'
+            : e instanceof ApiError
+              ? e.message
+              : 'تعذّر الحفظ.',
       });
     } finally {
       setSaving(false);
@@ -190,7 +262,11 @@ function PaymentAccounts() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-bold">
                     {a.method || 'حساب جديد'}
-                    {a.country ? <span className="ms-1.5 text-xs font-semibold text-muted">· {COUNTRY_LABEL[a.country] ?? a.country}</span> : null}
+                    {a.country ? (
+                      <span className="ms-1.5 text-xs font-semibold text-muted">
+                        · {COUNTRY_LABEL[a.country] ?? a.country}
+                      </span>
+                    ) : null}
                   </span>
                   <button
                     onClick={() => setAccounts((list) => list.filter((_, j) => j !== i))}
@@ -201,10 +277,20 @@ function PaymentAccounts() {
                 </div>
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   <Field label="الطريقة">
-                    <input className={input} value={a.method} maxLength={40} onChange={(e) => update(i, { method: e.target.value })} placeholder="Bankily" />
+                    <input
+                      className={input}
+                      value={a.method}
+                      maxLength={40}
+                      onChange={(e) => update(i, { method: e.target.value })}
+                      placeholder="Bankily"
+                    />
                   </Field>
                   <Field label="الدولة">
-                    <select className={input} value={a.country ?? ''} onChange={(e) => update(i, { country: e.target.value || undefined })}>
+                    <select
+                      className={input}
+                      value={a.country ?? ''}
+                      onChange={(e) => update(i, { country: e.target.value || undefined })}
+                    >
                       {PRESETS.map((p) => (
                         <option key={p.country || 'any'} value={p.country}>
                           {p.country ? p.label : 'كل الدول'}
@@ -213,10 +299,22 @@ function PaymentAccounts() {
                     </select>
                   </Field>
                   <Field label="اسم صاحب الحساب">
-                    <input className={input} value={a.accountName} maxLength={80} onChange={(e) => update(i, { accountName: e.target.value })} />
+                    <input
+                      className={input}
+                      value={a.accountName}
+                      maxLength={80}
+                      onChange={(e) => update(i, { accountName: e.target.value })}
+                    />
                   </Field>
                   <Field label="رقم الحساب / الهاتف">
-                    <input className={input} value={a.accountNumber} maxLength={60} dir="ltr" onChange={(e) => update(i, { accountNumber: e.target.value })} placeholder="22 00 00 00" />
+                    <input
+                      className={input}
+                      value={a.accountNumber}
+                      maxLength={60}
+                      dir="ltr"
+                      onChange={(e) => update(i, { accountNumber: e.target.value })}
+                      placeholder="22 00 00 00"
+                    />
                   </Field>
                 </div>
                 <Field label="تعليمات إضافية (اختياري)">
@@ -251,7 +349,9 @@ function PaymentAccounts() {
             </Field>
           </div>
 
-          {msg && <p className={`mt-3 text-sm font-semibold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
+          {msg && (
+            <p className={`mt-3 text-sm font-semibold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>
+          )}
 
           <button
             onClick={save}
