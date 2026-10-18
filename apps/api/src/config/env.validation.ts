@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Length, ValidateIf, validateSync } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Length, Max, Min, ValidateIf, validateSync } from 'class-validator';
 
 enum Env { development = 'development', test = 'test', production = 'production' }
 
@@ -16,6 +16,9 @@ class EnvVars {
   @IsString() @Length(64, 64) ENCRYPTION_KEY!: string;
 
   @IsOptional() @IsString() @Length(3, 3) BASE_CURRENCY?: string;
+
+  /** Reverse proxies in front of the API; 0 (default) trusts none. */
+  @IsOptional() @IsInt() @Min(0) @Max(5) TRUST_PROXY_HOPS?: number;
 
   /**
    * Required in production: the /metrics endpoint fails closed without it, so

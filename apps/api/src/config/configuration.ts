@@ -4,6 +4,9 @@ export default () => ({
     port: parseInt(process.env.PORT ?? '3000', 10),
     apiPrefix: process.env.API_PREFIX ?? 'api/v1',
     corsOrigins: process.env.CORS_ORIGINS,
+    // Proxies in front of the API (Render's load balancer = 1). Lets req.ip be
+    // the customer, not the proxy, so rate limits are per customer.
+    trustProxyHops: parseInt(process.env.TRUST_PROXY_HOPS ?? '0', 10),
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET!,

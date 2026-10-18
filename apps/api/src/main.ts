@@ -16,6 +16,9 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   app.useLogger(app.get(Logger));
 
+  const hops = config.get<number>('app.trustProxyHops') ?? 0;
+  if (hops > 0) app.getHttpAdapter().getInstance().set('trust proxy', hops);
+
   app.use(helmet());
   app.enableCors({ origin: config.get<string>('app.corsOrigins')?.split(',') ?? true, credentials: true });
   app.setGlobalPrefix(config.get<string>('app.apiPrefix') ?? 'api/v1');

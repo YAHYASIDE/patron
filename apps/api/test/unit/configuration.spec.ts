@@ -1,7 +1,7 @@
 import configuration from '../../src/config/configuration';
 
 const KEYS = [
-  'NODE_ENV', 'PORT', 'API_PREFIX', 'CORS_ORIGINS',
+  'NODE_ENV', 'PORT', 'API_PREFIX', 'CORS_ORIGINS', 'TRUST_PROXY_HOPS',
   'JWT_ACCESS_SECRET', 'JWT_ACCESS_TTL', 'JWT_REFRESH_SECRET', 'JWT_REFRESH_TTL',
   'ENCRYPTION_KEY', 'BASE_CURRENCY', 'FX_FEED_URL',
   'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD',
@@ -32,7 +32,7 @@ describe('configuration', () => {
   it('applies defaults when nothing is set in the environment', () => {
     const c = configuration();
 
-    expect(c.app).toEqual({ env: 'development', port: 3000, apiPrefix: 'api/v1', corsOrigins: undefined });
+    expect(c.app).toEqual({ env: 'development', port: 3000, apiPrefix: 'api/v1', corsOrigins: undefined, trustProxyHops: 0 });
     expect(c.jwt.accessTtl).toBe('15m');
     expect(c.jwt.refreshTtl).toBe('30d');
     expect(c.currency.base).toBe('USD');

@@ -35,6 +35,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { FxModule } from './modules/fx/fx.module';
 import { QueuesModule } from './modules/queues/queues.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { optInTier } from './common/guards/throttle-tiers';
 
 @Module({
   imports: [
@@ -46,8 +47,8 @@ import { ReportsModule } from './modules/reports/reports.module';
      */
     ThrottlerModule.forRoot([
       { name: 'default', ttl: 60_000, limit: 120 },
-      { name: 'strict', ttl: 60_000, limit: 10 },
-      { name: 'expensive', ttl: 60_000, limit: 5 },
+      { name: 'strict', ttl: 60_000, limit: 10, skipIf: optInTier('strict') },
+      { name: 'expensive', ttl: 60_000, limit: 5, skipIf: optInTier('expensive') },
     ]),
     LoggerModule.forRoot(loggerConfig(process.env.NODE_ENV === 'production')),
 

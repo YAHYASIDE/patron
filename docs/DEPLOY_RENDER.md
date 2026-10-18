@@ -129,9 +129,13 @@ free Key Value has **no persistence**. Before real traffic:
   provider fulfilment stay pending (the dashboard and catalog work regardless).
 - **Rotate** `ENCRYPTION_KEY` only if it was ever exposed — and note that
   rotating it makes previously-encrypted data unreadable.
-- **Payments:** add `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` as variables
-  when wiring real payments, and point the Stripe webhook at
-  `https://<api>/api/v1/webhooks/...`.
+- **Payments:** manual transfer works with no variables. In the dashboard open
+  **الإعدادات → حسابات التحويل** (Settings → transfer accounts), add your accounts
+  (Bankily, Masrvi, Sedad…) and save. Customers then see them at checkout, and
+  you confirm each transfer from **الطلبات** (Orders). Card payments need
+  `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` (a Stripe account in a supported
+  country), a webhook at `https://<api>/api/v1/webhooks/payments/stripe`, and a
+  card form in the storefront that is not built yet.
 
 ## Variable reference (what the Blueprint sets)
 
@@ -150,7 +154,8 @@ Source of truth: `apps/api/src/config/env.validation.ts`.
 | `SEED_ON_BOOT` | blueprint | `false` (set `true` only to bootstrap a new DB) |
 | `CATALOG_PACK` | blueprint | `true`: add the starter catalog once (insert-only) |
 | `BASE_CURRENCY` | blueprint | `USD` |
-| `CORS_ORIGINS` | blueprint | the admin's public origin |
+| `CORS_ORIGINS` | blueprint | the admin and storefront public origins |
+| `TRUST_PROXY_HOPS` | blueprint | `1`: the API sits behind Render's load balancer, so rate limits count each customer |
 
 ## Alternatives
 

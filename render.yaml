@@ -102,6 +102,10 @@ services:
         value: https://etssadagha-shop.onrender.com,https://etssadagha-store.onrender.com
       - key: OTEL_ENABLED
         value: "false"
+      - key: TRUST_PROXY_HOPS
+        # Render's load balancer sits in front of the API: trust that one hop so
+        # rate limits count each customer, not the balancer's single address.
+        value: "1"
 
   # ─────────────── Admin dashboard (Next.js) ───────────────
   - type: web
