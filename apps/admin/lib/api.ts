@@ -155,6 +155,7 @@ export const api = {
   get: <T>(path: string) => raw<T>(path, { method: 'GET' }),
   post: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'POST', body }),
   patch: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'PATCH', body }),
+  put: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'PUT', body }),
   del: <T>(path: string) => raw<T>(path, { method: 'DELETE' }),
 };
 
