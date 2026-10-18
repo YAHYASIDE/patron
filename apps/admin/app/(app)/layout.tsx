@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { isAuthed, logout } from '@/lib/api';
+import { api, isAuthed, logout } from '@/lib/api';
 import WakeBanner from '@/components/WakeBanner';
 
 const NAV = [
   { href: '/', label: 'لوحة القيادة', icon: 'grid' },
   { href: '/products', label: 'المنتجات', icon: 'box' },
   { href: '/orders', label: 'الطلبات', icon: 'receipt' },
+  { href: '/verifications', label: 'رموز التحقق', icon: 'shield' },
   { href: '/currencies', label: 'العملات', icon: 'coins' },
   { href: '/settings', label: 'الإعدادات', icon: 'gear' },
 ] as const;
@@ -50,6 +51,13 @@ function Icon({ name }: { name: string }) {
           <path d="M9 8h6M9 12h6" />
         </svg>
       );
+    case 'shield':
+      return (
+        <svg {...common}>
+          <path d="M12 3 4 6v6c0 4.4 3.4 8.1 8 9 4.6-.9 8-4.6 8-9V6l-8-3Z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      );
     case 'coins':
       return (
         <svg {...common}>
@@ -71,11 +79,33 @@ function Icon({ name }: { name: string }) {
   }
 }
 
+/** Codes customers are waiting for, polled so a new request shows up without reloading. */
+function usePendingCodes(enabled: boolean) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const poll = () =>
+      api
+        .get<unknown[]>('/admin/verifications/pending')
+        .then((rows) => alive && setCount(rows.length))
+        .catch(() => undefined);
+    poll();
+    const t = setInterval(poll, 20_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [enabled]);
+  return count;
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
+  const pendingCodes = usePendingCodes(ready);
 
   useEffect(() => {
     if (!isAuthed()) {
@@ -86,11 +116,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   if (!ready) {
-    return (
-      <div className="grid min-h-[100dvh] place-items-center text-sm text-muted">
-        جارٍ التحميل…
-      </div>
-    );
+    return <div className="grid min-h-[100dvh] place-items-center text-sm text-muted">جارٍ التحميل…</div>;
   }
 
   function onLogout() {
@@ -126,6 +152,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <Icon name={item.icon} />
               {item.label}
+              {item.href === '/verifications' && pendingCodes > 0 && (
+                <span className="ms-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1.5 text-[11px] font-bold text-white tnum">
+                  {pendingCodes}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -150,9 +181,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="surface absolute inset-y-0 start-0 flex w-64 flex-col">
-            {SidebarInner}
-          </aside>
+          <aside className="surface absolute inset-y-0 start-0 flex w-64 flex-col">{SidebarInner}</aside>
         </div>
       )}
 
@@ -169,6 +198,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
           <div className="text-sm text-muted">لوحة تحكم المتجر</div>
           <div className="ms-auto flex items-center gap-2">
+            {pendingCodes > 0 && (
+              <Link
+                href="/verifications"
+                className="rounded-full bg-warn/12 px-3 py-1.5 text-xs font-bold text-warn"
+              >
+                {pendingCodes} رمز بانتظار الإرسال
+              </Link>
+            )}
             <span className="grid h-9 w-9 place-items-center rounded-full bg-teal/15 text-sm font-bold text-teal">
               A
             </span>

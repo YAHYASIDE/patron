@@ -14,7 +14,7 @@ type OrderRow = {
   total: number | string;
   currency: string;
   createdAt: string;
-  user?: { email?: string; fullName?: string };
+  user?: { email?: string | null; fullName?: string; phone?: string | null };
   payments?: { id: string; gateway: string; status: string }[];
 };
 type OrdersResp = { data: OrderRow[]; meta?: { hasMore: boolean; nextCursor: string | null } };
@@ -195,8 +195,11 @@ export default function OrdersPage() {
                         {o.user?.fullName ?? o.user?.email ?? '—'} · {date(o.createdAt)}
                       </div>
                     </td>
-                    <td className="hidden px-5 py-3 text-muted sm:table-cell" dir="ltr">
-                      {o.user?.email ?? '—'}
+                    <td className="hidden px-5 py-3 sm:table-cell">
+                      <div className="font-semibold">{o.user?.fullName ?? '—'}</div>
+                      <div className="text-xs text-muted" dir="ltr">
+                        {o.user?.phone ?? o.user?.email}
+                      </div>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-col items-start gap-1.5">

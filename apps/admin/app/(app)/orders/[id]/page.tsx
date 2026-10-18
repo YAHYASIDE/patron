@@ -6,7 +6,13 @@ import { api, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { moneyIn, dateTime, statusChip, paymentChip, GATEWAY_LABEL } from '@/lib/format';
 
-type Transfer = { method: string; reference: string; payerName?: string; payerPhone?: string; submittedAt: string };
+type Transfer = {
+  method: string;
+  reference: string;
+  payerName?: string;
+  payerPhone?: string;
+  submittedAt: string;
+};
 type Review = { decision: 'approved' | 'rejected'; at: string; reason?: string };
 type Payment = {
   id: string;
@@ -37,7 +43,7 @@ type Order = {
   currency: string;
   createdAt: string;
   paidAt?: string | null;
-  user: { email: string; fullName: string; phone?: string | null };
+  user: { email: string | null; fullName: string; phone?: string | null; phoneVerifiedAt?: string | null };
   items: Item[];
   payments: Payment[];
 };
@@ -58,7 +64,8 @@ function friendly(err: unknown): string {
   const m = err.message;
   if (/already been reviewed/i.test(m)) return 'هذه الدفعة رُوجعت مسبقًا.';
   if (/submitted its reference/i.test(m)) return 'لم يرسل الزبون رقم العملية بعد.';
-  if (/Illegal order transition PENDING_PAYMENT|CANCELLED/i.test(m)) return 'الطلب أُلغي، لا يمكن تأكيد دفعه.';
+  if (/Illegal order transition PENDING_PAYMENT|CANCELLED/i.test(m))
+    return 'الطلب أُلغي، لا يمكن تأكيد دفعه.';
   if (/already delivered/i.test(m)) return 'هذا المنتج سُلّم مسبقًا.';
   if (/not paid yet/i.test(m)) return 'أكّد الدفع أولًا ثم سلّم.';
   if (err.status === 403) return 'ليست لديك صلاحية لهذا الإجراء.';
@@ -137,12 +144,31 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <section className="surface rounded-2xl p-5 shadow-card">
             <h2 className="text-base font-bold">الزبون</h2>
             <div className="mt-3 flex flex-col gap-1.5 text-sm">
-              <div className="font-semibold">{order.user.fullName}</div>
-              <div className="text-muted" dir="ltr">
-                {order.user.email}
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">{order.user.fullName}</span>
+                {order.user.phoneVerifiedAt ? (
+                  <span className="rounded-full bg-ok/12 px-2 py-0.5 text-[11px] font-bold text-ok">
+                    رقم موثّق
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-warn/12 px-2 py-0.5 text-[11px] font-bold text-warn">
+                    غير موثّق
+                  </span>
+                )}
               </div>
+              {order.user.email && (
+                <div className="text-muted" dir="ltr">
+                  {order.user.email}
+                </div>
+              )}
               {order.user.phone && (
-                <a href={waLink(order.user.phone)} target="_blank" rel="noreferrer" className="font-semibold text-teal hover:underline" dir="ltr">
+                <a
+                  href={waLink(order.user.phone)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-teal hover:underline"
+                  dir="ltr"
+                >
                   {order.user.phone} · WhatsApp
                 </a>
               )}
@@ -152,15 +178,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           {/* payments */}
           <section className="surface rounded-2xl p-5 shadow-card">
             <h2 className="text-base font-bold">الدفع</h2>
-            {order.payments.length === 0 && <p className="mt-3 text-sm text-muted">لم يبدأ الزبون الدفع بعد.</p>}
+            {order.payments.length === 0 && (
+              <p className="mt-3 text-sm text-muted">لم يبدأ الزبون الدفع بعد.</p>
+            )}
             <div className="mt-3 flex flex-col gap-4">
               {order.payments.map((p) => {
                 const pc = paymentChip(p.status);
                 return (
-                  <div key={p.id} className="flex flex-col gap-2 border-t border-[rgb(var(--line))] pt-3 first:border-0 first:pt-0">
+                  <div
+                    key={p.id}
+                    className="flex flex-col gap-2 border-t border-[rgb(var(--line))] pt-3 first:border-0 first:pt-0"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold">{GATEWAY_LABEL[p.gateway] ?? p.gateway}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${pc.cls}`}>{pc.label}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${pc.cls}`}>
+                        {pc.label}
+                      </span>
                     </div>
                     {p.transfer && (
                       <dl className="surface-2 flex flex-col gap-1.5 rounded-xl px-3.5 py-3 text-sm">
@@ -174,7 +207,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     {p.status === 'AUTHORIZED' && p.gateway === 'MANUAL' && (
                       <>
                         <p className="text-xs text-muted">
-                          تحقّق من وصول <b className="tnum">{moneyIn(p.amount, p.currency)}</b> إلى حسابك برقم العملية أعلاه، ثم أكّد.
+                          تحقّق من وصول <b className="tnum">{moneyIn(p.amount, p.currency)}</b> إلى حسابك برقم
+                          العملية أعلاه، ثم أكّد.
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -192,7 +226,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                             onClick={() => {
                               const reason = prompt('سبب الرفض (يظهر للزبون):', 'لم يصل التحويل');
                               if (reason && reason.trim().length >= 3)
-                                act(`reject-${p.id}`, () => api.post(`/admin/payments/${p.id}/reject`, { reason: reason.trim() }));
+                                act(`reject-${p.id}`, () =>
+                                  api.post(`/admin/payments/${p.id}/reject`, { reason: reason.trim() }),
+                                );
                             }}
                             className="rounded-xl border border-bad/40 px-4 py-2.5 text-sm font-bold text-bad transition hover:bg-bad/10 disabled:opacity-60"
                           >
@@ -242,7 +278,10 @@ function ItemCard({
   const [text, setText] = useState('');
   const [type, setType] = useState<'code' | 'message'>('code');
   const ic = statusChip(item.status);
-  const values = text.split('\n').map((v) => v.trim()).filter(Boolean);
+  const values = text
+    .split('\n')
+    .map((v) => v.trim())
+    .filter(Boolean);
   const manual = item.product?.delivery === 'MANUAL';
 
   return (
@@ -267,14 +306,17 @@ function ItemCard({
 
       {item.results.length > 0 && (
         <p className="mt-3 text-sm text-ok">
-          سُلّم {item.results.length} {item.results.some((r) => r.revealed) ? '· الزبون اطّلع عليه' : '· لم يفتحه الزبون بعد'}
+          سُلّم {item.results.length}{' '}
+          {item.results.some((r) => r.revealed) ? '· الزبون اطّلع عليه' : '· لم يفتحه الزبون بعد'}
         </p>
       )}
 
       {canDeliver && (
         <div className="mt-4 flex flex-col gap-2.5 border-t border-[rgb(var(--line))] pt-4">
           <label className="text-sm font-semibold">
-            {type === 'code' ? `الأكواد (كل كود في سطر${item.quantity > 1 ? `، المطلوب ${item.quantity}` : ''})` : 'رسالة للزبون'}
+            {type === 'code'
+              ? `الأكواد (كل كود في سطر${item.quantity > 1 ? `، المطلوب ${item.quantity}` : ''})`
+              : 'رسالة للزبون'}
           </label>
           <textarea
             rows={Math.min(6, Math.max(2, item.quantity))}
@@ -296,8 +338,12 @@ function ItemCard({
             <button
               disabled={busy || values.length === 0}
               onClick={() => {
-                if (type === 'code' && values.length !== item.quantity &&
-                    !confirm(`المطلوب ${item.quantity} وأدخلت ${values.length}. المتابعة؟`)) return;
+                if (
+                  type === 'code' &&
+                  values.length !== item.quantity &&
+                  !confirm(`المطلوب ${item.quantity} وأدخلت ${values.length}. المتابعة؟`)
+                )
+                  return;
                 onDeliver(type === 'message' ? [text.trim()] : values, type);
               }}
               className="ms-auto rounded-xl bg-teal px-5 py-2.5 text-sm font-bold text-white transition hover:bg-teal-deep disabled:opacity-50"
