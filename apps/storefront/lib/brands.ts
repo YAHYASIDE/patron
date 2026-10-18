@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { catalog } from './api';
+import aliases from './brand-aliases.json';
 import type { Product } from './types';
 
 /**
@@ -16,6 +17,7 @@ export type Brand = {
   image: string | null;
   categoryId: string | null;
   categoryName: string | null;
+  categorySlug: string | null;
   /** Denominations, cheapest first. */
   products: Product[];
   featured: boolean;
@@ -23,10 +25,13 @@ export type Brand = {
   maxDiscount: number;
 };
 
+const ALIASES: Record<string, string> = aliases;
+
 export function brandKey(p: Pick<Product, 'sku' | 'game'>): string {
   if (p.game?.slug) return `g-${p.game.slug}`;
   const parts = p.sku.toLowerCase().split('-');
-  return parts.length > 1 ? parts.slice(0, -1).join('-') : parts[0];
+  const key = parts.length > 1 ? parts.slice(0, -1).join('-') : parts[0];
+  return ALIASES[key] ?? key; // e.g. the Microsoft 365 Personal and Family plans are one brand
 }
 
 const words = (s: string) => s.trim().split(/\s+/);
@@ -88,6 +93,7 @@ export function groupBrands(products: Product[]): Brand[] {
       image,
       categoryId: first.category?.id ?? first.categoryId ?? null,
       categoryName: first.category?.nameAr ?? null,
+      categorySlug: first.category?.slug ?? null,
       products: list,
       featured: list.some((x) => x.isFeatured),
       maxDiscount: Math.max(0, ...list.map((x) => x.discountPercent ?? 0)),

@@ -1,39 +1,36 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { Brand } from '@/lib/brands';
-import type { Category } from '@/lib/types';
+import { SECTIONS, sectionOf } from '@/lib/sections';
 import BrandTile, { BrandTileSkeleton } from './BrandTile';
 
 const norm = (s: string) => s.toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').trim();
 
-/** Brands whose name, or any of whose denominations, matches the search. */
-export function filterBrands(brands: Brand[], categoryId: string | null, search: string): Brand[] {
+/** Brands in a section (or all), whose name or any denomination matches the search. */
+export function filterBrands(brands: Brand[], sectionId: string | null, search: string): Brand[] {
   const q = norm(search);
   return brands.filter(
     (b) =>
-      (!categoryId || b.categoryId === categoryId) &&
+      (!sectionId || sectionOf(b).id === sectionId) &&
       (!q ||
         norm(b.title).includes(q) ||
         b.products.some((p) => norm(p.nameAr).includes(q) || norm(p.nameEn).includes(q))),
   );
 }
 
-/** Category tabs: horizontally scrollable on phones, only categories that have brands. */
-export function CategoryTabs({
-  categories,
+/** Section tabs: horizontally scrollable on phones, only sections that have brands. */
+export function SectionTabs({
   brands,
   value,
   onChange,
 }: {
-  categories: Category[];
   brands: Brand[];
   value: string | null;
   onChange: (id: string | null) => void;
 }) {
-  const present = useMemo(() => new Set(brands.map((b) => b.categoryId)), [brands]);
+  const present = new Set(brands.map((b) => sectionOf(b).id));
   const tabs = [{ id: null as string | null, label: 'الكل' }].concat(
-    categories.filter((c) => present.has(c.id)).map((c) => ({ id: c.id, label: c.nameAr || c.nameEn })),
+    SECTIONS.filter((s) => present.has(s.id)).map((s) => ({ id: s.id, label: s.label })),
   );
 
   return (
@@ -62,10 +59,10 @@ export function CategoryTabs({
 
 export default function BrandGrid({ brands, loading }: { brands: Brand[]; loading?: boolean }) {
   return (
-    <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+    <div className="grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
       {loading
         ? Array.from({ length: 12 }).map((_, i) => <BrandTileSkeleton key={i} />)
-        : brands.map((b) => <BrandTile key={b.key} brand={b} />)}
+        : brands.map((b) => <BrandTile key={b.key} brand={b} size="sm" />)}
     </div>
   );
 }

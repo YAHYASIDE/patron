@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { groupBrands, useCatalog, type Brand } from '@/lib/brands';
 import { useCurrency } from '@/lib/currency';
+import { sectionOf } from '@/lib/sections';
 import BrandView from './BrandView';
 
 /**
@@ -46,6 +47,7 @@ export default function BrandPage({ brandKey, productRef }: { brandKey?: string;
     );
   }
 
-  const related = brands.filter((b) => b.categoryId === brand.categoryId && b.key !== brand.key).slice(0, 6);
+  const section = sectionOf(brand).id;
+  const related = brands.filter((b) => sectionOf(b).id === section && b.key !== brand.key).slice(0, 8);
   return <BrandView key={brand.key} brand={brand} initialId={product?.id} related={related} />;
 }

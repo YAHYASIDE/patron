@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { cart } from '@/lib/cart';
 import { money } from '@/lib/format';
 import { denominationLabel, type Brand } from '@/lib/brands';
+import { sectionOf } from '@/lib/sections';
 import type { GameInput, Product } from '@/lib/types';
 import BrandTile from './BrandTile';
 import { BoltIcon, CheckIcon, ChevronIcon, ShieldIcon } from './icons';
@@ -39,6 +40,7 @@ export default function BrandView({
   related: Brand[];
 }) {
   const router = useRouter();
+  const section = sectionOf(brand);
   const firstAvailable = brand.products.find((p) => p.inStock !== false) ?? brand.products[0];
   const [selectedId, setSelectedId] = useState(
     brand.products.some((p) => p.id === initialId)
@@ -132,14 +134,10 @@ export default function BrandView({
         <Link href="/products" className="hover:text-[rgb(var(--text))]">
           المتجر
         </Link>
-        {brand.categoryName && (
-          <>
-            <ChevronIcon size={14} />
-            <Link href={`/products?categoryId=${brand.categoryId}`} className="hover:text-[rgb(var(--text))]">
-              {brand.categoryName}
-            </Link>
-          </>
-        )}
+        <ChevronIcon size={14} />
+        <Link href={`/products?s=${section.id}`} className="hover:text-[rgb(var(--text))]">
+          {section.label}
+        </Link>
       </nav>
 
       <div className="grid gap-5 lg:grid-cols-[320px_1fr] lg:items-start">
@@ -306,9 +304,9 @@ export default function BrandView({
       {related.length > 0 && (
         <section className="mt-12">
           <h2 className="text-lg font-extrabold">من نفس القسم</h2>
-          <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6">
+          <div className="mt-4 grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-6 md:grid-cols-8">
             {related.map((b) => (
-              <BrandTile key={b.key} brand={b} />
+              <BrandTile key={b.key} brand={b} size="sm" />
             ))}
           </div>
         </section>

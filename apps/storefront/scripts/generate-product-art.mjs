@@ -64,6 +64,7 @@ const BRANDS = {
   gamepass: { word: 'GAME PASS', bg: '#107C10' },
   psplus: { icon: 'playstation', bg: '#F5B700', fg: '#151515' },
   m365: { word: 'Microsoft 365', bg: '#0F6CBD' },
+  claude: { icon: 'claude', bg: '#D97757' },
   mattel: { word: 'MATTEL', bg: '#D7141A' },
   mauritel: { word: 'MAURITEL', bg: '#0A5BA8' },
   chinguitel: { word: 'CHINGUITEL', bg: '#0E8A3E' },
@@ -103,7 +104,7 @@ function specFor(sku) {
     NFLX: ['netflix', ''], SHAHID: ['shahid', 'VIP'], OSN: ['osn', ''], DISNEY: ['disney', ''],
     YTPREMIUM: ['youtube', 'PREMIUM'], SPOTIFY: ['spotify', 'PREMIUM'], ANGHAMI: ['anghami', 'PLUS'],
     APPLEMUSIC: ['applemusic', 'APPLE MUSIC'], SNAPPLUS: ['snapchat', 'SNAPCHAT+'], TGPREMIUM: ['telegram', 'PREMIUM'],
-    CHATGPT: ['chatgpt', 'CHATGPT PLUS'], CANVA: ['canva', 'PRO'], 'DISCORD-NITRO': ['discord', 'NITRO'],
+    CHATGPT: ['chatgpt', 'CHATGPT PLUS'], 'CLAUDE-PRO': ['claude', 'PRO'], CANVA: ['canva', 'PRO'], 'DISCORD-NITRO': ['discord', 'NITRO'],
     'GAMEPASS-ULT': ['gamepass', 'ULTIMATE'], 'PSPLUS-ESS': ['psplus', 'PLUS ESSENTIAL'],
   };
   if ((m = sku.match(/^SUB-([A-Z-]+?)-(\d+M)$/)) && subs[m[1]]) {
@@ -202,7 +203,12 @@ for (const [, slug, op] of source.matchAll(/slug: '([a-z]+)', sku: '([A-Z]+)'/g)
     skus.push(`TOP-${op}-${f}`);
     gameOf[`TOP-${op}-${f}`] = slug;
   }
-const brandKey = (sku) => (gameOf[sku] ? `g-${gameOf[sku]}` : sku.toLowerCase().split('-').slice(0, -1).join('-'));
+// brands the shop merges (lib/brand-aliases.json), e.g. the Microsoft 365 plans
+const aliases = JSON.parse(readFileSync(join(here, '..', 'lib', 'brand-aliases.json'), 'utf8'));
+const brandKey = (sku) => {
+  const key = gameOf[sku] ? `g-${gameOf[sku]}` : sku.toLowerCase().split('-').slice(0, -1).join('-');
+  return aliases[key] ?? key;
+};
 mkdirSync(join(OUT, 'brand'), { recursive: true });
 const brandCards = new Map();
 const missing = [];
@@ -214,7 +220,8 @@ for (const sku of skus) {
   }
   writeFileSync(join(OUT, `${sku.toLowerCase()}.svg`), svg(spec));
   const key = brandKey(sku);
-  if (!brandCards.has(key)) brandCards.set(key, spec);
+  // a merged brand spans plans (Personal + Family), so its card names none of them
+  if (!brandCards.has(key)) brandCards.set(key, Object.values(aliases).includes(key) ? { ...spec, sub: undefined } : spec);
 }
 for (const [key, spec] of brandCards) writeFileSync(join(OUT, 'brand', `${key}.svg`), brandSvg(spec));
 if (missing.length) {

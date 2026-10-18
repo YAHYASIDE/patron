@@ -2,32 +2,27 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { catalog } from '@/lib/api';
-import { useFetch } from '@/lib/hooks';
 import { useCurrency } from '@/lib/currency';
 import { groupBrands, useCatalog } from '@/lib/brands';
-import type { Category } from '@/lib/types';
-import BrandGrid, { CategoryTabs, filterBrands } from '@/components/BrandGrid';
+import { SECTIONS } from '@/lib/sections';
+import BrandGrid, { SectionTabs, filterBrands } from '@/components/BrandGrid';
 import { SearchIcon } from '@/components/icons';
 
 function ProductsInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const categoryId = params.get('categoryId');
+  const sectionId = params.get('s');
   const [search, setSearch] = useState(params.get('q') ?? '');
   const currency = useCurrency();
 
-  const cats = useFetch<Category[]>(() => catalog.categories(), []);
   const { products, error, loading, reload } = useCatalog(currency);
   const brands = useMemo(() => (products ? groupBrands(products) : []), [products]);
-  const shown = filterBrands(brands, categoryId, search);
-  const activeCat = cats.data?.find((c) => c.id === categoryId);
+  const shown = filterBrands(brands, sectionId, search);
+  const active = SECTIONS.find((x) => x.id === sectionId);
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
-      <h1 className="text-2xl font-extrabold">
-        {activeCat ? activeCat.nameAr || activeCat.nameEn : 'كل المنتجات'}
-      </h1>
+      <h1 className="text-2xl font-extrabold">{active ? active.label : 'كل المنتجات'}</h1>
 
       <label className="surface mt-5 flex items-center gap-2 rounded-xl px-3.5 py-3">
         <SearchIcon size={18} className="text-muted" />
@@ -41,13 +36,10 @@ function ProductsInner() {
       </label>
 
       <div className="mt-4">
-        <CategoryTabs
-          categories={cats.data ?? []}
+        <SectionTabs
           brands={brands}
-          value={categoryId}
-          onChange={(id) =>
-            router.replace(id ? `/products?categoryId=${id}` : '/products', { scroll: false })
-          }
+          value={sectionId}
+          onChange={(id) => router.replace(id ? `/products?s=${id}` : '/products', { scroll: false })}
         />
       </div>
 
