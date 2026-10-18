@@ -222,6 +222,13 @@ on phones. Denomination labels come from stripping the brand name / shared words
 from the product names. The whole active catalog loads once per currency (two
 `limit=100` pages) and is cached in memory.
 
+**Shop arrangement is the owner's call** (`apps/storefront/lib/sections.ts`):
+`TOP_BRANDS` is their "الأكثر طلبًا" list in their order, and `SECTIONS` maps
+brand keys (else catalog category slugs) to the columns on the home page and the
+/products tabs (`?s=<section>`). Merged brands (M365 plans, Minecraft) are in
+`lib/brand-aliases.json`, read by both the shop and the art generator. Pack v4
+(`catalog.pack.v4`) added Claude Pro for that list.
+
 **Storefront currency:** ouguiya by default, with a header switch (MRU / USD,
 `lib/currency.ts`, stored in localStorage). Every catalog call and the quote pass
 `currency`, and a switch re-prices the cart lines.
