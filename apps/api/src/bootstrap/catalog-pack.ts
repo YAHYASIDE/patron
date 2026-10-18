@@ -29,6 +29,7 @@ import { PrismaClient, ProductType, DeliveryMode, Prisma } from '@prisma/client'
 
 export const CATALOG_PACK_KEY = 'catalog.pack.v1';
 export const CATALOG_PACK_V2_KEY = 'catalog.pack.v2';
+export const CATALOG_PACK_V3_KEY = 'catalog.pack.v3';
 
 type Input = {
   key: string;
@@ -241,6 +242,44 @@ export function artUrl(sku: string): string {
   return `${base}/art/${sku.toLowerCase()}.svg`;
 }
 
+// ───────────────────────── pack v3 ─────────────────────────
+// Mauritania first: mobile airtime for the three operators, priced in ouguiya.
+
+/** Mauritanian mobile numbers: 8 digits starting 2, 3 or 4, optionally after +222. */
+const MR_PHONE = '^(\\+?222)?[234][0-9]{7}$';
+const mrPhone: Input[] = [
+  { key: 'phone', labelAr: 'رقم الهاتف المراد شحنه', labelEn: 'Phone number to top up', type: 'tel', required: true, regex: MR_PHONE, sensitive: false },
+];
+
+const CATEGORIES_V3 = [{ slug: 'mobile-topup', nameAr: 'شحن رصيد الهاتف', nameEn: 'Mobile Top-up', sortOrder: 0, isActive: true }];
+
+const OPERATORS = [
+  { slug: 'mattel', sku: 'MATTEL', nameAr: 'ماتل', nameEn: 'Mattel', sortOrder: 1 },
+  { slug: 'mauritel', sku: 'MAURITEL', nameAr: 'موريتل', nameEn: 'Mauritel', sortOrder: 2 },
+  { slug: 'chinguitel', sku: 'CHINGUITEL', nameAr: 'شنقيتل', nameEn: 'Chinguitel', sortOrder: 3 },
+];
+/** Face values in MRU. The customer pays the face value; cost assumes a ~3% operator discount. */
+const AIRTIME_MRU = [100, 200, 500, 1000];
+/** Only used to derive the USD base price; the MRU price is fixed by an override. */
+const MRU_PER_USD = 39.8;
+
+const PRODUCTS_V3: Array<P & { mru: number }> = OPERATORS.flatMap((op) =>
+  AIRTIME_MRU.map((mru) => ({
+    sku: `TOP-${op.sku}-${mru}`,
+    type: G,
+    game: op.slug,
+    category: 'mobile-topup',
+    nameAr: `رصيد ${op.nameAr} ${mru} أوقية`,
+    nameEn: `${op.nameEn} airtime ${mru} MRU`,
+    sell: Math.round((mru / MRU_PER_USD) * 100) / 100,
+    cost: Math.round(((mru * 0.97) / MRU_PER_USD) * 100) / 100,
+    mru,
+    description: `يُشحن الرصيد مباشرة على رقم ${op.nameAr} الذي تكتبه، بعد تأكيد الدفع.`,
+    isFeatured: mru === 200,
+    metadata: { country: 'MR', operator: op.slug, faceValue: mru, faceCurrency: 'MRU' },
+  })),
+);
+
 type Db = PrismaClient;
 
 async function ensureCategories(prisma: Db, cats: Array<{ slug: string; nameAr: string; nameEn: string; sortOrder: number; isActive?: boolean }>, created: { categories: number }) {
@@ -339,9 +378,50 @@ async function applyV2(prisma: Db) {
   return created;
 }
 
+async function applyV3(prisma: Db) {
+  const created = { categories: 0, games: 0, products: 0, prices: 0, rounding: 0 };
+  const cat = await ensureCategories(prisma, CATEGORIES_V3, created);
+
+  const game: Record<string, string> = {};
+  for (const op of OPERATORS) {
+    const existing = await prisma.game.findUnique({ where: { slug: op.slug } });
+    game[op.slug] = existing
+      ? existing.id
+      : (
+          await prisma.game.create({
+            data: {
+              slug: op.slug, nameAr: op.nameAr, nameEn: op.nameEn, publisher: op.nameEn,
+              categoryId: cat['mobile-topup'], inputSchema: mrPhone as unknown as Prisma.InputJsonValue,
+              isFeatured: true, sortOrder: op.sortOrder,
+            },
+          })
+        ).id;
+    if (!existing) created.games++;
+  }
+  await createProducts(prisma, PRODUCTS_V3, cat, game, created, true);
+
+  // Ouguiya prices: the face value, set as an override so FX moves never change it.
+  const mru = await prisma.currency.findUnique({ where: { code: 'MRU' } });
+  if (mru) {
+    for (const p of PRODUCTS_V3) {
+      const product = await prisma.product.findUnique({ where: { sku: p.sku } });
+      if (!product) continue;
+      const exists = await prisma.productPrice.findUnique({ where: { productId_currencyCode: { productId: product.id, currencyCode: 'MRU' } } });
+      if (exists) continue;
+      await prisma.productPrice.create({ data: { productId: product.id, currencyCode: 'MRU', sellPrice: p.mru } });
+      created.prices++;
+    }
+    // converted prices in whole ouguiya (a transfer of 421.88 MRU is awkward), unless the owner chose a step
+    const res = await prisma.currency.updateMany({ where: { code: 'MRU', roundingStep: null }, data: { roundingStep: 1 } });
+    created.rounding = res.count;
+  }
+  return created;
+}
+
 const PACKS: Array<{ key: string; description: string; apply: (prisma: Db) => Promise<Record<string, number>> }> = [
   { key: CATALOG_PACK_KEY, description: 'Starter catalog pack applied (insert-only, once).', apply: applyV1 },
   { key: CATALOG_PACK_V2_KEY, description: 'Catalog pack v2: more brands, wallets/crypto sections, product art (once).', apply: applyV2 },
+  { key: CATALOG_PACK_V3_KEY, description: 'Catalog pack v3: Mauritanian mobile airtime priced in MRU (once).', apply: applyV3 },
 ];
 
 /** Apply every pack not yet recorded, in order. */
@@ -370,6 +450,6 @@ export async function applyCatalogPack(client?: PrismaClient): Promise<void> {
 }
 
 /** Exposed for tests/tooling: every pack product SKU (v1 + v2). */
-export const CATALOG_PACK_SKUS = [...PRODUCTS, ...PRODUCTS_V2].map((p) => p.sku);
+export const CATALOG_PACK_SKUS = [...PRODUCTS, ...PRODUCTS_V2, ...PRODUCTS_V3].map((p) => p.sku);
 /** v2 products that are created hidden (crypto vouchers). */
 export const CATALOG_PACK_HIDDEN_SKUS = PRODUCTS_V2.filter((p) => p.isActive === false).map((p) => p.sku);
