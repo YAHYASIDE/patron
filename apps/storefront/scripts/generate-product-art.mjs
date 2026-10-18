@@ -158,12 +158,53 @@ function svg({ brand, label, sub }) {
 `;
 }
 
+/** Square brand card for the shop's brand tiles: the mark and an optional line, no amount. */
+function brandSvg({ brand, sub }) {
+  const b = BRANDS[brand];
+  const fg = b.fg ?? '#FFFFFF';
+  const font = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+  let mark;
+  if (b.icon) {
+    const icon = icons[b.icon];
+    const size = 168;
+    mark = `<g transform="translate(${240 - size / 2} ${(sub ? 214 : 240) - size / 2}) scale(${size / 24})"><path fill="${fg}" d="${icon.path}"/></g>`;
+  } else {
+    const fs = Math.min(76, Math.floor(400 / (b.word.length * 0.7)));
+    mark = `<text x="240" y="${(sub ? 214 : 240) + fs * 0.35}" text-anchor="middle" font-family="${font}" font-weight="800" font-size="${fs}" letter-spacing="1" fill="${fg}">${esc(b.word)}</text>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" width="480" height="480" role="img" aria-label="${esc([b.word ?? icons[b.icon]?.title, sub].filter(Boolean).join(' '))}">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${b.bg}"/>
+      <stop offset="1" stop-color="${darken(b.bg, 0.35)}"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="480" fill="url(#g)"/>
+  <circle cx="420" cy="40" r="170" fill="${fg}" opacity="0.06"/>
+  <circle cx="40" cy="460" r="120" fill="${fg}" opacity="0.05"/>
+  ${mark}
+  ${sub ? `<text x="240" y="372" text-anchor="middle" font-family="${font}" font-weight="700" font-size="26" letter-spacing="5" fill="${fg}" opacity="0.8">${esc(sub)}</text>` : ''}
+</svg>
+`;
+}
+
 const source = readFileSync(PACK, 'utf8');
+// The shop groups SKUs into brands (apps/storefront/lib/brands.ts brandKey): by game when the
+// product has one, else by the SKU without its last segment. Mirror that to name brand cards.
+const gameOf = Object.fromEntries(
+  [...source.matchAll(/sku: '([A-Z0-9]+-[A-Z0-9-]+)', type: \w+, game: '([a-z0-9-]+)'/g)].map((m) => [m[1], m[2]]),
+);
 const skus = [...source.matchAll(/sku: '([A-Z0-9]+-[A-Z0-9-]+)'/g)].map((m) => m[1]);
 // v3 airtime SKUs are built from the operator list × face values (`TOP-${op.sku}-${mru}`)
 const faces = JSON.parse(source.match(/const AIRTIME_MRU = (\[[^\]]*\])/)[1]);
-for (const [, op] of source.matchAll(/slug: '[a-z]+', sku: '([A-Z]+)'/g)) for (const f of faces) skus.push(`TOP-${op}-${f}`);
-mkdirSync(OUT, { recursive: true });
+for (const [, slug, op] of source.matchAll(/slug: '([a-z]+)', sku: '([A-Z]+)'/g))
+  for (const f of faces) {
+    skus.push(`TOP-${op}-${f}`);
+    gameOf[`TOP-${op}-${f}`] = slug;
+  }
+const brandKey = (sku) => (gameOf[sku] ? `g-${gameOf[sku]}` : sku.toLowerCase().split('-').slice(0, -1).join('-'));
+mkdirSync(join(OUT, 'brand'), { recursive: true });
+const brandCards = new Map();
 const missing = [];
 for (const sku of skus) {
   const spec = specFor(sku);
@@ -172,9 +213,12 @@ for (const sku of skus) {
     continue;
   }
   writeFileSync(join(OUT, `${sku.toLowerCase()}.svg`), svg(spec));
+  const key = brandKey(sku);
+  if (!brandCards.has(key)) brandCards.set(key, spec);
 }
+for (const [key, spec] of brandCards) writeFileSync(join(OUT, 'brand', `${key}.svg`), brandSvg(spec));
 if (missing.length) {
   console.error('No art mapping for:', missing.join(', '));
   process.exit(1);
 }
-console.log(`wrote ${skus.length} cards to public/art`);
+console.log(`wrote ${skus.length} cards and ${brandCards.size} brand cards to public/art`);

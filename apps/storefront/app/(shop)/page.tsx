@@ -1,161 +1,120 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { catalog } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { useCurrency } from '@/lib/currency';
-import type { Category, Paginated, Product } from '@/lib/types';
-import ProductCard from '@/components/ProductCard';
-import Price from '@/components/Price';
-import { BoltIcon, ShieldIcon, CheckIcon } from '@/components/icons';
-
-function SkeletonCard() {
-  return (
-    <div className="surface overflow-hidden rounded-2xl">
-      <div className="aspect-[4/3] animate-pulse bg-[rgb(var(--surface-2))]" />
-      <div className="space-y-2 p-4">
-        <div className="h-4 w-3/4 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
-        <div className="h-4 w-1/3 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
-      </div>
-    </div>
-  );
-}
+import { groupBrands, useCatalog } from '@/lib/brands';
+import type { Category } from '@/lib/types';
+import BrandTile, { BrandTileSkeleton } from '@/components/BrandTile';
+import BrandGrid, { CategoryTabs, filterBrands } from '@/components/BrandGrid';
+import { BoltIcon, SearchIcon } from '@/components/icons';
 
 export default function HomePage() {
+  const router = useRouter();
   const currency = useCurrency();
-  const featured = useFetch<Paginated<Product>>(() => catalog.products({ isFeatured: true, limit: 8, currency }), [currency]);
-  const latest = useFetch<Paginated<Product>>(() => catalog.products({ limit: 12, currency }), [currency]);
   const cats = useFetch<Category[]>(() => catalog.categories(), []);
+  const { products, error, loading, reload } = useCatalog(currency);
+  const brands = useMemo(() => (products ? groupBrands(products) : []), [products]);
+  const [tab, setTab] = useState<string | null>(null);
+  const [q, setQ] = useState('');
 
-  // Fall back to latest when nothing is flagged featured.
-  const heroProducts = (featured.data?.data?.length ? featured.data.data : latest.data?.data ?? []).slice(0, 4);
-  const grid = featured.data?.data?.length ? featured.data.data : latest.data?.data ?? [];
+  const featured = brands.filter((b) => b.featured);
+  const popular = (featured.length >= 4 ? featured : brands).slice(0, 12);
+  const mosaic = popular.slice(0, 6);
 
   return (
     <div>
-      {/* ───────── Hero ───────── */}
-      <section className="relative overflow-hidden border-b border-[rgb(var(--line))]">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            background:
-              'radial-gradient(680px 340px at 88% 10%, rgba(233,196,90,.16), transparent 60%),' +
-              'radial-gradient(760px 440px at 8% 92%, rgba(45,212,191,.20), transparent 58%)',
-          }}
-        />
-        <div className="mx-auto grid max-w-page items-center gap-10 px-4 py-14 lg:grid-cols-2 lg:py-20">
+      {/* hero: what this is, and the fastest way in (search) */}
+      <section className="border-b border-[rgb(var(--line))] bg-[rgb(var(--surface))]">
+        <div className="mx-auto grid max-w-page items-center gap-8 px-4 py-8 md:py-12 lg:grid-cols-[1.1fr_1fr]">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-teal/10 px-3 py-1 text-xs font-bold text-teal">
-              <BoltIcon size={13} /> تسليم لحظي بعد الدفع
+              <BoltIcon size={13} /> ادفع بالتحويل واستلم في طلباتك
             </span>
-            <h1 className="mt-4 text-4xl font-extrabold leading-[1.15] md:text-5xl">
-              شحن الألعاب والبطاقات الرقمية
-              <br />
-              <span className="text-teal">في مكان واحد</span>
+            <h1 className="mt-4 text-3xl font-extrabold leading-[1.2] md:text-5xl">
+              شحن الألعاب والبطاقات
+              <span className="text-teal"> ورصيد الهاتف</span>
             </h1>
-            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted">
-              اختر منتجك، ادفع بأمان، واستلم الكود فورًا. أسعار واضحة بلا مفاجآت.
+            <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted">
+              ببجي، فري فاير، آيتونز، نتفلكس، ماتل وموريتل. أسعار بالأوقية بلا رسوم مخفية.
             </p>
-            <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link href="/products" className="btn-brand rounded-xl px-6 py-3 text-[15px] font-bold">
-                تصفّح المنتجات
-              </Link>
-              <Link
-                href="/orders"
-                className="rounded-xl border border-[rgb(var(--line))] px-6 py-3 text-[15px] font-bold text-muted transition hover:text-[rgb(var(--text))]"
-              >
-                تتبّع طلب
-              </Link>
-            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                router.push(q.trim() ? `/products?q=${encodeURIComponent(q.trim())}` : '/products');
+              }}
+              className="surface-2 mt-6 flex max-w-lg items-center gap-2 rounded-2xl p-1.5 ps-4"
+            >
+              <SearchIcon size={18} className="flex-none text-muted" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="عن ماذا تبحث؟"
+                aria-label="بحث"
+                className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+              />
+              <button type="submit" className="btn-brand rounded-xl px-5 py-2.5 text-sm font-bold">
+                بحث
+              </button>
+            </form>
           </div>
 
-          {/* real product preview, not a fake mock */}
-          <div className="grid grid-cols-2 gap-3">
-            {heroProducts.length === 0
-              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-              : heroProducts.map((p) => (
-                  <Link
-                    key={p.id}
-                    href={`/products/${p.id}`}
-                    className="surface flex flex-col gap-2 rounded-2xl p-3 shadow-card transition hover:shadow-float"
-                  >
-                    <div
-                      className="grid aspect-square place-items-center overflow-hidden rounded-xl text-2xl font-extrabold text-teal/40"
-                      style={{ backgroundColor: '#2dd4bf18' }}
-                    >
-                      {p.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.imageUrl} alt={p.nameAr} className="h-full w-full object-cover" />
-                      ) : (
-                        (p.nameAr || p.nameEn).slice(0, 1)
-                      )}
-                    </div>
-                    <div className="line-clamp-1 text-[13px] font-bold">{p.nameAr || p.nameEn}</div>
-                    <Price product={p} size="sm" />
-                  </Link>
-                ))}
+          {/* the actual top brands, as tiles you can tap */}
+          <div className="hidden grid-cols-3 gap-3 lg:grid">
+            {loading
+              ? Array.from({ length: 6 }).map((_, i) => <BrandTileSkeleton key={i} />)
+              : mosaic.map((b) => <BrandTile key={b.key} brand={b} />)}
           </div>
         </div>
       </section>
 
-      {/* ───────── trust strip ───────── */}
-      <section className="border-b border-[rgb(var(--line))] bg-[rgb(var(--surface))]">
-        <div className="mx-auto flex max-w-page flex-wrap items-center justify-center gap-x-8 gap-y-3 px-4 py-4 text-sm font-semibold">
-          <span className="inline-flex items-center gap-2 text-muted">
-            <BoltIcon size={16} className="text-teal" /> استلام فوري
-          </span>
-          <span className="inline-flex items-center gap-2 text-muted">
-            <ShieldIcon size={16} className="text-teal" /> دفع مشفّر
-          </span>
-          <span className="inline-flex items-center gap-2 text-muted">
-            <CheckIcon size={16} className="text-teal" /> أكواد أصلية مضمونة
-          </span>
-        </div>
-      </section>
-
-      {/* ───────── categories ───────── */}
-      {(cats.data?.length ?? 0) > 0 && (
-        <section className="mx-auto max-w-page px-4 py-10">
-          <h2 className="text-xl font-extrabold">تسوّق حسب الفئة</h2>
-          <div className="mt-5 flex flex-wrap gap-2.5">
-            {cats.data!.map((c) => (
-              <Link
-                key={c.id}
-                href={`/products?categoryId=${c.id}`}
-                className="surface rounded-full px-4 py-2 text-sm font-bold transition hover:border-teal hover:text-teal"
-              >
-                {c.nameAr || c.nameEn}
-              </Link>
-            ))}
+      {error && (
+        <div className="mx-auto mt-6 max-w-page px-4">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">
+            {error}
+            <button onClick={reload} className="font-bold underline">
+              إعادة المحاولة
+            </button>
           </div>
-        </section>
+        </div>
       )}
 
-      {/* ───────── products ───────── */}
-      <section className="mx-auto max-w-page px-4 py-6 pb-16">
+      {/* most wanted: a swipeable row on phones (the hero shows them on desktop) */}
+      <section className="mx-auto max-w-page px-4 pt-8 lg:hidden">
         <div className="flex items-end justify-between">
-          <h2 className="text-xl font-extrabold">{featured.data?.data?.length ? 'الأكثر طلبًا' : 'أحدث المنتجات'}</h2>
+          <h2 className="text-xl font-extrabold">الأكثر طلبًا</h2>
           <Link href="/products" className="text-sm font-bold text-teal hover:underline">
             عرض الكل
           </Link>
         </div>
-
-        {(featured.error || latest.error) && (
-          <div className="mt-6 rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">
-            تعذّر تحميل المنتجات حاليًا. حدّث الصفحة بعد قليل.
+        <div className="-mx-4 mt-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max snap-x snap-mandatory gap-3">
+            {loading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="w-36 sm:w-44">
+                    <BrandTileSkeleton />
+                  </div>
+                ))
+              : popular.map((b) => <BrandTile key={b.key} brand={b} size="lg" />)}
           </div>
-        )}
-
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {featured.loading && latest.loading
-            ? Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
-            : grid.map((p) => <ProductCard key={p.id} product={p} />)}
         </div>
+      </section>
 
-        {!latest.loading && grid.length === 0 && !featured.error && !latest.error && (
-          <div className="mt-8 rounded-2xl border border-[rgb(var(--line))] p-10 text-center text-muted">
-            لا توجد منتجات متاحة بعد. عُد قريبًا!
+      {/* everything, by section */}
+      <section className="mx-auto max-w-page px-4 pb-16 pt-8">
+        <h2 className="text-xl font-extrabold">تسوّق حسب القسم</h2>
+        <div className="mt-4">
+          <CategoryTabs categories={cats.data ?? []} brands={brands} value={tab} onChange={setTab} />
+        </div>
+        <div className="mt-6">
+          <BrandGrid brands={filterBrands(brands, tab, '')} loading={loading} />
+        </div>
+        {!loading && !error && brands.length === 0 && (
+          <div className="mt-8 rounded-2xl border border-dashed border-[rgb(var(--line))] p-10 text-center text-muted">
+            لا توجد منتجات متاحة بعد.
           </div>
         )}
       </section>

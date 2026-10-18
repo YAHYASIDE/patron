@@ -54,6 +54,10 @@
   .hairline {
     border-color: rgb(var(--line));
   }
+  /* the deep teal is too dark to read on the dark surfaces; text uses the light teal there */
+  .dark .text-teal {
+    color: #2dd4bf;
+  }
   /* Primary brand button */
   .btn-brand {
     background-color: #0d6d64;
