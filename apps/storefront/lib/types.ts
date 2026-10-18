@@ -87,9 +87,10 @@ export type TokenPair = { accessToken: string; refreshToken: string; expiresIn: 
 
 export type Me = {
   id: string;
-  email: string;
+  email: string | null; // null for accounts made with a WhatsApp number
   fullName: string;
   phone?: string | null;
+  phoneVerifiedAt?: string | null;
   avatarUrl?: string | null;
   locale?: string;
   defaultCurrency?: string;

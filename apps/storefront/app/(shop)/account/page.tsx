@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isAuthed, auth } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import type { Me } from '@/lib/types';
 import { money } from '@/lib/format';
-import { UserIcon } from '@/components/icons';
+import { refreshMe } from '@/lib/session';
+import { VerifySheet } from '@/components/VerifyPanel';
+import { CheckIcon, ShieldIcon, UserIcon } from '@/components/icons';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -16,10 +18,12 @@ export default function AccountPage() {
   }, [router]);
 
   const me = useFetch<Me>(() => auth.me(), []);
+  const [verifying, setVerifying] = useState(false);
 
   async function onLogout() {
     await auth.logout();
-    router.replace('/');
+    refreshMe();
+    router.replace('/login');
   }
 
   return (
@@ -38,18 +42,42 @@ export default function AccountPage() {
               </span>
               <div>
                 <div className="text-lg font-extrabold">{me.data.fullName}</div>
-                <div className="text-sm text-muted" dir="ltr">
-                  {me.data.email}
-                </div>
+                {me.data.email && (
+                  <div className="text-sm text-muted" dir="ltr">
+                    {me.data.email}
+                  </div>
+                )}
               </div>
             </div>
-            {me.data.phone && (
-              <div className="mt-4 flex items-center justify-between border-t border-[rgb(var(--line))] pt-4 text-sm">
-                <span className="text-muted">الهاتف</span>
-                <span dir="ltr" className="font-semibold">
-                  {me.data.phone}
-                </span>
-              </div>
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-[rgb(var(--line))] pt-4 text-sm">
+              <span className="text-muted">واتساب</span>
+              <span className="flex items-center gap-2">
+                {me.data.phone && (
+                  <span dir="ltr" className="font-semibold">
+                    {me.data.phone}
+                  </span>
+                )}
+                {me.data.phoneVerifiedAt ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-ok/12 px-2 py-0.5 text-xs font-bold text-ok">
+                    <CheckIcon size={12} /> موثّق
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setVerifying(true)}
+                    className="inline-flex items-center gap-1 rounded-full bg-warn/12 px-2.5 py-1 text-xs font-bold text-warn"
+                  >
+                    <ShieldIcon size={12} /> غير موثّق · وثّقه
+                  </button>
+                )}
+              </span>
+            </div>
+            {verifying && (
+              <VerifySheet
+                onClose={() => {
+                  setVerifying(false);
+                  me.reload();
+                }}
+              />
             )}
             <div className="mt-4 flex gap-3">
               <Link href="/orders" className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold">

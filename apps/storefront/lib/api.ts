@@ -207,18 +207,6 @@ export function warmUp() {
 
 // ─────────────── auth ───────────────
 export const auth = {
-  async register(body: {
-    email: string;
-    password: string;
-    fullName: string;
-    phone?: string;
-    currency?: string;
-    locale?: string;
-  }) {
-    const t = await request<TokenPair>('/auth/register', { method: 'POST', body });
-    storeTokens(t);
-    return t;
-  },
   async login(email: string, password: string) {
     const t = await request<TokenPair>('/auth/login', { method: 'POST', body: { email, password } });
     storeTokens(t);
@@ -234,6 +222,30 @@ export const auth = {
   },
   me() {
     return request<Me>('/auth/me', { auth: true });
+  },
+  /** WhatsApp sign-in: a new number signs straight in; a verified one needs the code the shop sends. */
+  async phoneStart(body: { phone: string; fullName?: string }) {
+    const res = await request<({ status: 'SIGNED_IN' } & TokenPair) | { status: 'CODE_REQUIRED' }>(
+      '/auth/phone/start',
+      { method: 'POST', body },
+    );
+    if (res.status === 'SIGNED_IN') storeTokens(res);
+    return res.status;
+  },
+  async phoneLogin(phone: string, code: string) {
+    const t = await request<TokenPair>('/auth/phone/login', { method: 'POST', body: { phone, code } });
+    storeTokens(t);
+    return t;
+  },
+  requestPhoneCode(phone?: string) {
+    return request<{ status: 'SENT' | 'VERIFIED'; phone: string }>('/auth/phone/request-code', {
+      method: 'POST',
+      body: phone ? { phone } : {},
+      auth: true,
+    });
+  },
+  verifyPhone(code: string) {
+    return request<{ message: string }>('/auth/phone/verify', { method: 'POST', body: { code }, auth: true });
   },
 };
 

@@ -11,8 +11,9 @@ import type { Order, Quote } from '@/lib/types';
 import { gatewayLabel, useUsableMethods } from '@/lib/payments';
 import { getCurrency } from '@/lib/currency';
 import { CheckIcon, BoltIcon } from '@/components/icons';
+import VerifyPanel from '@/components/VerifyPanel';
 
-type Step = 'loading' | 'review' | 'working' | 'done' | 'empty';
+type Step = 'loading' | 'review' | 'working' | 'done' | 'empty' | 'verify';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -55,6 +56,11 @@ export default function CheckoutPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         router.replace('/login?next=/checkout');
+        return;
+      }
+      // the owner confirms who buys: verify the WhatsApp number first, then carry on
+      if (err instanceof ApiError && err.code === 'PHONE_NOT_VERIFIED') {
+        setStep('verify');
         return;
       }
       setError(err instanceof ApiError ? err.message : 'تعذّر تجهيز الطلب.');
@@ -115,6 +121,16 @@ export default function CheckoutPage() {
       }
       setStep('review');
     }
+  }
+
+  if (step === 'verify') {
+    return (
+      <div className="mx-auto max-w-page px-4 py-10">
+        <div className="surface mx-auto max-w-[460px] rounded-2xl p-5 shadow-card sm:p-6">
+          <VerifyPanel onVerified={() => setTimeout(() => buildQuote(coupon), 1200)} />
+        </div>
+      </div>
+    );
   }
 
   if (step === 'empty') {
