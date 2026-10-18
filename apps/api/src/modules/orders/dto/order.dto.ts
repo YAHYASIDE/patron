@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested,
 } from 'class-validator';
 import { OrderStatus } from '@prisma/client';
 import { CursorDto } from '../../../common/dto/cursor.dto';
@@ -42,8 +42,9 @@ export class RetryItemDto {
   @IsOptional() @IsUUID() providerId?: string; // force a specific provider
 }
 
+/** Staff deliver a MANUAL item by hand: one value per code/voucher (or one message). */
 export class ManualFulfilDto {
-  @IsString() @Length(1, 500) value!: string;
-  @IsOptional() @IsString() @Length(1, 40) resultType?: string;
-  @IsOptional() @IsString() @Length(3, 200) note?: string;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @IsString({ each: true }) @Length(1, 2000, { each: true })
+  values!: string[];
+  @IsOptional() @IsIn(['code', 'serial', 'message']) resultType?: 'code' | 'serial' | 'message';
 }

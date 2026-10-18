@@ -25,6 +25,11 @@ export class StripeGateway implements PaymentGateway {
 
   constructor(private config: ConfigService) {}
 
+  /** Offered only once a secret key is configured (STRIPE_SECRET_KEY). */
+  isEnabled(): boolean {
+    return this.secretKey.length > 0;
+  }
+
   private get secretKey() {
     return this.config.get<string>('payments.stripeSecretKey') ?? '';
   }

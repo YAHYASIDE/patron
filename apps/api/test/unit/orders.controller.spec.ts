@@ -18,6 +18,8 @@ describe('Orders controllers', () => {
       findOne: jest.fn().mockResolvedValue({ id: 'o1' }),
       revealResult: jest.fn().mockResolvedValue([{ value: 'x' }]),
       cancelUnpaid: jest.fn().mockResolvedValue({ id: 'o1' }),
+      findOneAdmin: jest.fn().mockResolvedValue({ id: 'o1' }),
+      deliverManually: jest.fn().mockResolvedValue({ id: 'o1' }),
     };
   });
 
@@ -76,9 +78,14 @@ describe('Orders controllers', () => {
       expect(orders.findAllAdmin).toHaveBeenCalledWith(query);
     });
 
-    it('findOne delegates without a user id (admin sees any order)', async () => {
+    it('findOne uses the staff view (any order, with customer and transfer details)', async () => {
       await controller.findOne('o1');
-      expect(orders.findOne).toHaveBeenCalledWith('o1');
+      expect(orders.findOneAdmin).toHaveBeenCalledWith('o1');
+    });
+
+    it('deliver passes the codes and the acting staff member', async () => {
+      await controller.deliver('o1', 'i1', { values: ['CODE-1'] }, 'admin1');
+      expect(orders.deliverManually).toHaveBeenCalledWith('o1', 'i1', { values: ['CODE-1'] }, 'admin1');
     });
 
     it('cancel passes the supplied reason and actor', async () => {

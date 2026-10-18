@@ -346,5 +346,83 @@ describe('OrdersService', () => {
       expect(tx.coupon.update).toHaveBeenCalledTimes(1);
       expect(res).toBe(3);
     });
+
+    it('never expires an order whose customer reported a manual transfer (staff are reviewing it)', async () => {
+      prisma.order.findMany.mockResolvedValue([{ id: 'a', couponId: null }]);
+      tx.order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      await service.expireUnpaid(30);
+
+      const guard = { payments: { none: { gateway: 'MANUAL', status: 'AUTHORIZED' } } };
+      expect(prisma.order.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining(guard));
+      expect(tx.order.updateMany.mock.calls[0][0].where).toEqual(expect.objectContaining(guard)); // and at write time
+    });
+  });
+
+  describe('deliverManually', () => {
+    const paidOrder = (over: Partial<any> = {}) => ({
+      id: 'o1', status: 'PAID', items: [{ id: 'i1', status: 'PENDING' }, { id: 'i2', status: 'PENDING' }], ...over,
+    });
+
+    beforeEach(() => {
+      crypto.encrypt = jest.fn((v: string) => `enc:${v}`);
+      tx.order.findUnique = jest.fn().mockResolvedValue(paidOrder());
+      tx.orderResult.createMany = jest.fn().mockResolvedValue({ count: 1 });
+      jest.spyOn(service, 'syncStatus').mockResolvedValue({} as any);
+      jest.spyOn(service, 'findOneAdmin').mockResolvedValue({ id: 'o1' } as any);
+    });
+
+    it('stores each code encrypted, marks the item DELIVERED and audits without the codes', async () => {
+      await service.deliverManually('o1', 'i1', { values: [' CODE-1 ', 'CODE-2'] }, 'admin1');
+
+      expect(tx.order.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'PROCESSING' }) }));
+      expect(tx.orderItem.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'i1', status: { in: ['PENDING', 'PROCESSING', 'FAILED'] } },
+        data: expect.objectContaining({ status: 'DELIVERED' }),
+      }));
+      const rows = tx.orderResult.createMany.mock.calls[0][0].data;
+      expect(rows.map((r: any) => r.valueEnc)).toEqual(['enc:CODE-1', 'enc:CODE-2']);
+      expect(rows[0]).toEqual(expect.objectContaining({ orderItemId: 'i1', resultType: 'code', providerRef: 'manual' }));
+      const entry = audit.record.mock.calls[0][1];
+      expect(entry.action).toBe('orders.fulfil_manual');
+      expect(JSON.stringify(entry)).not.toContain('CODE-1');
+      expect(service.syncStatus).toHaveBeenCalledWith('o1'); // the last item completes the order
+    });
+
+    it('refuses an unpaid order, a cancelled one and an item of another order', async () => {
+      tx.order.findUnique.mockResolvedValueOnce(paidOrder({ status: 'PENDING_PAYMENT' }));
+      await expect(service.deliverManually('o1', 'i1', { values: ['X'] }, 'a')).rejects.toThrow('not paid yet');
+      tx.order.findUnique.mockResolvedValueOnce(paidOrder({ status: 'CANCELLED' }));
+      await expect(service.deliverManually('o1', 'i1', { values: ['X'] }, 'a')).rejects.toThrow('cannot be delivered');
+      await expect(service.deliverManually('o1', 'other', { values: ['X'] }, 'a')).rejects.toThrow('not part of the order');
+      expect(tx.orderResult.createMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses to deliver the same item twice', async () => {
+      tx.order.findUnique.mockResolvedValue(paidOrder({ status: 'PROCESSING' }));
+      tx.orderItem.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(service.deliverManually('o1', 'i1', { values: ['X'] }, 'a')).rejects.toThrow('already delivered');
+      expect(tx.orderResult.createMany).not.toHaveBeenCalled();
+      expect(tx.order.update).not.toHaveBeenCalled(); // already PROCESSING: no transition
+    });
+  });
+
+  describe('findOneAdmin', () => {
+    it('exposes the reported transfer and review, never a raw gateway payload', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        ...makeOrder(),
+        user: { id: 'u1', email: 'a@b.c', fullName: 'A', phone: null },
+        payments: [{ id: 'p1', gateway: 'MANUAL', status: 'AUTHORIZED', rawResponse: { transfer: { reference: 'TX1' }, secret: 'x' } }],
+      });
+      const res: any = await service.findOneAdmin('o1');
+      expect(res.user.email).toBe('a@b.c');
+      expect(res.payments[0]).toEqual(expect.objectContaining({ transfer: { reference: 'TX1' }, review: null }));
+      expect(res.payments[0].rawResponse).toBeUndefined();
+      expect(JSON.stringify(res)).not.toContain('secret');
+    });
+
+    it('throws NotFound for an unknown order', async () => {
+      prisma.order.findUnique.mockResolvedValue(null);
+      await expect(service.findOneAdmin('nope')).rejects.toThrow('Order not found');
+    });
   });
 });

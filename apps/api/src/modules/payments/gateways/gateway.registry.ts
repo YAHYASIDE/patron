@@ -4,6 +4,7 @@ import { PaymentGateway as GatewayEnum } from '@prisma/client';
 import { PaymentGateway } from './payment-gateway.interface';
 import { WalletGateway } from './wallet.gateway';
 import { StripeGateway } from './stripe.gateway';
+import { ManualTransferGateway } from './manual.gateway';
 
 @Injectable()
 export class GatewayRegistry implements OnModuleInit {
@@ -12,7 +13,7 @@ export class GatewayRegistry implements OnModuleInit {
   constructor(private moduleRef: ModuleRef) {}
 
   onModuleInit() {
-    for (const type of [WalletGateway, StripeGateway]) {
+    for (const type of [WalletGateway, StripeGateway, ManualTransferGateway]) {
       const gateway = this.moduleRef.get(type, { strict: false });
       this.gateways.set(gateway.code, gateway);
     }
@@ -26,5 +27,14 @@ export class GatewayRegistry implements OnModuleInit {
 
   listCodes() {
     return [...this.gateways.keys()];
+  }
+
+  /** Codes the checkout may offer now: a gateway without credentials or accounts is hidden. */
+  async listEnabledCodes(): Promise<string[]> {
+    const enabled: string[] = [];
+    for (const [code, gateway] of this.gateways) {
+      if (!gateway.isEnabled || (await gateway.isEnabled())) enabled.push(code);
+    }
+    return enabled;
   }
 }

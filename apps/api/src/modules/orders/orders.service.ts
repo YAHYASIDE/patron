@@ -10,7 +10,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { ReferenceService } from '../../common/reference/reference.service';
 import { cursorWhere, toCursorPage } from '../../common/dto/cursor.dto';
 import { assertTransition, deriveOrderStatus } from './order-state.machine';
-import { QueryOrdersDto } from './dto/order.dto';
+import { ManualFulfilDto, QueryOrdersDto } from './dto/order.dto';
 
 /**
  * The shape `present()` reads. Declared structurally rather than pulled from a
@@ -198,13 +198,97 @@ export class OrdersService {
       where: { id },
       include: {
         items: { include: { inputs: true, results: true } },
-        payments: { select: { id: true, gateway: true, status: true, amount: true, createdAt: true } },
+        payments: { select: { id: true, gateway: true, status: true, amount: true, failureReason: true, createdAt: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     if (userId && order.userId !== userId) throw new ForbiddenException('This order belongs to another account');
 
     return this.present(order, !!userId);
+  }
+
+  /**
+   * Staff view of one order: the customer, what they entered, each item's
+   * delivery mode, and any manual transfer they reported. Codes stay encrypted:
+   * staff deliver them, they do not need to read them back.
+   */
+  async findOneAdmin(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, phone: true } },
+        items: { include: { inputs: true, results: true, product: { select: { sku: true, delivery: true, imageUrl: true } } } },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, gateway: true, status: true, amount: true, currency: true,
+            failureReason: true, rawResponse: true, createdAt: true, updatedAt: true,
+          },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    const presented = this.present(order, false);
+    return {
+      ...presented,
+      // only the transfer report and review, never a gateway's raw payload
+      payments: order.payments.map(({ rawResponse, ...p }) => {
+        const raw = (rawResponse ?? {}) as { transfer?: unknown; review?: unknown };
+        return { ...p, transfer: raw.transfer ?? null, review: raw.review ?? null };
+      }),
+    };
+  }
+
+  /**
+   * Staff deliver a paid item by hand (MANUAL delivery, or any item a provider
+   * could not fulfil). Values are encrypted like provider results; the audit
+   * entry records that it happened, never the codes. The order status is then
+   * re-derived, so the last delivered item completes the order.
+   */
+  async deliverManually(orderId: string, orderItemId: string, dto: ManualFulfilDto, actorId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+      if (!order) throw new NotFoundException('Order not found');
+      const item = order.items.find((i) => i.id === orderItemId);
+      if (!item) throw new NotFoundException('This item is not part of the order');
+      if (!['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'FAILED'].includes(order.status)) {
+        throw new BadRequestException(
+          order.status === 'PENDING_PAYMENT' ? 'This order is not paid yet' : `An order that is ${order.status} cannot be delivered`,
+        );
+      }
+
+      // PAID/FAILED → PROCESSING first: the machine has no direct PAID → COMPLETED.
+      if (order.status === 'PAID' || order.status === 'FAILED') {
+        assertTransition(order.status, 'PROCESSING');
+        await tx.order.update({ where: { id: orderId }, data: { status: 'PROCESSING', version: { increment: 1 } } });
+      }
+
+      // Conditional, so two staff delivering the same item cannot both succeed.
+      const { count } = await tx.orderItem.updateMany({
+        where: { id: orderItemId, status: { in: ['PENDING', 'PROCESSING', 'FAILED'] } },
+        data: { status: 'DELIVERED', deliveredAt: new Date(), lastError: null },
+      });
+      if (count === 0) throw new BadRequestException('This item was already delivered or cancelled');
+
+      await tx.orderResult.createMany({
+        data: dto.values.map((value) => ({
+          orderItemId,
+          resultType: dto.resultType ?? 'code',
+          valueEnc: this.crypto.encrypt(value.trim()),
+          providerRef: 'manual',
+        })),
+      });
+      await this.audit.record(tx, {
+        actorId,
+        action: 'orders.fulfil_manual',
+        entityType: 'OrderItem',
+        entityId: orderItemId,
+        after: { orderId, values: dto.values.length, resultType: dto.resultType ?? 'code' },
+      });
+    });
+
+    await this.syncStatus(orderId);
+    return this.findOneAdmin(orderId);
   }
 
   /**
@@ -310,8 +394,11 @@ export class OrdersService {
   async expireUnpaid(minutes: number, batchSize = 500) {
     const cutoff = new Date(Date.now() - minutes * 60_000);
 
+    // An order whose customer already reported a manual transfer is waiting on
+    // staff, not abandoned: it must not expire under them.
+    const awaitingReview: Prisma.OrderWhereInput = { payments: { none: { gateway: 'MANUAL', status: 'AUTHORIZED' } } };
     const stale = await this.prisma.order.findMany({
-      where: { status: 'PENDING_PAYMENT', createdAt: { lt: cutoff } },
+      where: { status: 'PENDING_PAYMENT', createdAt: { lt: cutoff }, ...awaitingReview },
       select: { id: true, couponId: true },
       take: batchSize,
       orderBy: { createdAt: 'asc' },
@@ -325,7 +412,7 @@ export class OrdersService {
       // Conditional on status so an order paid between the read and the write
       // is not cancelled out from under a customer who just paid.
       const cancelled = await tx.order.updateMany({
-        where: { id: { in: ids }, status: 'PENDING_PAYMENT' },
+        where: { id: { in: ids }, status: 'PENDING_PAYMENT', ...awaitingReview },
         data: { status: 'CANCELLED', version: { increment: 1 } },
       });
       await tx.orderItem.updateMany({

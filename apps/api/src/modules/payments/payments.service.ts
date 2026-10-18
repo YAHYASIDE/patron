@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PaymentGateway as GatewayEnum, PaymentStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -7,6 +8,19 @@ import { GatewayRegistry } from './gateways/gateway.registry';
 import { assertTransition } from '../orders/order-state.machine';
 import { MetricsService } from '../../common/metrics/metrics.service';
 import { LockRank, acquireLocks } from '../../common/locking/lock-order';
+import { AuditService } from '../../common/audit/audit.service';
+import { ManualAccount, ManualTransferGateway, MANUAL_ACCOUNTS_KEY, MANUAL_NOTE_KEY } from './gateways/manual.gateway';
+import { ManualAccountsDto, SubmitTransferDto } from './dto/payment.dto';
+
+/** What the customer reported for a manual transfer, kept on the payment. */
+interface TransferReport {
+  accountId: string;
+  method: string;
+  reference: string;
+  payerName?: string;
+  payerPhone?: string;
+  submittedAt: string;
+}
 
 @Injectable()
 export class PaymentsService {
@@ -17,6 +31,8 @@ export class PaymentsService {
     private gateways: GatewayRegistry,
     private outbox: OutboxService,
     private metrics: MetricsService,
+    private audit: AuditService,
+    private manual: ManualTransferGateway,
   ) {}
 
   /**
@@ -87,9 +103,15 @@ export class PaymentsService {
       return { paymentId: payment.id, status: 'CAPTURED' as const, gatewayRef: result.gatewayRef };
     }
 
+    // A manual transfer stays INITIATED until the customer submits a reference;
+    // only then is there something for staff to review.
     await this.prisma.payment.update({
       where: { id: payment.id },
-      data: { status: PaymentStatus.AUTHORIZED, gatewayRef: result.gatewayRef, version: { increment: 1 } },
+      data: {
+        status: gateway.awaitsCustomerProof ? PaymentStatus.INITIATED : PaymentStatus.AUTHORIZED,
+        gatewayRef: result.gatewayRef,
+        version: { increment: 1 },
+      },
     });
 
     return {
@@ -239,7 +261,131 @@ export class PaymentsService {
     return { processed: true };
   }
 
+  /** Methods the checkout may offer now (Stripe needs keys, manual transfer needs accounts). */
   availableMethods() {
-    return this.gateways.listCodes();
+    return this.gateways.listEnabledCodes();
+  }
+
+  // ───────────────────────── manual transfer ─────────────────────────
+
+  /** Public: where to send a manual transfer. */
+  async manualInstructions(): Promise<{ accounts: ManualAccount[]; note: string | null }> {
+    const note = await this.prisma.systemSetting.findUnique({ where: { key: MANUAL_NOTE_KEY } });
+    return { accounts: await this.manual.accounts(), note: typeof note?.value === 'string' ? note.value : null };
+  }
+
+  /** Owner sets the transfer accounts customers see at checkout. */
+  async setManualInstructions(dto: ManualAccountsDto, actorId: string) {
+    const accounts: ManualAccount[] = dto.accounts.map((a) => ({
+      id: a.id || randomUUID(),
+      method: a.method.trim(),
+      country: a.country?.toUpperCase(),
+      accountName: a.accountName.trim(),
+      accountNumber: a.accountNumber.trim(),
+      instructions: a.instructions?.trim() || undefined,
+    }));
+    const value = JSON.parse(JSON.stringify(accounts)) as Prisma.InputJsonValue;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.systemSetting.upsert({
+        where: { key: MANUAL_ACCOUNTS_KEY },
+        update: { value },
+        create: { key: MANUAL_ACCOUNTS_KEY, value, group: 'payments', isPublic: true, description: 'Manual transfer accounts shown at checkout' },
+      });
+      await tx.systemSetting.upsert({
+        where: { key: MANUAL_NOTE_KEY },
+        update: { value: dto.note?.trim() ?? '' },
+        create: { key: MANUAL_NOTE_KEY, value: dto.note?.trim() ?? '', group: 'payments', isPublic: true, description: 'Note shown with the manual transfer accounts' },
+      });
+      await this.audit.record(tx, { actorId, action: 'payments.manual_accounts.update', entityType: 'SystemSetting', entityId: MANUAL_ACCOUNTS_KEY, after: accounts });
+    });
+    return this.manualInstructions();
+  }
+
+  /**
+   * The customer reports the transfer they made. Allowed again until staff
+   * review it (to correct a typo); the amount is the order's, never the client's.
+   */
+  async submitTransfer(paymentId: string, userId: string, dto: SubmitTransferDto) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { order: true } });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.userId !== userId) throw new ForbiddenException('This payment belongs to another account');
+    if (payment.gateway !== 'MANUAL') throw new BadRequestException('Only a manual transfer takes a transaction reference');
+    if (!['INITIATED', 'AUTHORIZED'].includes(payment.status)) {
+      throw new BadRequestException('This payment has already been reviewed');
+    }
+    if (payment.order.status !== 'PENDING_PAYMENT') throw new BadRequestException('This order is not awaiting payment');
+
+    const account = (await this.manual.accounts()).find((a) => a.id === dto.accountId);
+    if (!account) throw new BadRequestException('Unknown transfer account');
+
+    const transfer: TransferReport = {
+      accountId: account.id,
+      method: account.method,
+      reference: dto.reference.trim(),
+      payerName: dto.payerName?.trim() || undefined,
+      payerPhone: dto.payerPhone?.trim() || undefined,
+      submittedAt: new Date().toISOString(),
+    };
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: PaymentStatus.AUTHORIZED,
+        rawResponse: JSON.parse(JSON.stringify({ transfer })) as Prisma.InputJsonValue,
+        version: { increment: 1 },
+      },
+    });
+    return { paymentId, status: 'AUTHORIZED' as const };
+  }
+
+  /** Staff queue: transfers customers reported, oldest first. */
+  listManualPending() {
+    return this.prisma.payment.findMany({
+      where: { gateway: 'MANUAL', status: PaymentStatus.AUTHORIZED },
+      orderBy: { updatedAt: 'asc' },
+      select: {
+        id: true, amount: true, currency: true, status: true, rawResponse: true, createdAt: true, updatedAt: true,
+        order: { select: { id: true, orderNumber: true, status: true, user: { select: { email: true, fullName: true, phone: true } } } },
+      },
+    });
+  }
+
+  /** Staff confirmed the money arrived: the payment captures and the order becomes PAID. */
+  async approveManual(paymentId: string, actorId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment || payment.gateway !== 'MANUAL') throw new NotFoundException('Manual payment not found');
+    if (payment.status === PaymentStatus.CAPTURED) return { status: 'CAPTURED' as const };
+    if (payment.status !== PaymentStatus.AUTHORIZED) {
+      throw new BadRequestException('Approve a transfer only after the customer has submitted its reference');
+    }
+
+    const raw = { ...((payment.rawResponse as Record<string, unknown> | null) ?? {}), review: { decision: 'approved', by: actorId, at: new Date().toISOString() } };
+    await this.markCaptured(payment.id, payment.gatewayRef ?? `manual_${payment.id}`, raw);
+    await this.prisma.$transaction((tx) =>
+      this.audit.record(tx, { actorId, action: 'payments.manual.approve', entityType: 'Payment', entityId: payment.id }),
+    );
+    return { status: 'CAPTURED' as const };
+  }
+
+  /** Staff could not find the transfer: the payment fails and the customer can pay again. */
+  async rejectManual(paymentId: string, reason: string, actorId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment || payment.gateway !== 'MANUAL') throw new NotFoundException('Manual payment not found');
+    const raw = { ...((payment.rawResponse as Record<string, unknown> | null) ?? {}), review: { decision: 'rejected', by: actorId, at: new Date().toISOString(), reason } };
+
+    const { count } = await this.prisma.payment.updateMany({
+      where: { id: paymentId, status: { in: [PaymentStatus.INITIATED, PaymentStatus.AUTHORIZED] } },
+      data: {
+        status: PaymentStatus.FAILED,
+        failureCode: 'rejected_by_staff',
+        failureReason: reason,
+        rawResponse: JSON.parse(JSON.stringify(raw)) as Prisma.InputJsonValue,
+        version: { increment: 1 },
+      },
+    });
+    if (count === 0) throw new BadRequestException('This payment has already been reviewed');
+    await this.prisma.$transaction((tx) =>
+      this.audit.record(tx, { actorId, action: 'payments.manual.reject', entityType: 'Payment', entityId: paymentId, after: { reason } }),
+    );
+    return { status: 'FAILED' as const };
   }
 }

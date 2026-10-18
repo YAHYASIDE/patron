@@ -36,7 +36,14 @@ export interface PaymentGateway {
   readonly code: string;
   /** Whether funds move instantly (affects when fulfilment is triggered). */
   readonly isInstant: boolean;
+  /**
+   * True when the customer must submit proof (a transfer reference) before the
+   * payment can be reviewed; the payment then stays INITIATED until they do.
+   */
+  readonly awaitsCustomerProof?: boolean;
 
+  /** Whether the method can be offered right now (credentials/accounts configured). Default: yes. */
+  isEnabled?(): boolean | Promise<boolean>;
   initiate(req: InitiatePaymentRequest): Promise<InitiateResult>;
   /** Confirm final state with the gateway — never trust the client's word. */
   verify(gatewayRef: string): Promise<{ status: 'CAPTURED' | 'FAILED' | 'PENDING'; raw?: unknown }>;

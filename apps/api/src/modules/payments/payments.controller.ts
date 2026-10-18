@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Headers, HttpCode, Param, Post, Req, UseInterceptors,
+  Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Put, Req, UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -10,7 +10,8 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 import { IdempotencyInterceptor } from '../../common/idempotency/idempotency.interceptor';
-import { InitiatePaymentDto } from './dto/payment.dto';
+import { InitiatePaymentDto, ManualAccountsDto, RejectPaymentDto, SubmitTransferDto } from './dto/payment.dto';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiBearerAuth()
 @ApiTags('payments')
@@ -37,6 +38,26 @@ export class PaymentsController {
   @Post()
   initiate(@CurrentUser('id') userId: string, @Body() dto: InitiatePaymentDto) {
     return this.payments.initiate(dto.orderId, userId, dto.gateway, dto.returnUrl);
+  }
+
+  /** Where to send a manual transfer: the owner's accounts and note. */
+  @Public() @Get('manual-accounts')
+  manualAccounts() {
+    return this.payments.manualInstructions();
+  }
+
+  @ApiOperation({
+    summary: 'Report a manual transfer',
+    description: 'The customer submits the transaction reference; staff then approve or reject the payment.',
+  })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(200) @Post(':id/transfer')
+  submitTransfer(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SubmitTransferDto,
+  ) {
+    return this.payments.submitTransfer(id, userId, dto);
   }
 
   /** Client-triggered confirmation — verified against the gateway, not trusted. */
@@ -75,5 +96,38 @@ export class WebhooksController {
     @Body() body: unknown,
   ) {
     return this.payments.handleWebhook(source, req.rawBody?.toString() ?? JSON.stringify(body), headers, body);
+  }
+}
+
+@ApiBearerAuth()
+@ApiTags('admin/payments')
+@Controller('admin/payments')
+export class PaymentsAdminController {
+  constructor(private payments: PaymentsService) {}
+
+  /** Manual transfers customers reported, waiting for staff to check the account. */
+  @RequirePermissions('payments.read') @Get('manual/pending')
+  pending() {
+    return this.payments.listManualPending();
+  }
+
+  @RequirePermissions('orders.fulfil_manual') @HttpCode(200) @Post(':id/approve')
+  approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') actorId: string) {
+    return this.payments.approveManual(id, actorId);
+  }
+
+  @RequirePermissions('orders.fulfil_manual') @HttpCode(200) @Post(':id/reject')
+  reject(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RejectPaymentDto, @CurrentUser('id') actorId: string) {
+    return this.payments.rejectManual(id, dto.reason, actorId);
+  }
+
+  @RequirePermissions('settings.manage') @Get('manual-accounts')
+  manualAccounts() {
+    return this.payments.manualInstructions();
+  }
+
+  @RequirePermissions('settings.manage') @Put('manual-accounts')
+  setManualAccounts(@Body() dto: ManualAccountsDto, @CurrentUser('id') actorId: string) {
+    return this.payments.setManualInstructions(dto, actorId);
   }
 }

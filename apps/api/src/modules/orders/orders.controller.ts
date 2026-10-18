@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Ip, Param, Post, Query, Req, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Ip, Param, ParseUUIDPipe, Post, Query, Req, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
@@ -9,7 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 import { IdempotencyInterceptor } from '../../common/idempotency/idempotency.interceptor';
-import { CreateOrderDto, CreateQuoteDto, QueryOrdersDto } from './dto/order.dto';
+import { CreateOrderDto, CreateQuoteDto, QueryOrdersDto, ManualFulfilDto } from './dto/order.dto';
 
 @ApiBearerAuth()
 @ApiTags('checkout')
@@ -110,7 +110,18 @@ export class OrdersAdminController {
 
   @RequirePermissions('orders.read') @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.orders.findOne(id);
+    return this.orders.findOneAdmin(id);
+  }
+
+  /** Deliver a paid item by hand: the codes are encrypted and the customer reveals them. */
+  @RequirePermissions('orders.fulfil_manual') @HttpCode(200) @Post(':id/items/:itemId/deliver')
+  deliver(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() dto: ManualFulfilDto,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.orders.deliverManually(id, itemId, dto, actorId);
   }
 
   @RequirePermissions('orders.cancel') @HttpCode(200) @Post(':id/cancel')

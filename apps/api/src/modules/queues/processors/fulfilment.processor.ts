@@ -58,7 +58,7 @@ export class FulfilmentProcessor extends WorkerHost {
   private async fulfilOrder(orderId: string) {
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: orderId },
-      include: { items: { select: { id: true, status: true } } },
+      include: { items: { select: { id: true, status: true, product: { select: { delivery: true } } } } },
     });
 
     // Only fulfil paid orders. A refunded or cancelled order that had a job
@@ -68,7 +68,11 @@ export class FulfilmentProcessor extends WorkerHost {
       return { skipped: order.status };
     }
 
-    const pending = order.items.filter((i) => ['PENDING', 'FAILED'].includes(i.status));
+    // MANUAL items wait for staff (OrdersService.deliverManually); a provider
+    // attempt would only mark them FAILED with "no provider".
+    const pending = order.items.filter(
+      (i) => ['PENDING', 'FAILED'].includes(i.status) && i.product?.delivery !== 'MANUAL',
+    );
     for (const item of pending) {
       await this.engine.fulfilItem(item.id).catch((err) =>
         this.logger.error(`Item ${item.id} failed: ${(err as Error).message}`),

@@ -54,6 +54,22 @@ describe('FulfilmentProcessor', () => {
   });
 
   describe('fulfil-order', () => {
+    it('leaves MANUAL items for staff instead of failing them with "no provider"', async () => {
+      prisma.order.findUniqueOrThrow.mockResolvedValue({
+        status: 'PAID',
+        items: [
+          { id: 'i1', status: 'PENDING', product: { delivery: 'MANUAL' } },
+          { id: 'i2', status: 'PENDING', product: { delivery: 'AUTO_PROVIDER' } },
+        ],
+      });
+
+      const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
+
+      expect(result).toEqual({ processed: 1 });
+      expect(engine.fulfilItem).toHaveBeenCalledWith('i2');
+      expect(engine.fulfilItem).not.toHaveBeenCalledWith('i1');
+    });
+
     it('fulfils only PENDING/FAILED items then syncs order status', async () => {
       prisma.order.findUniqueOrThrow.mockResolvedValue({
         status: 'PAID',
