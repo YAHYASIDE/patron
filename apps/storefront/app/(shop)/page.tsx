@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { catalog } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useCurrency } from '@/lib/currency';
 import type { Category, Paginated, Product } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
 import Price from '@/components/Price';
@@ -21,8 +22,9 @@ function SkeletonCard() {
 }
 
 export default function HomePage() {
-  const featured = useFetch<Paginated<Product>>(() => catalog.products({ isFeatured: true, limit: 8 }), []);
-  const latest = useFetch<Paginated<Product>>(() => catalog.products({ limit: 12 }), []);
+  const currency = useCurrency();
+  const featured = useFetch<Paginated<Product>>(() => catalog.products({ isFeatured: true, limit: 8, currency }), [currency]);
+  const latest = useFetch<Paginated<Product>>(() => catalog.products({ limit: 12, currency }), [currency]);
   const cats = useFetch<Category[]>(() => catalog.categories(), []);
 
   // Fall back to latest when nothing is flagged featured.

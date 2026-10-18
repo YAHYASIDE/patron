@@ -2,6 +2,7 @@ import type {
   Category,
   Currency,
   Game,
+  ManualAccount,
   Me,
   Order,
   Paginated,
@@ -302,6 +303,16 @@ export const shop = {
       body: { orderId, gateway, returnUrl },
       auth: true,
       idempotent: true,
+    });
+  },
+  manualAccounts() {
+    return request<{ accounts: ManualAccount[]; note: string | null }>('/payments/manual-accounts');
+  },
+  submitTransfer(paymentId: string, body: { accountId: string; reference: string; payerName?: string; payerPhone?: string }) {
+    return request<{ paymentId: string; status: string }>(`/payments/${paymentId}/transfer`, {
+      method: 'POST',
+      body,
+      auth: true,
     });
   },
   confirmPayment(paymentId: string) {

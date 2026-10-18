@@ -8,17 +8,9 @@ import { cart } from '@/lib/cart';
 import { useCart } from '@/lib/hooks';
 import { money } from '@/lib/format';
 import type { Order, Quote } from '@/lib/types';
+import { gatewayLabel, useUsableMethods } from '@/lib/payments';
+import { getCurrency } from '@/lib/currency';
 import { CheckIcon, BoltIcon } from '@/components/icons';
-
-const GATEWAY_LABELS: Record<string, string> = {
-  WALLET: 'رصيد المحفظة',
-  STRIPE: 'بطاقة بنكية (Stripe)',
-  MANUAL: 'تحويل يدوي',
-  CASH: 'نقدًا',
-};
-function gatewayLabel(g: string) {
-  return GATEWAY_LABELS[g] ?? g;
-}
 
 type Step = 'loading' | 'review' | 'working' | 'done' | 'empty';
 
@@ -28,7 +20,8 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<Step>('loading');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
-  const [methods, setMethods] = useState<string[]>([]);
+  const usable = useUsableMethods(quote ? Number(quote.total) : null, quote?.currency ?? null);
+  const methods = usable ?? [];
   const [gateway, setGateway] = useState<string>('');
   const [coupon, setCoupon] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +48,7 @@ export default function CheckoutPage() {
           inputs: (i.inputs ?? []).map((x) => ({ key: x.key, value: x.value })),
         })),
         couponCode: couponCode || undefined,
+        currency: getCurrency(),
       });
       setQuote(q);
       setStep('review');
@@ -70,21 +64,30 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!isAuthed()) return;
-    shop.paymentMethods().then((m) => {
-      setMethods(m);
-      setGateway(m.includes('WALLET') ? 'WALLET' : (m[0] ?? ''));
-    }).catch(() => setMethods([]));
     buildQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // keep the choice valid as the offer changes (a coupon can make the wallet enough, or not)
+  useEffect(() => {
+    if (usable && !usable.includes(gateway)) setGateway(usable.includes('WALLET') ? 'WALLET' : (usable[0] ?? ''));
+  }, [usable, gateway]);
 
   async function placeAndPay() {
     if (!quote) return;
     setStep('working');
     setError(null);
+    let created: Order | null = null;
     try {
       const o = await shop.createOrder(quote.id);
+      created = o;
       setOrder(o);
+      if (gateway === 'MANUAL') {
+        // the order page shows the transfer accounts and takes the reference
+        cart.clear();
+        router.push(`/orders/${o.id}?pay=MANUAL`);
+        return;
+      }
       // attempt payment
       const pay = await shop.pay(o.id, gateway, typeof window !== 'undefined' ? window.location.origin + '/orders' : undefined);
       if (pay.status === 'REQUIRES_ACTION' && pay.redirectUrl) {
@@ -104,8 +107,13 @@ export default function CheckoutPage() {
             : err.message
           : 'تعذّر إتمام الدفع.';
       setError(msg);
-      // if the order was created, keep it so the user can retry payment from /orders
-      setStep(order ? 'done' : 'review');
+      // the order exists: its page lets the customer pay another way
+      if (created) {
+        cart.clear();
+        setStep('done');
+        return;
+      }
+      setStep('review');
     }
   }
 
@@ -140,8 +148,8 @@ export default function CheckoutPage() {
             <p className="mt-4 text-sm text-muted">سيكتمل الطلب بمجرّد تأكيد الدفع.</p>
           )}
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link href={`/orders`} className="btn-brand rounded-xl px-6 py-3 font-bold">
-              عرض طلباتي
+            <Link href={order ? `/orders/${order.id}` : '/orders'} className="btn-brand rounded-xl px-6 py-3 font-bold">
+              {paid ? 'عرض الطلب' : 'أكمل الدفع'}
             </Link>
             <Link
               href="/products"
@@ -184,6 +192,11 @@ export default function CheckoutPage() {
           </div>
 
           {/* payment method */}
+          {quote && usable?.length === 0 && (
+            <p className="surface mt-4 rounded-2xl p-5 text-sm text-muted shadow-card">
+              لا توجد وسيلة دفع متاحة حاليًا. تواصل مع المتجر.
+            </p>
+          )}
           {methods.length > 0 && (
             <div className="surface mt-4 rounded-2xl p-5 shadow-card">
               <h2 className="text-base font-bold">وسيلة الدفع</h2>
@@ -260,7 +273,7 @@ export default function CheckoutPage() {
               disabled={!quote || step === 'working' || !gateway}
               className="btn-brand mt-5 w-full rounded-xl py-3.5 text-[15px] font-bold disabled:opacity-60"
             >
-              {step === 'working' ? 'جارٍ المعالجة…' : 'ادفع الآن'}
+              {step === 'working' ? 'جارٍ المعالجة…' : gateway === 'MANUAL' ? 'متابعة إلى التحويل' : 'ادفع الآن'}
             </button>
             <p className="mt-3 text-center text-xs text-muted">بالضغط على «ادفع الآن» فأنت توافق على الشروط.</p>
           </div>

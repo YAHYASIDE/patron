@@ -64,6 +64,9 @@ const BRANDS = {
   gamepass: { word: 'GAME PASS', bg: '#107C10' },
   psplus: { icon: 'playstation', bg: '#F5B700', fg: '#151515' },
   m365: { word: 'Microsoft 365', bg: '#0F6CBD' },
+  mattel: { word: 'MATTEL', bg: '#D7141A' },
+  mauritel: { word: 'MAURITEL', bg: '#0A5BA8' },
+  chinguitel: { word: 'CHINGUITEL', bg: '#0E8A3E' },
 };
 
 const months = (code) => (code === '1M' ? '1 MONTH' : code === '12M' ? '12 MONTHS' : `${parseInt(code, 10)} MONTHS`);
@@ -85,6 +88,7 @@ function specFor(sku) {
   if (sku === 'GC-FORTNITE-1000') return { brand: 'fortnite', label: '1,000 V-BUCKS' };
   if (sku === 'GC-MINECRAFT-JAVA-BEDROCK') return { brand: 'minecraft', label: 'JAVA + BEDROCK' };
   if (sku === 'GC-MINECRAFT-1720') return { brand: 'minecraft', label: '1,720 MINECOINS' };
+  if ((m = sku.match(/^TOP-(MATTEL|MAURITEL|CHINGUITEL)-(\d+)$/))) return { brand: m[1].toLowerCase(), sub: 'AIRTIME', label: `${num(m[2])} MRU` };
   if ((m = sku.match(/^GC-BINANCE-(\d+)$/))) return { brand: 'binance', sub: 'GIFT CARD', label: `${m[1]} USDT` };
   const gc = {
     APPLE: 'apple', GPLAY: 'gplay', PSN: 'psn', XBOX: 'xbox', STEAM: 'steam', ROBLOX: 'roblox', RAZER: 'razer',
@@ -152,7 +156,11 @@ function svg({ brand, label, sub }) {
 `;
 }
 
-const skus = [...readFileSync(PACK, 'utf8').matchAll(/sku: '([A-Z0-9-]+)'/g)].map((m) => m[1]);
+const source = readFileSync(PACK, 'utf8');
+const skus = [...source.matchAll(/sku: '([A-Z0-9]+-[A-Z0-9-]+)'/g)].map((m) => m[1]);
+// v3 airtime SKUs are built from the operator list × face values (`TOP-${op.sku}-${mru}`)
+const faces = JSON.parse(source.match(/const AIRTIME_MRU = (\[[^\]]*\])/)[1]);
+for (const [, op] of source.matchAll(/slug: '[a-z]+', sku: '([A-Z]+)'/g)) for (const f of faces) skus.push(`TOP-${op}-${f}`);
 mkdirSync(OUT, { recursive: true });
 const missing = [];
 for (const sku of skus) {

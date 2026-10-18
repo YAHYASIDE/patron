@@ -95,6 +95,10 @@ export const cart = {
   clear() {
     commit([]);
   },
+  /** Replace line prices (e.g. after a currency switch); `null` keeps a line as it is. */
+  reprice(fn: (item: CartItem) => Pick<CartItem, 'unitPrice' | 'currency'> | null) {
+    commit(snapshot().map((i) => ({ ...i, ...(fn(i) ?? {}) })));
+  },
   keyOf: lineKey,
   subscribe(l: () => void): () => void {
     listeners.add(l);

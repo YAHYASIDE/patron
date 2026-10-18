@@ -143,5 +143,14 @@ export type Order = {
     status: string;
     results?: { id: string; resultType: string; hasValue: boolean; revealed: boolean; deliveredAt?: string | null }[];
   }[];
-  payments?: { id: string; gateway: string; status: string; amount: string; createdAt: string }[];
+  payments?: { id: string; gateway: string; status: string; amount: string; failureReason?: string | null; createdAt: string }[];
+};
+
+export type ManualAccount = {
+  id: string;
+  method: string;
+  country?: string;
+  accountName: string;
+  accountNumber: string;
+  instructions?: string;
 };

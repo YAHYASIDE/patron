@@ -7,6 +7,7 @@ import { useCart } from '@/lib/hooks';
 import { isAuthed } from '@/lib/api';
 import { CartIcon, MenuIcon, CloseIcon, UserIcon } from './icons';
 import ThemeToggle from './ThemeToggle';
+import CurrencySwitch from './CurrencySwitch';
 
 const NAV = [
   { href: '/', label: 'الرئيسية' },
@@ -51,7 +52,11 @@ export default function Header() {
         </nav>
 
         <div className="ms-auto flex items-center gap-1">
-          <ThemeToggle />
+          <CurrencySwitch />
+          {/* phones: the theme toggle lives in the menu, so the bar fits 360px */}
+          <div className="hidden sm:block">
+            <ThemeToggle />
+          </div>
           <Link
             href={authed ? '/account' : '/login'}
             aria-label={authed ? 'حسابي' : 'تسجيل الدخول'}
@@ -92,6 +97,10 @@ export default function Header() {
               {n.label}
             </Link>
           ))}
+          <div className="flex items-center justify-between px-3 py-1.5 sm:hidden">
+            <span className="text-[15px] font-semibold text-muted">الوضع الليلي</span>
+            <ThemeToggle />
+          </div>
         </nav>
       )}
     </header>

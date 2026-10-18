@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { catalog } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useCurrency } from '@/lib/currency';
 import type { Category, Paginated, Product } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
 import { SearchIcon } from '@/components/icons';
@@ -26,11 +27,12 @@ function ProductsInner() {
   const categoryId = params.get('categoryId') ?? undefined;
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const currency = useCurrency();
 
   const cats = useFetch<Category[]>(() => catalog.categories(), []);
   const res = useFetch<Paginated<Product>>(
-    () => catalog.products({ categoryId, search: search || undefined, page, limit: 16 }),
-    [categoryId, search, page],
+    () => catalog.products({ categoryId, search: search || undefined, page, limit: 16, currency }),
+    [categoryId, search, page, currency],
   );
 
   const activeCat = cats.data?.find((c) => c.id === categoryId);

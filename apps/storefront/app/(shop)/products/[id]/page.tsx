@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { catalog } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { cart } from '@/lib/cart';
+import { useCurrency } from '@/lib/currency';
 import type { GameInput, Paginated, Product } from '@/lib/types';
 import Price from '@/components/Price';
 import { BoltIcon, CheckIcon, ShieldIcon, ChevronIcon } from '@/components/icons';
@@ -14,7 +15,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const { id } = use(params);
   const router = useRouter();
 
-  const prod = useFetch<Product>(() => catalog.product(id), [id]);
+  const currency = useCurrency();
+  const prod = useFetch<Product>(() => catalog.product(id, currency), [id, currency]);
   const product = prod.data;
 
   const [qty, setQty] = useState(1);
@@ -24,8 +26,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   // other denominations of the same game
   const siblings = useFetch<Paginated<Product>>(
-    () => (product?.gameId ? catalog.products({ gameId: product.gameId, limit: 24 }) : Promise.resolve({ data: [], meta: { page: 1, limit: 0, total: 0, pages: 0 } })),
-    [product?.gameId],
+    () => (product?.gameId ? catalog.products({ gameId: product.gameId, limit: 24, currency }) : Promise.resolve({ data: [], meta: { page: 1, limit: 0, total: 0, pages: 0 } })),
+    [product?.gameId, currency],
   );
 
   const schema: GameInput[] = product?.game?.inputSchema ?? [];
@@ -199,7 +201,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     {f.required && <span className="text-bad"> *</span>}
                   </label>
                   <input
-                    type={f.sensitive ? 'password' : 'text'}
+                    type={f.sensitive ? 'password' : f.type === 'tel' || f.type === 'email' ? f.type : 'text'}
+                    inputMode={f.type === 'tel' ? 'tel' : undefined}
+                    dir={f.type === 'tel' || f.type === 'email' ? 'ltr' : undefined}
                     value={inputs[f.key] ?? ''}
                     onChange={(e) => setInputs((v) => ({ ...v, [f.key]: e.target.value }))}
                     className="surface-2 hairline rounded-xl border px-3.5 py-2.5 text-[15px] outline-none focus:border-teal"

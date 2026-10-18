@@ -2,12 +2,13 @@
 
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { isAuthed, shop, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { money } from '@/lib/format';
 import type { Order } from '@/lib/types';
 import { ChevronIcon, CheckIcon } from '@/components/icons';
+import { PayOrder } from '@/components/PayOrder';
 
 const STATUS: Record<string, { t: string; c: string }> = {
   COMPLETED: { t: 'مكتمل', c: 'bg-ok/12 text-ok' },
@@ -15,6 +16,8 @@ const STATUS: Record<string, { t: string; c: string }> = {
   PROCESSING: { t: 'قيد المعالجة', c: 'bg-teal/12 text-teal' },
   DELIVERED: { t: 'تم التسليم', c: 'bg-ok/12 text-ok' },
   PENDING_PAYMENT: { t: 'بانتظار الدفع', c: 'bg-warn/12 text-warn' },
+  PENDING: { t: 'بانتظار', c: 'bg-ink-400/15 text-muted' },
+  PARTIALLY_COMPLETED: { t: 'مكتمل جزئيًا', c: 'bg-teal/12 text-teal' },
   AWAITING_PAYMENT: { t: 'بانتظار الدفع', c: 'bg-warn/12 text-warn' },
   FAILED: { t: 'فشل', c: 'bg-bad/12 text-bad' },
   CANCELLED: { t: 'ملغي', c: 'bg-ink-400/15 text-muted' },
@@ -26,6 +29,7 @@ function chip(s: string) {
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const payWith = useSearchParams().get('pay') ?? undefined;
   useEffect(() => {
     if (!isAuthed()) router.replace(`/login?next=/orders/${id}`);
   }, [router, id]);
@@ -33,7 +37,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const res = useFetch<Order>(() => shop.order(id), [id]);
   const order = res.data;
 
-  const [codes, setCodes] = useState<Record<string, string[]>>({});
+  const [codes, setCodes] = useState<Record<string, { resultType: string; value: string }[]>>({});
   const [revealing, setRevealing] = useState<string | null>(null);
   const [revealErr, setRevealErr] = useState<Record<string, string>>({});
 
@@ -42,7 +46,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setRevealErr((e) => ({ ...e, [itemId]: '' }));
     try {
       const out = await shop.reveal(itemId);
-      setCodes((c) => ({ ...c, [itemId]: out.map((o) => o.value) }));
+      setCodes((c) => ({ ...c, [itemId]: out }));
     } catch (err) {
       setRevealErr((e) => ({
         ...e,
@@ -53,7 +57,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  if (res.loading) return <div className="mx-auto max-w-page px-4 py-16 text-center text-muted">جارٍ التحميل…</div>;
+  if (res.loading && !order)
+    return <div className="mx-auto max-w-page px-4 py-16 text-center text-muted">جارٍ التحميل…</div>;
   if (res.error || !order)
     return (
       <div className="mx-auto max-w-page px-4 py-20 text-center">
@@ -94,7 +99,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       {/* items */}
       <div className="mt-6 space-y-3">
         {order.items.map((it) => {
-          const delivered = it.status === 'DELIVERED' || it.status === 'COMPLETED' || (it.results?.some((r) => r.hasValue) ?? false);
+          const delivered =
+            it.status === 'DELIVERED' ||
+            it.status === 'COMPLETED' ||
+            (it.results?.some((r) => r.hasValue) ?? false);
           const shown = codes[it.id];
           return (
             <div key={it.id} className="surface rounded-2xl p-4 shadow-card">
@@ -112,13 +120,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
               {shown ? (
                 <div className="mt-3 space-y-2">
-                  {shown.map((code, i) => (
+                  {shown.map((r, i) => (
+                    // a code reads left to right in a monospace face; a message from the shop is plain text
                     <div
                       key={i}
-                      dir="ltr"
-                      className="surface-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 font-mono text-[15px] font-bold"
+                      dir={r.resultType === 'message' ? undefined : 'ltr'}
+                      className={
+                        'surface-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-[15px] font-bold ' +
+                        (r.resultType === 'message' ? '' : 'font-mono')
+                      }
                     >
-                      <span className="select-all break-all">{code}</span>
+                      <span className="select-all break-words">{r.value}</span>
                       <CheckIcon size={16} className="flex-none text-ok" />
                     </div>
                   ))}
@@ -132,7 +144,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {revealing === it.id ? 'جارٍ…' : 'إظهار الكود'}
                 </button>
               ) : (
-                <p className="mt-3 text-sm text-muted">يُجهّز هذا المنتج، وستظهر التفاصيل هنا بمجرّد اكتماله.</p>
+                <p className="mt-3 text-sm text-muted">
+                  {order.status === 'PENDING_PAYMENT'
+                    ? 'يُسلَّم هنا بعد تأكيد الدفع.'
+                    : 'نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.'}
+                </p>
               )}
 
               {revealErr[it.id] && <p className="mt-2 text-sm text-bad">{revealErr[it.id]}</p>}
@@ -141,14 +157,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         })}
       </div>
 
-      {order.status === 'PENDING_PAYMENT' || order.status === 'AWAITING_PAYMENT' ? (
-        <div className="mt-6 rounded-2xl border border-warn/30 bg-warn/10 p-4 text-sm text-warn">
-          هذا الطلب بانتظار الدفع.{' '}
-          <Link href="/checkout" className="font-bold underline">
-            أكمل الدفع
-          </Link>
-        </div>
-      ) : null}
+      {order.status === 'PENDING_PAYMENT' && (
+        <PayOrder order={order} initial={payWith} onChange={res.reload} />
+      )}
     </div>
   );
 }
