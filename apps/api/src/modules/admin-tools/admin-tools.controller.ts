@@ -80,9 +80,18 @@ export class DataExportController {
     return csv;
   }
 
+  /** When the last full backup was downloaded, so the dashboard can remind the owner. */
+  @RequirePermissions('settings.manage') @Get('backup/status')
+  async backupStatus() {
+    return { lastBackupAt: await this.exporter.lastBackupAt() };
+  }
+
   @ApiOperation({
     summary: 'Full backup as a JSON download',
-    description: 'Customers, orders, catalogue and settings. No password hashes, tokens, 2FA secrets, code values or files.',
+    description:
+      'Everything the shop is rebuilt from (dist/restore-runner.js): customers, wallets and their ledger, orders, payments, ' +
+      'refunds, the catalogue and the code stock (encrypted as stored). No password hashes, sessions, 2FA secrets, ' +
+      'sensitive inputs, provider keys or uploaded files.',
   })
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @RequirePermissions('settings.manage') @Get('backup')
