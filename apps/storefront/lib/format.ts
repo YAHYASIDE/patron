@@ -1,9 +1,12 @@
 /** Arabic-locale formatting helpers for the storefront. */
 
+// Arabic words with Latin ("French") digits, the way customers here write numbers.
+export const LOCALE = 'ar-EG-u-nu-latn';
+
 export function num(n: number | string | null | undefined, digits = 0): string {
   const v = typeof n === 'string' ? parseFloat(n) : (n ?? 0);
   if (!isFinite(v as number)) return '—';
-  return (v as number).toLocaleString('ar-EG', {
+  return (v as number).toLocaleString(LOCALE, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });

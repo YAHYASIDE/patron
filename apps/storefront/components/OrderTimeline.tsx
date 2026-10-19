@@ -1,11 +1,12 @@
 import type { Order } from '@/lib/types';
+import { LOCALE } from '@/lib/format';
 import { CheckIcon } from './icons';
 
 type Step = { t: string; d?: string; state: 'done' | 'now' | 'todo' };
 
 function when(iso?: string | null): string | undefined {
   if (!iso) return undefined;
-  return new Date(iso).toLocaleString('ar', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
 /** Where an order stands, in the four steps a customer cares about. */
