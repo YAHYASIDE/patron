@@ -49,12 +49,24 @@ describe('FxService', () => {
       expect(prisma.fxRate.create).not.toHaveBeenCalled();
     });
 
-    it('records a suspicious >15% jump as inactive for operator review', async () => {
+    it('records a suspicious >15% jump from a feed as inactive for operator review', async () => {
       prisma.fxRate.findFirst.mockResolvedValue({ rate: new Prisma.Decimal(100) });
 
-      await service.recordRate('EUR', 130); // +30%
+      await service.recordRate('EUR', 130, 'FEED'); // +30%
 
       expect(prisma.fxRate.create.mock.calls[0][0].data.isActive).toBe(false);
+    });
+
+    it("asks the owner to confirm a big manual move, then applies it", async () => {
+      prisma.fxRate.findFirst.mockResolvedValue({ rate: new Prisma.Decimal(40) });
+
+      await expect(service.recordRate('MRU', 52)).rejects.toMatchObject({
+        response: { error: 'BIG_CHANGE', from: '40', to: '52', changePercent: 30 },
+      });
+      expect(prisma.fxRate.create).not.toHaveBeenCalled();
+
+      await service.recordRate('MRU', 52, 'MANUAL', 'admin-1', { confirmed: true });
+      expect(prisma.fxRate.create.mock.calls[0][0].data).toMatchObject({ source: 'MANUAL', isActive: true });
     });
 
     it('keeps a move within the 15% band active', async () => {
@@ -133,7 +145,57 @@ describe('FxService', () => {
     });
   });
 
+  describe('setManual', () => {
+    it('refuses a currency the shop does not sell in', async () => {
+      prisma.currency.findFirst = jest.fn().mockResolvedValue(null);
+      await expect(service.setManual('XYZ', 1, 'admin-1')).rejects.toMatchObject({ response: { error: 'UNKNOWN_CURRENCY' } });
+    });
+
+    it("records the owner's rate as MANUAL", async () => {
+      prisma.currency.findFirst = jest.fn().mockResolvedValue({ code: 'MRU' });
+      await service.setManual('MRU', 39.8, 'admin-1');
+      expect(prisma.fxRate.create.mock.calls[0][0].data).toMatchObject({ quoteCurrency: 'MRU', source: 'MANUAL', createdById: 'admin-1' });
+      expect(prisma.currency.findFirst.mock.calls[0][0].where).toEqual({ code: 'MRU', isActive: true, isBase: false });
+    });
+  });
+
+  describe('overview', () => {
+    it('lists each currency with its current rate and freshness', async () => {
+      const now = new Date('2026-10-19T12:00:00Z');
+      prisma.currency.findMany.mockResolvedValue([
+        { code: 'MRU', nameAr: 'أوقية', symbol: 'MRU', decimals: 0 },
+        { code: 'XOF', nameAr: 'فرنك', symbol: 'CFA', decimals: 0 },
+      ]);
+      prisma.fxRate.findFirst.mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          where.quoteCurrency === 'MRU'
+            ? { rate: new Prisma.Decimal('39.8'), source: 'MANUAL', effectiveAt: new Date('2026-10-15T12:00:00Z') }
+            : null,
+        ),
+      );
+      expect(await service.overview(now)).toEqual([
+        { code: 'MRU', nameAr: 'أوقية', symbol: 'MRU', decimals: 0, rate: '39.8', source: 'MANUAL',
+          effectiveAt: new Date('2026-10-15T12:00:00Z'), stale: false },
+        { code: 'XOF', nameAr: 'فرنك', symbol: 'CFA', decimals: 0, rate: null, source: null, effectiveAt: null, stale: true },
+      ]);
+    });
+  });
+
   describe('findStale', () => {
+    it('gives a hand-typed rate a week and a feed rate three hours', async () => {
+      const now = new Date('2026-10-19T12:00:00Z');
+      const ago = (h: number) => new Date(now.getTime() - h * 3_600_000);
+      prisma.currency.findMany.mockResolvedValue([{ code: 'A' }, { code: 'B' }, { code: 'C' }, { code: 'D' }]);
+      const latest: Record<string, object> = {
+        A: { source: 'MANUAL', effectiveAt: ago(24 * 6) }, // 6 days: fine
+        B: { source: 'MANUAL', effectiveAt: ago(24 * 8) }, // 8 days: stale
+        C: { source: 'FEED', effectiveAt: ago(2) },
+        D: { source: 'FEED', effectiveAt: ago(4) },
+      };
+      prisma.fxRate.findFirst.mockImplementation(({ where }: any) => Promise.resolve(latest[where.quoteCurrency]));
+      expect(await service.findStale(undefined, now)).toEqual(['B', 'D']);
+    });
+
     it('flags currencies with no active rate at all', async () => {
       prisma.currency.findMany.mockResolvedValue([{ code: 'EUR' }, { code: 'GBP' }]);
       prisma.fxRate.findFirst.mockResolvedValue(null);
