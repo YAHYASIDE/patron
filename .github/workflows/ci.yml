@@ -190,6 +190,102 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+  # ═══════════════ A customer's order, in a real browser ═══════════════
+  # A customer once could not order at all because their cart still held a
+  # product the owner had hidden. This builds the API and the store, loads the
+  # same starter data and catalogue as production, and walks a real order
+  # (hidden product in the cart, wrong player ID, transfer with receipt approved
+  # by the owner, wallet) with tests/live/checkout-flow.mjs.
+  checkout:
+    name: Checkout · a real order in a browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: patron
+          POSTGRES_PASSWORD: patron
+          POSTGRES_DB: patron_checkout
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+        ports: ['5432:5432']
+      redis:
+        image: redis:7-alpine
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+        ports: ['6379:6379']
+    env:
+      NODE_ENV: development
+      PORT: '3010'
+      DATABASE_URL: postgresql://patron:patron@localhost:5432/patron_checkout?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
+      # throwaway database: a test-only owner account
+      SEED_ADMIN_PASSWORD: ci-checkout-owner-password
+      OTEL_ENABLED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_API_URL: http://localhost:3010/api/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+
+      - name: API · migrate, seed, starter catalogue, start
+        working-directory: apps/api
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run build
+          node dist/seed-runner.js
+          node dist/catalog-pack-runner.js
+          nohup node dist/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
+
+      - name: Store · build and start
+        working-directory: apps/storefront
+        run: |
+          npm run build
+          nohup npx next start -p 3002 > "$RUNNER_TEMP/store.log" 2>&1 &
+
+      - name: Wait for both
+        run: |
+          for url in http://localhost:3010/api/v1/health/ready http://localhost:3002/; do
+            for i in $(seq 1 60); do curl -sf -o /dev/null "$url" && break; sleep 2; done
+            curl -sf -o /dev/null "$url" || { echo "::error::$url did not start"; tail -50 "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/store.log"; exit 1; }
+          done
+
+      - name: Browser
+        working-directory: tests/live
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: A real order, start to finish
+        working-directory: tests/live
+        env:
+          STORE_URL: http://localhost:3002
+          API_URL: http://localhost:3010/api/v1
+        run: node checkout-flow.mjs
+
+      - name: Logs and screenshots
+        if: always()
+        run: |
+          mkdir -p tests/live/out
+          cp "$RUNNER_TEMP"/api.log "$RUNNER_TEMP"/store.log tests/live/out/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checkout-flow
+          path: tests/live/out/
+          retention-days: 14
+          if-no-files-found: warn
+
   # ═══════════════ Mobile (apps/mobile) ═══════════════
   mobile:
     name: Mobile · analyze & test
