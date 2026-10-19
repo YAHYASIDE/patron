@@ -292,6 +292,19 @@ describe('ProductsService', () => {
       expect(prisma.product.update).not.toHaveBeenCalled();
     });
 
+    it('takes a partial edit and checks it against the saved product', async () => {
+      prisma.product.findFirst.mockResolvedValue({
+        id: 'p1', categoryId: 'c1', gameId: null, type: 'GIFT_CARD', sellPrice: 10, costPrice: 8, discountPercent: null, prices: [],
+      });
+      // hiding a product sends nothing else
+      await service.update('p1', { isActive: false } as any, 'admin1');
+      expect(prisma.product.update.mock.calls[0][0].data).toMatchObject({ isActive: false });
+      expect(prisma.product.update.mock.calls[0][0].data).not.toHaveProperty('sellPrice');
+      // a new price alone is still compared with the saved cost
+      await expect(service.update('p1', { sellPrice: 5 } as any, 'admin1')).rejects.toThrow('sellPrice is below costPrice');
+      await expect(service.update('p1', { discountPercent: 50 } as any, 'admin1')).rejects.toThrow('discountPercent');
+    });
+
     it('throws NotFound when the product is missing', async () => {
       prisma.product.findFirst.mockResolvedValue(null);
       await expect(service.update('nope', { categoryId: 'c1' } as any, 'admin1')).rejects.toBeInstanceOf(NotFoundException);

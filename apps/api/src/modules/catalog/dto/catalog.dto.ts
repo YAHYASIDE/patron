@@ -1,3 +1,4 @@
+import { PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsObject, IsOptional,
@@ -89,7 +90,11 @@ export class CreateProductDto {
   @IsOptional() @IsBoolean() isFeatured?: boolean;
   @IsOptional() @IsInt() sortOrder?: number;
 }
-export class UpdateProductDto extends CreateProductDto {}
+/**
+ * A product edit sends only what changed (the dashboard's quick edit toggles
+ * one field); the service checks the result against the saved product.
+ */
+export class UpdateProductDto extends PartialType(CreateProductDto) {}
 
 // ── Queries ──
 

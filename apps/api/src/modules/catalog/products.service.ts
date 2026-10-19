@@ -195,8 +195,18 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto, actorId: string) {
     const before = await this.prisma.product.findFirst({ where: { id, deletedAt: null }, include: { prices: true } });
     if (!before) throw new NotFoundException('Product not found');
-    await this.assertValidRelations(dto);
-    this.assertNotAtLoss(dto);
+    // only the changed fields arrive: check what the product will be, not the edit alone
+    const merged = {
+      categoryId: before.categoryId,
+      gameId: before.gameId ?? undefined,
+      type: before.type,
+      sellPrice: Number(before.sellPrice),
+      costPrice: Number(before.costPrice),
+      discountPercent: before.discountPercent === null ? undefined : Number(before.discountPercent),
+      ...Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)),
+    } as CreateProductDto;
+    await this.assertValidRelations(merged);
+    this.assertNotAtLoss(merged);
     this.assertOnePricePerCurrency(dto.prices);
 
     const { prices, ...scalars } = dto;
