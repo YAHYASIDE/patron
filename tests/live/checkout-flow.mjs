@@ -168,6 +168,8 @@ try {
   if (await wallet.count()) await wallet.click();
   await page.getByRole('button', { name: 'ادفع الآن' }).click();
   await page.getByText(/تم استلام طلبك|تم إنشاء طلبك/).waitFor({ timeout: 30_000 });
+  // the earlier purchases load after the success screen shows
+  await page.getByText('مشترياتك السابقة').waitFor({ timeout: 15_000 }).catch(() => undefined);
   body = await text(page);
   await shot(page, '4-wallet-done');
   check('wallet payment completes', body.includes('تم استلام طلبك'));
