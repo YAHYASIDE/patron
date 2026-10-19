@@ -38,6 +38,7 @@ export async function reorder(
       productId: product.id,
       sku: product.sku,
       nameAr: product.nameAr || product.nameEn,
+      nameEn: product.nameEn || product.nameAr,
       imageUrl: product.imageUrl,
       unitPrice: product.sellPrice,
       currency: product.currency,

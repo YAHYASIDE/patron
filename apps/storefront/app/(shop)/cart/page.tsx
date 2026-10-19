@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { catalog } from '@/lib/api';
 import { useCart } from '@/lib/hooks';
-import { cart, type CartItem } from '@/lib/cart';
+import { cart, lineName, type CartItem } from '@/lib/cart';
 import { useCurrency } from '@/lib/currency';
 import { dropUnavailable, takeRemovedNotice } from '@/lib/cart-check';
 import { money } from '@/lib/format';
-import { useT } from '@/lib/i18n';
+import { useT, useLang } from '@/lib/i18n';
 import { CartIcon, TrashIcon } from '@/components/icons';
 
 type Change = { from: string; to: string; currency: string };
@@ -46,6 +46,7 @@ async function refreshPrices(items: CartItem[]): Promise<Record<string, Change>>
 
 export default function CartPage() {
   const t = useT();
+  const lang = useLang();
   const { items, total } = useCart();
   const currency = useCurrency();
   const [changes, setChanges] = useState<Record<string, Change>>({});
@@ -128,18 +129,18 @@ export default function CartPage() {
                 >
                   {it.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={it.imageUrl} alt={it.nameAr} className="h-full w-full object-cover" />
+                    <img src={it.imageUrl} alt={lineName(it, lang)} className="h-full w-full object-cover" />
                   ) : (
-                    it.nameAr.slice(0, 1)
+                    lineName(it, lang).slice(0, 1)
                   )}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-[15px] font-bold leading-snug">{it.nameAr}</h3>
+                    <h3 className="text-[15px] font-bold leading-snug">{lineName(it, lang)}</h3>
                     <button
                       onClick={() => cart.remove(key)}
                       aria-label={t('حذف')}
-                      className="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted transition hover:bg-bad/10 hover:text-bad"
+                      className="grid h-10 w-10 flex-none place-items-center rounded-lg text-muted transition hover:bg-bad/10 hover:text-bad"
                     >
                       <TrashIcon size={17} />
                     </button>
@@ -167,14 +168,14 @@ export default function CartPage() {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => cart.setQuantity(key, it.quantity - 1)}
-                        className="grid h-8 w-8 place-items-center rounded-lg border border-[rgb(var(--line))] font-bold"
+                        className="grid h-10 w-10 place-items-center rounded-lg border border-[rgb(var(--line))] font-bold"
                       >
                         −
                       </button>
                       <span className="w-7 text-center font-bold tnum">{it.quantity}</span>
                       <button
                         onClick={() => cart.setQuantity(key, it.quantity + 1)}
-                        className="grid h-8 w-8 place-items-center rounded-lg border border-[rgb(var(--line))] font-bold"
+                        className="grid h-10 w-10 place-items-center rounded-lg border border-[rgb(var(--line))] font-bold"
                       >
                         +
                       </button>

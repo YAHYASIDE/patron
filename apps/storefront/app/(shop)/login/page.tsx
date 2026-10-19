@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, ApiError, warmUp } from '@/lib/api';
+import { safeNext } from '@/lib/safe-next';
 import { useT, tNow } from '@/lib/i18n';
 import { refreshMe } from '@/lib/session';
 import { DEFAULT_COUNTRY, nationalNumberProblem, toE164 } from '@/lib/countries';
@@ -33,9 +34,7 @@ function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
   const t = useT();
-  // only a path inside the shop: "//host" or "https://…" would send the customer elsewhere
-  const asked = params.get('next') ?? '';
-  const next = /^\/(?![/\\])/.test(asked) ? asked : '/';
+  const next = safeNext(params.get('next'));
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [number, setNumber] = useState('');
   const [name, setName] = useState('');

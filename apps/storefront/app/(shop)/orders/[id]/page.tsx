@@ -15,7 +15,7 @@ import CodeList, { type Revealed } from '@/components/my/CodeList';
 import ReviewForm from '@/components/my/ReviewForm';
 import TicketForm from '@/components/my/TicketForm';
 import PastPurchases from '@/components/my/PastPurchases';
-import { chip, isDelivered } from '@/components/my/status';
+import { orderChip, chip, isDelivered } from '@/components/my/status';
 import { day } from '@/components/my/when';
 import { reorder } from '@/lib/reorder';
 import { useCurrency } from '@/lib/currency';
@@ -96,7 +96,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
     );
 
-  const c = chip(order.status);
+  const c = orderChip(order);
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">

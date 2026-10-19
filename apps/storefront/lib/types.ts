@@ -234,6 +234,8 @@ export type Order = {
 export type Banner = {
   id: string;
   titleAr: string;
+  /** The owner's English title, shown in French and English when set. */
+  titleEn?: string | null;
   subtitleAr: string | null;
   imageUrl: string | null;
   tone: 'teal' | 'gold' | 'ink' | 'rose';

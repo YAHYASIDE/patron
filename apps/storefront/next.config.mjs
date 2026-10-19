@@ -1,6 +1,25 @@
+/**
+ * Headers every page carries: no framing by other sites (clickjacking), no
+ * MIME sniffing, no full URLs leaked to other sites, HTTPS only. A
+ * script-restricting CSP is not set here: the pages load the API and images
+ * from other hosts, so a strict one needs its own careful rollout.
+ */
+const SECURITY_HEADERS = [
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: '/:path*', headers: SECURITY_HEADERS }];
+  },
   // Emit a self-contained server bundle so the Docker runtime image
   // ships only what it needs.
   output: 'standalone',
