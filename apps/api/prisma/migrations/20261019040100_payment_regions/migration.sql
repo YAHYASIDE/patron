@@ -13,9 +13,11 @@ INSERT INTO "currencies" ("code", "nameAr", "nameEn", "symbol", "decimals", "isB
 VALUES ('DZD', 'دينار جزائري', 'Algerian Dinar', 'DA', 0, false, true, 5, 10, NOW())
 ON CONFLICT ("code") DO NOTHING;
 
+-- (a fresh database has no USD until the seed runs; the seed adds this rate then)
 INSERT INTO "fx_rates" ("baseCurrency", "quoteCurrency", "rate", "source")
 SELECT 'USD', 'DZD', 133, 'MANUAL'
-WHERE NOT EXISTS (SELECT 1 FROM "fx_rates" WHERE "baseCurrency" = 'USD' AND "quoteCurrency" = 'DZD' AND "isActive");
+WHERE EXISTS (SELECT 1 FROM "currencies" WHERE "code" = 'USD')
+  AND NOT EXISTS (SELECT 1 FROM "fx_rates" WHERE "baseCurrency" = 'USD' AND "quoteCurrency" = 'DZD' AND "isActive");
 
 -- the owner gave this list explicitly, so it replaces the earlier accounts
 INSERT INTO "system_settings" ("key", "value", "group", "isPublic", "description", "updatedAt")
