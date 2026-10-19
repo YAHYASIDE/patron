@@ -216,6 +216,90 @@ describe('NotificationsService', () => {
     });
   });
 
+  describe('dispatch of order events (built-in bell text)', () => {
+    const paid = {
+      userId: 'u1',
+      templateKey: 'order.paid',
+      variables: { orderNumber: 'PTN-7' },
+      data: { orderId: 'o7', paymentId: 'p1' },
+    };
+
+    beforeEach(() => {
+      prisma.notification.findFirst = jest.fn().mockResolvedValue(null);
+      prisma.notificationTemplate.findUnique.mockResolvedValue({ ...template, key: 'order.paid', channels: ['IN_APP', 'EMAIL'] });
+    });
+
+    it('writes its own IN_APP row with type, link and French, and leaves email to the template', async () => {
+      const res = await service.dispatch(paid);
+
+      expect(res).toEqual({ delivered: { IN_APP: true, EMAIL: true } });
+      const inAppRows = prisma.notification.create.mock.calls.filter(([a]: any) => a.data.channel === 'IN_APP');
+      expect(inAppRows).toHaveLength(1);
+      const row = inAppRows[0][0].data;
+      expect(row.bodyAr).toContain('PTN-7');
+      expect(row.titleEn).toBe('Payment confirmed');
+      expect(row.data).toEqual(expect.objectContaining({
+        type: 'order.paid', orderId: 'o7', link: '/orders/o7', key: 'order.paid:o7',
+        fr: { title: 'Paiement confirmé', body: expect.stringContaining('PTN-7') },
+      }));
+      expect(inApp.send).not.toHaveBeenCalled();
+      expect(email.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps order.completed to order.delivered and still rings without a template', async () => {
+      prisma.notificationTemplate.findUnique.mockResolvedValue(null);
+
+      const res = await service.dispatch({ ...paid, templateKey: 'order.completed' });
+
+      expect(res).toEqual({ delivered: { IN_APP: true } });
+      expect(prisma.notification.create.mock.calls[0][0].data.data.type).toBe('order.delivered');
+    });
+
+    it('does not ring twice when the same event is delivered again', async () => {
+      prisma.notification.findFirst.mockResolvedValue({ id: 'already' });
+
+      await service.dispatch({ ...paid, channels: ['IN_APP'] as any });
+
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+      expect(prisma.notification.findFirst.mock.calls[0][0].where.data).toEqual({ path: ['key'], equals: 'order.paid:o7' });
+    });
+
+    it('writes a row without a link when the event has no order id', async () => {
+      await service.dispatch({ userId: 'u1', templateKey: 'order.paid', channels: ['IN_APP'] as any });
+
+      expect(prisma.notification.findFirst).not.toHaveBeenCalled();
+      const row = prisma.notification.create.mock.calls[0][0].data;
+      expect(row.data).not.toHaveProperty('link');
+      expect(row.data.type).toBe('order.paid');
+    });
+  });
+
+  describe('notify', () => {
+    const msg = {
+      userId: 'u1', type: 'watch.price' as const, productId: 'p1', link: '/products/X',
+      ar: { title: 'ع', body: 'ب' }, en: { title: 'T', body: 'B' }, fr: { title: 'TF', body: 'BF' },
+    };
+
+    it('writes an IN_APP row through the given transaction client', async () => {
+      const tx: any = { notification: { create: jest.fn().mockResolvedValue({ id: 'n9' }), findFirst: jest.fn() } };
+
+      await expect(service.notify(msg, tx)).resolves.toEqual({ id: 'n9' });
+
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+      expect(tx.notification.create.mock.calls[0][0].data).toEqual(expect.objectContaining({
+        channel: 'IN_APP', titleAr: 'ع', titleEn: 'T', bodyAr: 'ب', bodyEn: 'B', sentAt: expect.any(Date),
+        data: { type: 'watch.price', productId: 'p1', link: '/products/X', fr: { title: 'TF', body: 'BF' } },
+      }));
+      expect(tx.notification.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('defaults to the service client and keeps extra fields', async () => {
+      await service.notify({ ...msg, extra: { reason: 'x' } });
+
+      expect(prisma.notification.create.mock.calls[0][0].data.data).toEqual(expect.objectContaining({ reason: 'x', type: 'watch.price' }));
+    });
+  });
+
   describe('listForUser', () => {
     it('queries only IN_APP notifications and paginates the result', async () => {
       const query: any = { page: 2, limit: 10, order: 'desc', skip: 10 };

@@ -10,6 +10,7 @@ import { FulfilmentProcessor } from './processors/fulfilment.processor';
 import { NotificationsProcessor } from './processors/notifications.processor';
 import { MaintenanceProcessor } from './processors/maintenance.processor';
 import { MetricsCollector } from './processors/metrics.collector';
+import { CHECK_WATCHES_JOB, WATCHES_QUEUE, WatchesProcessor } from './processors/watches.processor';
 import { ReportsModule } from '../reports/reports.module';
 
 import { OrdersModule } from '../orders/orders.module';
@@ -18,6 +19,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { FxModule } from '../fx/fx.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
+import { CustomerModule } from '../customer/customer.module';
 
 /**
  * In production the workers run as a separate process (`npm run start:worker`)
@@ -51,6 +53,7 @@ import { MaintenanceModule } from '../maintenance/maintenance.module';
       { name: QUEUES.FULFILMENT },
       { name: QUEUES.NOTIFICATIONS },
       { name: QUEUES.MAINTENANCE },
+      { name: WATCHES_QUEUE },
     ),
     OrdersModule,
     ProvidersModule,
@@ -59,6 +62,7 @@ import { MaintenanceModule } from '../maintenance/maintenance.module';
     WalletModule,
     ReportsModule,
     MaintenanceModule,
+    CustomerModule,
   ],
   providers: [
     OutboxRelay,
@@ -66,11 +70,15 @@ import { MaintenanceModule } from '../maintenance/maintenance.module';
     NotificationsProcessor,
     MaintenanceProcessor,
     MetricsCollector,
+    WatchesProcessor,
   ],
   exports: [BullModule],
 })
 export class QueuesModule implements OnModuleInit {
-  constructor(@InjectQueue(QUEUES.MAINTENANCE) private maintenance: Queue) {}
+  constructor(
+    @InjectQueue(QUEUES.MAINTENANCE) private maintenance: Queue,
+    @InjectQueue(WATCHES_QUEUE) private watches: Queue,
+  ) {}
 
   /** Repeatable jobs are idempotent by key — re-registering on deploy is safe. */
   async onModuleInit() {
@@ -104,5 +112,14 @@ export class QueuesModule implements OnModuleInit {
         removeOnFail: { count: 200 },
       });
     }
+
+    // Price-drop and back-in-stock alerts, hourly; off the hour so it does not
+    // land on the FX sync.
+    await this.watches.add(CHECK_WATCHES_JOB, {}, {
+      repeat: { pattern: '20 * * * *' },
+      jobId: `cron-${CHECK_WATCHES_JOB}`,
+      removeOnComplete: { count: 50 },
+      removeOnFail: { count: 200 },
+    });
   }
 }

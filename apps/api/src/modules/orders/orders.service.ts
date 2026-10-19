@@ -10,7 +10,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { ReferenceService } from '../../common/reference/reference.service';
 import { cursorWhere, toCursorPage } from '../../common/dto/cursor.dto';
 import { assertTransition, deriveOrderStatus } from './order-state.machine';
-import { ManualFulfilDto, QueryOrdersDto } from './dto/order.dto';
+import { createdAtRange, ManualFulfilDto, QueryOrdersDto } from './dto/order.dto';
 
 /**
  * The shape `present()` reads. Declared structurally rather than pulled from a
@@ -163,9 +163,13 @@ export class OrdersService {
   }
 
   async findAllAdmin(query: QueryOrdersDto) {
+    const createdAt = createdAtRange(query.from, query.to);
     const where: Prisma.OrderWhereInput = {
       ...(query.status && { status: query.status }),
       ...(query.userId && { userId: query.userId }),
+      ...(query.gateway && { payments: { some: { gateway: query.gateway } } }),
+      ...(query.country && { user: { country: query.country } }),
+      ...(createdAt && { createdAt }),
       ...(query.search && {
         OR: [
           { orderNumber: { contains: query.search, mode: 'insensitive' } },
@@ -178,21 +182,24 @@ export class OrdersService {
     };
 
     const rows = await this.prisma.order.findMany({
-      where: { ...where, ...cursorWhere(query.cursor, query.order) },
+      // the cursor goes under AND: spread at the top level, its OR replaced the search's OR from page 2 on
+      where: { ...where, AND: [cursorWhere(query.cursor, query.order)] },
       take: query.limit + 1,
       orderBy: [{ createdAt: query.order }, { id: query.order }],
       include: {
-        user: { select: { id: true, email: true, fullName: true, phone: true } },
+        user: { select: { id: true, email: true, fullName: true, phone: true, country: true } },
         items: true,
         payments: { select: { id: true, gateway: true, status: true, amount: true } },
       },
     });
 
+    // rows carry every order column, so the staff note (adminNote) comes along
     const page = toCursorPage(rows, query.limit);
     return {
       ...page,
       data: page.data.map((o) => ({
         ...o,
+        country: o.user.country,
         // Margin is knowable per order because cost was frozen at quote time.
         marginBase: o.items.reduce(
           (acc, i) => acc.plus(i.unitPrice.div(o.fxRate).minus(i.unitCost).mul(i.quantity)),

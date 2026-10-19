@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray, IsBoolean, IsEmail, IsIn, IsISO31661Alpha2, IsOptional, IsString, IsUUID, Length, Matches,
+} from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 export class CreateUserDto {
@@ -23,6 +25,9 @@ export class CreateUserDto {
   @IsOptional() @IsArray() @IsUUID('4', { each: true }) roleIds?: string[];
 }
 
+/** Currencies a customer can keep on the account (the store's currency switch). */
+const PROFILE_CURRENCIES = ['USD', 'EUR', 'MRU', 'XOF', 'DZD'];
+
 export class UpdateUserDto {
   @ApiPropertyOptional({ minLength: 2, maxLength: 80 })
   @IsOptional() @IsString() @Length(2, 80) fullName?: string;
@@ -36,8 +41,17 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ enum: ['ar', 'en', 'fr'] })
   @IsOptional() @IsIn(['ar', 'en', 'fr']) locale?: string;
 
-  @ApiPropertyOptional({ enum: ['USD', 'EUR', 'MRU', 'XOF'] })
-  @IsOptional() @IsIn(['USD', 'EUR', 'MRU', 'XOF']) defaultCurrency?: string;
+  @ApiPropertyOptional({ enum: PROFILE_CURRENCIES })
+  @IsOptional() @IsIn(PROFILE_CURRENCIES) defaultCurrency?: string;
+
+  @ApiPropertyOptional({ example: 'MR', description: 'ISO-3166 alpha-2, uppercase' })
+  @IsOptional() @Matches(/^[A-Z]{2}$/) @IsISO31661Alpha2() country?: string;
+
+  @ApiPropertyOptional({ example: 'Nouakchott', minLength: 1, maxLength: 60 })
+  @IsOptional() @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value))
+  @IsString() @Length(1, 60)
+  @Matches(/^[\p{L}\p{M}][\p{L}\p{M} '’-]*$/u, { message: 'city may contain letters and spaces only' })
+  city?: string;
 }
 
 export class AdminUpdateUserDto extends UpdateUserDto {

@@ -1,8 +1,9 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, Min,
+  ValidateNested,
 } from 'class-validator';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { CursorDto } from '../../../common/dto/cursor.dto';
 
 export class QuoteItemInputDto {
@@ -36,6 +37,33 @@ export class QueryOrdersDto extends CursorDto {
   @IsOptional() @IsEnum(OrderStatus) status?: OrderStatus;
   @IsOptional() @IsUUID() userId?: string;
   @IsOptional() @IsString() @Length(1, 60) search?: string;
+
+  // Staff filters (GET /admin/orders); the customer's own list ignores them.
+  /** Orders with a payment through this gateway. */
+  @IsOptional() @IsIn(['MANUAL', 'WALLET', 'STRIPE']) gateway?: 'MANUAL' | 'WALLET' | 'STRIPE';
+  /** The customer's country (ISO-3166 alpha-2). */
+  @IsOptional() @Matches(/^[A-Z]{2}$/, { message: 'country must be an ISO-3166 alpha-2 code, e.g. MR' }) country?: string;
+  /** Created at or after. A bare date (2026-10-19) means the start of that day. */
+  @IsOptional() @IsDateString() from?: string;
+  /** Created at or before. A bare date includes that whole day. */
+  @IsOptional() @IsDateString() to?: string;
+}
+
+const BARE_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A `createdAt` filter from optional ISO `from`/`to`. A bare `to` date covers
+ * that whole day, so from=to=2026-10-19 is one day rather than a zero-width range.
+ */
+export function createdAtRange(from?: string, to?: string): Prisma.DateTimeFilter | undefined {
+  if (!from && !to) return undefined;
+  const range: Prisma.DateTimeFilter = {};
+  if (from) range.gte = new Date(from);
+  if (to) {
+    if (BARE_DATE.test(to)) range.lt = new Date(new Date(`${to}T00:00:00.000Z`).getTime() + 86_400_000);
+    else range.lte = new Date(to);
+  }
+  return range;
 }
 
 export class RetryItemDto {

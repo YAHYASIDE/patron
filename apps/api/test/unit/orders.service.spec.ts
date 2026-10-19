@@ -213,7 +213,7 @@ describe('OrdersService', () => {
     it('builds a search filter and computes per-order margin', async () => {
       prisma.order.findMany.mockResolvedValue([
         {
-          id: 'o1', createdAt: new Date('2026-01-01'), fxRate: D(1),
+          id: 'o1', createdAt: new Date('2026-01-01'), fxRate: D(1), user: { id: 'u2', country: null },
           items: [{ unitPrice: D(10), unitCost: D(4), quantity: 2 }],
         },
       ]);
@@ -223,6 +223,45 @@ describe('OrdersService', () => {
       expect(where.OR).toBeDefined();
       // margin = (10/1 - 4) * 2 = 12
       expect(res.data[0].marginBase.toString()).toBe('12');
+    });
+
+    it('filters by gateway, customer country and a date range, and returns the note and country', async () => {
+      prisma.order.findMany.mockResolvedValue([
+        {
+          id: 'o1', createdAt: new Date('2026-10-19'), fxRate: D(1), adminNote: 'VIP',
+          user: { id: 'u1', country: 'MR' }, items: [],
+        },
+      ]);
+      const res: any = await service.findAllAdmin(
+        { limit: 20, order: 'desc', gateway: 'MANUAL', country: 'MR', from: '2026-10-01', to: '2026-10-19' } as any,
+      );
+      const args = prisma.order.findMany.mock.calls[0][0];
+      expect(args.where.payments).toEqual({ some: { gateway: 'MANUAL' } });
+      expect(args.where.user).toEqual({ country: 'MR' });
+      // a bare `to` date covers that whole day
+      expect(args.where.createdAt).toEqual({ gte: new Date('2026-10-01'), lt: new Date('2026-10-20T00:00:00.000Z') });
+      expect(args.include.user.select.country).toBe(true);
+      expect(res.data[0]).toMatchObject({ adminNote: 'VIP', country: 'MR' });
+    });
+
+    it('takes a full timestamp as an inclusive end and leaves dates out when absent', async () => {
+      prisma.order.findMany.mockResolvedValue([]);
+      await service.findAllAdmin({ limit: 20, order: 'desc', to: '2026-10-19T12:00:00Z' } as any);
+      expect(prisma.order.findMany.mock.calls[0][0].where.createdAt).toEqual({ lte: new Date('2026-10-19T12:00:00Z') });
+      await service.findAllAdmin({ limit: 20, order: 'desc' } as any);
+      const where = prisma.order.findMany.mock.calls[1][0].where;
+      expect(where).not.toHaveProperty('createdAt');
+      expect(where).not.toHaveProperty('payments');
+      expect(where).not.toHaveProperty('user');
+    });
+
+    it('keeps the search when paging with a cursor', async () => {
+      prisma.order.findMany.mockResolvedValue([]);
+      const cursor = Buffer.from(`${new Date('2026-10-19').toISOString()}|o9`).toString('base64url');
+      await service.findAllAdmin({ limit: 20, order: 'desc', search: 'PTN', cursor } as any);
+      const where = prisma.order.findMany.mock.calls[0][0].where;
+      expect(where.OR).toHaveLength(4); // the search, not the cursor
+      expect(where.AND[0].OR).toHaveLength(2); // the cursor
     });
   });
 

@@ -35,6 +35,7 @@ describe('PaymentsService', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       order: { update: jest.fn().mockResolvedValue({}) },
+      notification: { create: jest.fn().mockResolvedValue({ id: 'n1' }), findFirst: jest.fn().mockResolvedValue(null) },
     };
     prisma = {
       order: { findUnique: jest.fn().mockResolvedValue(order) },
@@ -457,6 +458,26 @@ describe('PaymentsService', () => {
       const call = prisma.payment.updateMany.mock.calls[0][0];
       expect(call.where.status).toEqual({ in: ['INITIATED', 'AUTHORIZED'] });
       expect(call.data).toEqual(expect.objectContaining({ status: 'FAILED', failureCode: 'rejected_by_staff', failureReason: 'No transfer found' }));
+    });
+
+    it('rejecting tells the customer why, with a link back to the order', async () => {
+      prisma.payment.findUnique.mockResolvedValue(manualPayment({ status: 'AUTHORIZED', orderId: 'ord1' }));
+      await service.rejectManual('pay1', 'No transfer found', 'admin1');
+      const { data } = tx.notification.create.mock.calls[0][0];
+      expect(data).toEqual(expect.objectContaining({ userId: 'u1', channel: 'IN_APP' }));
+      expect(data.bodyAr).toContain('ORD-1000');
+      expect(data.bodyEn).toContain('No transfer found');
+      expect(data.data).toEqual(expect.objectContaining({
+        type: 'payment.rejected', orderId: 'ord1', link: '/orders/ord1', reason: 'No transfer found',
+        fr: expect.objectContaining({ title: 'Virement non confirmé' }),
+      }));
+    });
+
+    it('still notifies when the order number cannot be read', async () => {
+      prisma.order.findUnique.mockResolvedValue(null);
+      prisma.payment.findUnique.mockResolvedValue(manualPayment({ status: 'AUTHORIZED', orderId: 'ord1' }));
+      await service.rejectManual('pay1', 'No transfer found', 'admin1');
+      expect(tx.notification.create).toHaveBeenCalledTimes(1);
     });
 
     it('a second review of the same payment is refused', async () => {

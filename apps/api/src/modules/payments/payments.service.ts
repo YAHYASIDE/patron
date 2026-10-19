@@ -14,6 +14,7 @@ import {
 } from './gateways/manual.gateway';
 import { UploadsService, IncomingFile } from '../uploads/uploads.service';
 import { ManualAccountsDto, SubmitTransferDto } from './dto/payment.dto';
+import { writeInAppNotification } from '../notifications/in-app';
 
 /** What the customer reported for a manual transfer, kept on the payment. */
 interface TransferReport {
@@ -433,9 +434,22 @@ export class PaymentsService {
       },
     });
     if (count === 0) throw new BadRequestException('This payment has already been reviewed');
-    await this.prisma.$transaction((tx) =>
-      this.audit.record(tx, { actorId, action: 'payments.manual.reject', entityType: 'Payment', entityId: paymentId, after: { reason } }),
-    );
+    const order = await this.prisma.order.findUnique({ where: { id: payment.orderId }, select: { orderNumber: true } });
+    const number = order?.orderNumber ?? '';
+    await this.prisma.$transaction(async (tx) => {
+      await this.audit.record(tx, { actorId, action: 'payments.manual.reject', entityType: 'Payment', entityId: paymentId, after: { reason } });
+      // The customer learns why, and that the order page lets them pay again.
+      await writeInAppNotification(tx, {
+        userId: payment.userId,
+        type: 'payment.rejected',
+        orderId: payment.orderId,
+        link: `/orders/${payment.orderId}`,
+        extra: { reason, paymentId },
+        ar: { title: 'لم نتمكّن من تأكيد تحويلك', body: `راجعنا تحويل الطلب ${number} ولم نؤكّده: ${reason}. يمكنك الدفع من جديد من صفحة الطلب.` },
+        en: { title: 'We could not confirm your transfer', body: `We checked the transfer for order ${number} and could not confirm it: ${reason}. You can pay again from the order page.` },
+        fr: { title: 'Virement non confirmé', body: `Nous avons vérifié le virement de la commande ${number} sans pouvoir le confirmer : ${reason}. Vous pouvez payer à nouveau depuis la page de la commande.` },
+      });
+    });
     return { status: 'FAILED' as const };
   }
 }

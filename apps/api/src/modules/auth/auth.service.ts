@@ -314,7 +314,7 @@ export class AuthService {
       select: {
         id: true, email: true, phone: true, fullName: true, avatarUrl: true,
         locale: true, defaultCurrency: true, emailVerifiedAt: true, phoneVerifiedAt: true,
-        twoFaEnabled: true, createdAt: true,
+        twoFaEnabled: true, createdAt: true, country: true, city: true,
         wallets: { select: { currencyCode: true, balance: true } },
         roles: { select: { role: { select: { name: true } } } },
       },

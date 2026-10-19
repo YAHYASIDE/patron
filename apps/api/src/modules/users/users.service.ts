@@ -119,7 +119,12 @@ export class UsersService {
 
   /** Self-service profile update — cannot touch roles or status. */
   updateProfile(userId: string, dto: UpdateUserDto) {
-    return this.prisma.user.update({ where: { id: userId }, data: dto, select: PUBLIC_FIELDS });
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      // the customer's own location comes back so the account page can show what was saved
+      select: { ...PUBLIC_FIELDS, country: true, city: true },
+    });
   }
 
   async adminUpdate(id: string, dto: AdminUpdateUserDto, actorId: string) {
