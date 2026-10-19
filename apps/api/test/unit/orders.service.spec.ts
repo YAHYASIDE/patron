@@ -524,6 +524,34 @@ describe('OrdersService', () => {
     });
   });
 
+  describe('attention', () => {
+    it('lists failed and late deliveries, waiting transfers and duplicate payments, with how long each has waited', async () => {
+      const paidAt = new Date(Date.now() - 42 * 60_000);
+      prisma.order.findMany = jest.fn()
+        .mockResolvedValueOnce([{ id: 'o1', orderNumber: 'PTN-1', paidAt, items: [{ lastError: 'no_provider' }] }])
+        .mockResolvedValueOnce([{ id: 'o2', orderNumber: 'PTN-2', paidAt }]);
+      prisma.order.count = jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+      prisma.payment = {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([{ id: 'p1', amount: 40, currency: 'MRU', updatedAt: paidAt, order: { id: 'o3' } }])
+          .mockResolvedValueOnce([{ id: 'p2', gateway: 'STRIPE', amount: 40, currency: 'MRU', createdAt: paidAt, order: { id: 'o4' } }]),
+        count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1),
+      };
+
+      const res = await service.attention(15);
+
+      expect(res.total).toBe(4);
+      expect(res.failed.items[0]).toEqual(expect.objectContaining({ id: 'o1', minutes: 42, error: 'no_provider' }));
+      expect(res.lateDelivery.items[0].minutes).toBe(42);
+      expect(res.waitingTransfers.items[0]).toEqual(expect.objectContaining({ paymentId: 'p1', minutes: 42 }));
+      expect(res.duplicatePayments.items[0]).toEqual(expect.objectContaining({ paymentId: 'p2', gateway: 'STRIPE' }));
+      // a waiting transfer counts only after the threshold
+      const transferWhere = prisma.payment.findMany.mock.calls[0][0].where;
+      expect(transferWhere).toMatchObject({ gateway: 'MANUAL', status: 'AUTHORIZED' });
+      expect(transferWhere.updatedAt.lt.getTime()).toBeLessThanOrEqual(Date.now() - 15 * 60_000 + 1000);
+    });
+  });
+
   describe('findOneAdmin', () => {
     it('exposes the reported transfer and review, never a raw gateway payload', async () => {
       prisma.order.findUnique.mockResolvedValue({
