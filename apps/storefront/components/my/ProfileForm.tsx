@@ -6,6 +6,7 @@ import type { Me } from '@/lib/types';
 import { COUNTRIES } from '@/lib/countries';
 import { CURRENCIES, getCurrency, setCurrency, useCurrency } from '@/lib/currency';
 import { refreshMe } from '@/lib/session';
+import { setCountry as setShopCountry } from '@/lib/regions';
 import { LANGS, setLang, useLang, useT, tNow, type Lang } from '@/lib/i18n';
 import { CheckIcon } from '@/components/icons';
 
@@ -47,6 +48,8 @@ export default function ProfileForm({ me, onSaved }: { me: Me; onSaved?: () => v
         defaultCurrency: currency,
       });
       refreshMe();
+      // the shop's prices and payment methods follow the country saved here
+      if (country) setShopCountry(country);
       onSaved?.();
       if (currency !== getCurrency()) await setCurrency(currency).catch(() => undefined);
       if (locale !== lang) return setLang(locale); // reloads the page in the new language

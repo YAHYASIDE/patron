@@ -245,7 +245,7 @@ function TransferForm({
 }) {
   const t = useT();
   const { me } = useMe();
-  const region = useRegion(me?.phone);
+  const region = useRegion(me);
   const accounts = manual.accounts.filter((a) => servesRegion(a.countries, region));
   const [accountId, setAccountId] = useState('');
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0];

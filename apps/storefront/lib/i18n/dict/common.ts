@@ -34,6 +34,8 @@ const dict: Dict = {
     // CurrencySwitch, lib/currency.ts, lib/regions.ts
     'البلد: {region}، العملة: {currency}': 'Pays : {region}, devise : {currency}',
     'بلدك': 'Votre pays',
+    'ابحث عن بلدك': 'Cherchez votre pays',
+    'لا يوجد بلد بهذا الاسم.': 'Aucun pays de ce nom.',
     'العملة': 'Devise',
     'اللغة': 'Langue',
     'دولار': 'Dollar',
@@ -139,6 +141,8 @@ const dict: Dict = {
     // CurrencySwitch, lib/currency.ts, lib/regions.ts
     'البلد: {region}، العملة: {currency}': 'Country: {region}, currency: {currency}',
     'بلدك': 'Your country',
+    'ابحث عن بلدك': 'Search for your country',
+    'لا يوجد بلد بهذا الاسم.': 'No country by that name.',
     'العملة': 'Currency',
     'اللغة': 'Language',
     'دولار': 'Dollar',
