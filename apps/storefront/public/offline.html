@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d6d64">
+<title>باترون — لا يوجد اتصال</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<style>
+  /* served by public/sw.js when there is no network: everything is inline */
+  :root { --bg:#f4f6f6; --surface:#fff; --line:#dde5e3; --text:#0d1a16; --muted:#5d706c; --teal:#0d6d64; color-scheme: light; }
+  .dark { --bg:#06110f; --surface:#0d1a16; --line:#2a3a36; --text:#eef2f1; --muted:#90a6a0; --teal:#2dd4bf; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px;
+    background: var(--bg); color: var(--text);
+    font-family: Cairo, "Segoe UI", Tahoma, system-ui, sans-serif;
+  }
+  .card {
+    width: 100%; max-width: 400px; text-align: center; padding: 32px 22px 26px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+    box-shadow: 0 1px 2px rgba(6,17,15,.05), 0 10px 30px rgba(6,17,15,.06);
+  }
+  .mark { width: 64px; height: 64px; margin: 0 auto; display: block; }
+  .signal { margin: 22px auto 0; width: 54px; height: 54px; color: var(--muted); }
+  h1 { margin: 14px 0 0; font-size: 21px; font-weight: 800; line-height: 1.35; }
+  p { margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: var(--muted); }
+  button {
+    margin-top: 22px; width: 100%; padding: 13px 16px; border: 0; border-radius: 14px;
+    background: #0d6d64; color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  button:hover { background: #07423c; }
+  button:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+  .hint { margin-top: 14px; font-size: 12px; }
+</style>
+<script>
+  (function () {
+    var T = {
+      ar: { title: 'باترون — لا يوجد اتصال', h: 'لا يوجد اتصال بالإنترنت', p: 'تحقّق من الشبكة أو البيانات ثم أعد المحاولة. طلباتك ومشترياتك محفوظة في حسابك.', b: 'إعادة المحاولة', hint: 'سنعيد فتح الصفحة تلقائيًا عند عودة الاتصال.' },
+      fr: { title: 'Patron — Hors ligne', h: 'Pas de connexion Internet', p: 'Vérifiez votre réseau ou vos données mobiles, puis réessayez. Vos commandes et achats restent sur votre compte.', b: 'Réessayer', hint: 'La page se rouvrira dès que la connexion revient.' },
+      en: { title: 'Patron — Offline', h: 'No internet connection', p: 'Check your network or mobile data, then try again. Your orders and purchases are safe in your account.', b: 'Try again', hint: 'We will reopen the page as soon as you are back online.' }
+    };
+    var m = document.cookie.match(/(?:^|;\s*)patron_lang=(ar|fr|en)/);
+    var lang = m ? m[1] : 'ar';
+    var d = document.documentElement;
+    d.lang = lang;
+    d.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    try {
+      var t = localStorage.getItem('patron-theme');
+      if (t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches) d.classList.add('dark');
+    } catch (e) {}
+    window.__offline = T[lang];
+    window.addEventListener('online', function () { location.reload(); });
+  })();
+</script>
+</head>
+<body>
+  <main class="card">
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset=".55" stop-color="#0d6d64"/><stop offset="1" stop-color="#07423c"/></linearGradient>
+        <linearGradient id="gd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3d77e"/><stop offset="1" stop-color="#c79a3a"/></linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="17" fill="url(#bg)"/>
+      <path d="M23 47V17h10.5a10 10 0 0 1 0 20H23" fill="none" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="43.5" cy="46" r="5" fill="url(#gd)"/>
+    </svg>
+    <svg class="signal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <path d="M2.5 8.8a14 14 0 0 1 19 0M5.6 12.2a9.5 9.5 0 0 1 12.8 0M8.8 15.5a5 5 0 0 1 6.4 0"/>
+      <circle cx="12" cy="19" r="1.1" fill="currentColor"/>
+      <path d="M3 3l18 18"/>
+    </svg>
+    <h1 id="h">لا يوجد اتصال بالإنترنت</h1>
+    <p id="p">تحقّق من الشبكة أو البيانات ثم أعد المحاولة. طلباتك ومشترياتك محفوظة في حسابك.</p>
+    <button id="b" type="button" onclick="location.reload()">إعادة المحاولة</button>
+    <p class="hint" id="hint">سنعيد فتح الصفحة تلقائيًا عند عودة الاتصال.</p>
+  </main>
+  <script>
+    (function () {
+      var t = window.__offline;
+      if (!t) return;
+      document.title = t.title;
+      ['h', 'p', 'b', 'hint'].forEach(function (k) { document.getElementById(k).textContent = t[k]; });
+    })();
+  </script>
+</body>
+</html>

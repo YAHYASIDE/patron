@@ -4,6 +4,7 @@ import WakeBanner from '@/components/WakeBanner';
 import VerifyBanner from '@/components/VerifyBanner';
 import AuthGate from '@/components/AuthGate';
 import WhatsAppFab from '@/components/WhatsAppFab';
+import InstallPrompt from '@/components/InstallPrompt';
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +17,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       </main>
       <Footer />
       <WhatsAppFab />
+      <InstallPrompt />
     </div>
   );
 }

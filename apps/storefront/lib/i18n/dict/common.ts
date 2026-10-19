@@ -63,6 +63,7 @@ const dict: Dict = {
     // VerifyBanner, VerifyPanel
     'حسابك غير موثّق': 'Votre compte n’est pas vérifié',
     'وثّقه الآن': 'Vérifiez-le maintenant',
+    'انتهت جلستك. سجّل الدخول من جديد.': 'Votre session a expiré. Reconnectez-vous.',
     'تعذّر الاتصال بالخادم. حاول مرة أخرى.': 'Impossible de joindre le serveur. Réessayez.',
     'الرمز غير صحيح أو انتهت صلاحيته.': 'Code incorrect ou expiré.',
     'محاولات كثيرة. اطلب رمزًا جديدًا.': 'Trop de tentatives. Demandez un nouveau code.',
@@ -168,6 +169,7 @@ const dict: Dict = {
     // VerifyBanner, VerifyPanel
     'حسابك غير موثّق': 'Your account is not verified',
     'وثّقه الآن': 'Verify it now',
+    'انتهت جلستك. سجّل الدخول من جديد.': 'Your session has ended. Please sign in again.',
     'تعذّر الاتصال بالخادم. حاول مرة أخرى.': 'Couldn’t reach the server. Please try again.',
     'الرمز غير صحيح أو انتهت صلاحيته.': 'The code is wrong or has expired.',
     'محاولات كثيرة. اطلب رمزًا جديدًا.': 'Too many attempts. Ask for a new code.',

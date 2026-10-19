@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { groupBrands, useCatalog, type Brand } from '@/lib/brands';
 import { useCurrency } from '@/lib/currency';
 import { useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
+import { noteCatalog } from '@/lib/fresh';
 import BrandView from './BrandView';
 
 /**
@@ -15,7 +17,8 @@ export default function BrandPage({ brandKey, productRef }: { brandKey?: string;
   const t = useT();
   const currency = useCurrency();
   const { products, error, loading, reload } = useCatalog(currency);
-  const brands: Brand[] = products ? groupBrands(products) : [];
+  const brands: Brand[] = useMemo(() => (products ? groupBrands(products) : []), [products]);
+  useEffect(() => noteCatalog(brands), [brands]);
   const product = productRef ? products?.find((p) => p.id === productRef || p.sku === productRef) : undefined;
   const brand = brands.find((b) => (product ? b.products.includes(product) : b.key === brandKey));
 

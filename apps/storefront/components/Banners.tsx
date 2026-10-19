@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { BASE, catalog } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import type { Banner } from '@/lib/types';
+import type { Banner as BaseBanner } from '@/lib/types';
+import Countdown from './Countdown';
+
+// the end date is shown as a countdown when the public banner payload carries it
+type Banner = BaseBanner & { endsAt?: string | null };
 
 const TONE: Record<Banner['tone'], string> = {
   teal: 'bg-gradient-to-br from-teal to-teal-ink text-white',
@@ -20,7 +24,8 @@ function href(b: Banner): string | null {
   return null;
 }
 
-function Card({ b }: { b: Banner }) {
+function Card({ b, onEnd }: { b: Banner; onEnd: (id: string) => void }) {
+  const ended = useCallback(() => onEnd(b.id), [b.id, onEnd]);
   const body = (
     <div
       className={`relative flex h-[132px] flex-col justify-end overflow-hidden rounded-2xl p-4 shadow-card sm:h-[160px] sm:p-5 ${
@@ -41,6 +46,7 @@ function Card({ b }: { b: Banner }) {
       {!b.imageUrl && (
         <span aria-hidden className="absolute -end-10 -top-12 h-40 w-40 rounded-full bg-white/10" />
       )}
+      {b.endsAt && <Countdown endsAt={b.endsAt} onEnd={ended} className="absolute start-4 top-3.5 sm:start-5" />}
       <div className="relative">
         <div className="text-lg font-extrabold leading-snug sm:text-xl">{b.titleAr}</div>
         {b.subtitleAr && <div className="mt-0.5 text-sm opacity-90">{b.subtitleAr}</div>}
@@ -64,6 +70,8 @@ export default function Banners() {
   const [list, setList] = useState<Banner[]>([]);
   const [at, setAt] = useState(0);
   const track = useRef<HTMLDivElement>(null);
+  // an offer whose time runs out while the page is open leaves the row
+  const drop = useCallback((id: string) => setList((l) => l.filter((x) => x.id !== id)), []);
 
   useEffect(() => {
     catalog
@@ -99,7 +107,7 @@ export default function Banners() {
       >
         {list.map((b) => (
           <div key={b.id} className={`flex-none snap-start ${list.length > 1 ? 'w-[88%] md:w-[49%]' : 'w-full'}`}>
-            <Card b={b} />
+            <Card b={b} onEnd={drop} />
           </div>
         ))}
       </div>

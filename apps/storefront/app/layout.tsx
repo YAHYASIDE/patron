@@ -3,7 +3,11 @@ import { Cairo } from 'next/font/google';
 import { dirOf, translate } from '@/lib/i18n/core';
 import { serverLang } from '@/lib/i18n/server';
 import { LangProvider } from '@/lib/i18n';
+import { INSTALL_INIT, SPLASH_INIT } from '@/lib/boot-scripts';
+import Splash from '@/components/Splash';
+import ServiceWorker from '@/components/ServiceWorker';
 import './globals.css';
+import '@/components/discovery.css';
 
 const cairo = Cairo({
   subsets: ['arabic', 'latin'],
@@ -23,6 +27,19 @@ export async function generateMetadata(): Promise<Metadata> {
       lang,
       'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.',
     ),
+    applicationName: translate(lang, 'باترون'),
+    // installable app (public/manifest.webmanifest, icons from public/icons/*.svg)
+    manifest: '/manifest.webmanifest',
+    icons: {
+      icon: [
+        { url: '/icons/icon.svg', type: 'image/svg+xml' },
+        { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+        { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      ],
+      apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+    },
+    appleWebApp: { capable: true, title: translate(lang, 'باترون'), statusBarStyle: 'default' },
+    formatDetection: { telephone: false },
   };
 }
 
@@ -41,10 +58,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={lang} dir={dirOf(lang)} className={cairo.variable} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+        <script dangerouslySetInnerHTML={{ __html: themeInit + SPLASH_INIT + INSTALL_INIT }} />
+        {/* without JavaScript the opening would replay on every page */}
+        <noscript>
+          <style>{'.splash{display:none}'}</style>
+        </noscript>
       </head>
       <body className="font-sans antialiased">
-        <LangProvider lang={lang}>{children}</LangProvider>
+        <LangProvider lang={lang}>
+          {children}
+          <Splash />
+          <ServiceWorker />
+        </LangProvider>
       </body>
     </html>
   );

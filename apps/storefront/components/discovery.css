@@ -1,0 +1,188 @@
+/*
+ * Motion for the opening screen and the discovery bits (imported once by
+ * app/layout.tsx). The opening screen runs on CSS alone: it plays and
+ * removes itself even if JavaScript never loads, so it can never hide the page.
+ */
+
+@keyframes heartpop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* ───────── opening screen (components/Splash.tsx) ───────── */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(45, 212, 191, 0.28), transparent 60%),
+    radial-gradient(90% 70% at 50% 110%, rgba(199, 154, 58, 0.22), transparent 60%),
+    linear-gradient(160deg, #07423c 0%, #042f2b 55%, #021c19 100%);
+  animation: splash-out 0.45s cubic-bezier(0.4, 0, 0.2, 1) 1.35s forwards;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+/* seen this visit (set before paint by the inline script) */
+.no-splash .splash {
+  display: none;
+}
+.splash-skip .splash {
+  animation: splash-out 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes splash-out {
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+/* a faint grid and a slow light sweep give the deep teal some depth */
+.splash-grid {
+  position: absolute;
+  inset: -2px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(70% 60% at 50% 45%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 45%, #000 20%, transparent 75%);
+}
+.splash-sweep {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.09) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: splash-sweep 1.2s ease-out 0.35s forwards;
+}
+@keyframes splash-sweep {
+  to { transform: translateX(120%); }
+}
+
+.splash-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(92vw, 560px);
+}
+
+/* the cards fan out behind the mark */
+.splash-cards {
+  --u: clamp(64px, 17vw, 128px);
+  position: relative;
+  width: 100%;
+  height: calc(var(--u) * 1.75);
+}
+.splash-card {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: var(--u);
+  height: var(--u);
+  margin-left: calc(var(--u) / -2);
+  border-radius: 22%;
+  overflow: hidden;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transform: translate3d(0, 60px, 0) rotate(0deg) scale(0.7);
+  animation: splash-card 0.75s cubic-bezier(0.2, 0.9, 0.25, 1.15) forwards;
+  will-change: transform, opacity;
+}
+.splash-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@keyframes splash-card {
+  to {
+    opacity: 1;
+    transform: translate3d(var(--x), var(--y), 0) rotate(var(--r)) scale(var(--s, 1));
+  }
+}
+
+.splash-mark {
+  position: relative;
+  z-index: 2;
+  margin-top: -34px;
+  width: clamp(76px, 20vw, 116px);
+  height: clamp(76px, 20vw, 116px);
+  filter: drop-shadow(0 16px 36px rgba(45, 212, 191, 0.35));
+  opacity: 0;
+  transform: scale(0.6);
+  animation: splash-mark 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.2) 0.05s forwards;
+}
+.splash-mark svg {
+  width: 100%;
+  height: 100%;
+}
+@keyframes splash-mark {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.splash-word,
+.splash-tag {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: splash-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.splash-word {
+  margin-top: 18px;
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  animation-delay: 0.3s;
+}
+.splash-word b {
+  color: #e9c45a;
+}
+.splash-tag {
+  margin-top: 8px;
+  font-size: clamp(13px, 3.6vw, 16px);
+  font-weight: 600;
+  color: rgba(238, 242, 241, 0.72);
+  animation-delay: 0.45s;
+}
+@keyframes splash-rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* reduced motion: the finished picture, shown briefly, then a plain fade */
+@media (prefers-reduced-motion: reduce) {
+  .splash {
+    animation: splash-out 0.3s linear 0.8s forwards !important;
+    animation-duration: 0.3s !important;
+  }
+  .splash-card,
+  .splash-mark,
+  .splash-word,
+  .splash-tag {
+    animation: none !important;
+    opacity: 1;
+    transform: translate3d(var(--x, 0), var(--y, 0), 0) rotate(var(--r, 0deg)) scale(var(--s, 1));
+  }
+  .splash-mark,
+  .splash-word,
+  .splash-tag {
+    transform: none;
+  }
+  .splash-sweep {
+    display: none;
+  }
+}

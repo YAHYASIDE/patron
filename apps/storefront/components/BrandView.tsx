@@ -9,9 +9,17 @@ import { denominationLabel, type Brand } from '@/lib/brands';
 import { tNow, useLang, useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
 import type { GameInput, Product } from '@/lib/types';
+import { pushRecent } from '@/lib/recent';
+import { etaMinutes, useIsNew } from '@/lib/fresh';
 import BrandTile from './BrandTile';
 import Guide, { guideOf } from './Guide';
 import { BoltIcon, CheckIcon, ChevronIcon, ShieldIcon } from './icons';
+import { ClockIcon } from './discovery-icons';
+import FavoriteButton from './FavoriteButton';
+import ShareButton from './ShareButton';
+import { PriceWatchButton, StockWatchList } from './WatchButtons';
+import { RatingLine, ReviewList, useReviews } from './BrandReviews';
+import { SavedInputChips, savable, useSavedInputs } from './SavedInputs';
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -61,6 +69,13 @@ export default function BrandView({
   const [added, setAdded] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const errRef = useRef<HTMLParagraphElement>(null);
+  const isNew = useIsNew(brand);
+  const reviews = useReviews(useMemo(() => brand.products.map((p) => p.id), [brand.products]));
+  // account details used before for this game, and whether to keep these ones
+  const saved = useSavedInputs(product.gameId);
+  const [remember, setRemember] = useState(true);
+
+  useEffect(() => pushRecent(brand.key), [brand.key]);
 
   // the buy bar sits at the bottom on phones, so bring a problem into view
   useEffect(() => {
@@ -77,6 +92,8 @@ export default function BrandView({
   const guide = guideOf(product.metadata) ?? brand.products.map((p) => guideOf(p.metadata)).find(Boolean) ?? null;
   const total = parseFloat(product.sellPrice) * qty;
   const step = schema.length > 0 ? 1 : 0;
+  const eta = etaMinutes(product);
+  const canSave = saved.authed && !!product.gameId && schema.some((f) => !f.sensitive);
 
   function select(p: Product) {
     setSelectedId(p.id);
@@ -125,6 +142,7 @@ export default function BrandView({
       maxPerOrder: product.maxPerOrder,
       inputs: schema.map((f) => ({ key: f.key, value: (inputs[f.key] ?? '').trim() })).filter((i) => i.value),
     });
+    if (canSave && remember) saved.save(savable(schema, inputs));
     return true;
   }
 
@@ -163,20 +181,51 @@ export default function BrandView({
               </div>
             )}
           </div>
-          <div className="min-w-0">
-            <h1 className="text-xl font-extrabold leading-snug lg:text-2xl">{brand.title}</h1>
-            <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-teal">
-              <BoltIcon size={13} /> {manual ? t('يُجهَّز بعد تأكيد الدفع') : t('يُسلَّم فور الدفع')}
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-xl font-extrabold leading-snug lg:text-2xl">
+              {brand.title}
+              {isNew && (
+                <span className="ms-2 inline-block rounded-full bg-teal-soft px-2 py-0.5 align-middle text-[11px] font-extrabold leading-none text-teal-ink">
+                  {t('جديد')}
+                </span>
+              )}
+            </h1>
+            {reviews && <RatingLine summary={reviews} />}
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-teal">
+              <span className="inline-flex items-center gap-1">
+                <BoltIcon size={13} /> {manual ? t('يُجهَّز بعد تأكيد الدفع') : t('يُسلَّم فور الدفع')}
+              </span>
+              {eta && (
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <ClockIcon size={13} />
+                  {eta < 60
+                    ? t('عادة خلال {n} دقيقة', { n: eta })
+                    : t('عادة خلال {n} ساعة', { n: Math.round(eta / 60) })}
+                </span>
+              )}
             </p>
             {product.description && (
               <p className="mt-2 hidden text-sm leading-relaxed text-muted sm:block">{product.description}</p>
             )}
+            <div className="mt-3 flex items-center gap-2">
+              <FavoriteButton brandKey={brand.key} variant="page" />
+              <ShareButton title={brand.title} path={`/brands/${brand.key}`} />
+            </div>
           </div>
         </aside>
 
         <div className="flex flex-col gap-4">
           {schema.length > 0 && (
             <Section n={1} title={t('بيانات الحساب')}>
+              <SavedInputChips
+                list={saved.list}
+                schema={schema}
+                current={inputs}
+                onPick={(values) => {
+                  setInputs((v) => ({ ...v, ...values }));
+                  setErr(null);
+                }}
+              />
               <div className="grid gap-3 sm:grid-cols-2">
                 {schema.map((f) => (
                   <label key={f.key} className="flex flex-col gap-1.5">
@@ -219,6 +268,17 @@ export default function BrandView({
                   </label>
                 ))}
               </div>
+              {canSave && (
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="h-4 w-4 flex-none accent-[#0d6d64]"
+                  />
+                  {t('احفظ هذه البيانات لطلباتي القادمة')}
+                </label>
+              )}
               <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-muted">
                 <ShieldIcon size={14} className="text-teal" /> {t('لا نطلب كلمة المرور أبدًا.')}
               </p>
@@ -273,6 +333,7 @@ export default function BrandView({
                 );
               })}
             </div>
+            <StockWatchList products={brand.products} labelOf={(p) => denominationLabel(p, brand)} />
           </Section>
 
           <Section n={step + 2} title={t('أكمل الشراء')}>
@@ -326,13 +387,21 @@ export default function BrandView({
                 {added ? t('أُضيف إلى السلّة') : t('أضف إلى السلّة')}
               </button>
             </div>
+
+            {product.inStock !== false && (
+              <div className="mt-4 border-t border-[rgb(var(--line))] pt-3">
+                <PriceWatchButton key={product.id} product={product} />
+              </div>
+            )}
           </Section>
 
           {product.description && (
-            <p className="px-1 text-sm leading-relaxed text-muted sm:hidden">{product.description}</p>
+            <p className="px-4 text-sm leading-relaxed text-muted sm:hidden">{product.description}</p>
           )}
         </div>
       </div>
+
+      {reviews && <ReviewList summary={reviews} />}
 
       {related.length > 0 && (
         <section className="mt-12">

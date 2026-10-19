@@ -1,13 +1,14 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCurrency } from '@/lib/currency';
 import { groupBrands, useCatalog, type Brand } from '@/lib/brands';
 import { useLang, useT, type Lang } from '@/lib/i18n';
 import { SECTIONS } from '@/lib/sections';
+import { noteCatalog } from '@/lib/fresh';
 import BrandGrid, { SectionTabs, filterBrands } from '@/components/BrandGrid';
-import { SearchIcon } from '@/components/icons';
+import SearchSuggest from '@/components/SearchSuggest';
 
 const SORTS = [
   { id: 'best', label: 'الأنسب' },
@@ -50,20 +51,20 @@ function ProductsInner() {
   const hasOffers = brands.some((b) => b.maxDiscount > 0);
   const active = SECTIONS.find((x) => x.id === sectionId);
 
+  useEffect(() => noteCatalog(brands), [brands]);
+
   return (
     <div className="mx-auto max-w-page px-4 py-8">
       <h1 className="text-2xl font-extrabold">{active ? t(active.label) : t('كل المنتجات')}</h1>
 
-      <label className="surface mt-5 flex items-center gap-2 rounded-xl px-3.5 py-3">
-        <SearchIcon size={18} className="text-muted" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('ابحث: ببجي، آيتونز، نتفلكس، ماتل…')}
-          aria-label={t('بحث')}
-          className="w-full bg-transparent text-[15px] outline-none"
-        />
-      </label>
+      {/* the grid filters as you type; the suggestions jump straight to a brand */}
+      <SearchSuggest
+        brands={brands}
+        value={search}
+        onChange={setSearch}
+        placeholder={t('ابحث: ببجي، آيتونز، نتفلكس، ماتل…')}
+        className="surface mt-5 flex items-center gap-2 rounded-xl px-3.5 py-3"
+      />
 
       <div className="mt-4">
         <SectionTabs

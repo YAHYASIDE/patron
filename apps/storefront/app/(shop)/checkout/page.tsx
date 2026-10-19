@@ -11,10 +11,31 @@ import type { Order, Quote } from '@/lib/types';
 import { gatewayLabel, useUsableMethods } from '@/lib/payments';
 import { getCurrency } from '@/lib/currency';
 import { useT, useLang, tNow } from '@/lib/i18n';
-import { CheckIcon, BoltIcon } from '@/components/icons';
+import { CheckIcon, BoltIcon, CloseIcon } from '@/components/icons';
 import VerifyPanel from '@/components/VerifyPanel';
+import PastPurchases from '@/components/my/PastPurchases';
 
 type Step = 'loading' | 'review' | 'working' | 'done' | 'empty' | 'verify';
+
+/**
+ * A coupon the quote refused, in plain words (#17). The API answers in English
+ * ("This coupon has expired", "Minimum order total for this coupon is 25 USD");
+ * null when the error is not about the coupon.
+ */
+function couponProblem(err: ApiError): string | null {
+  const m = err.message;
+  if (!/coupon/i.test(m) && !/COUPON/.test(err.code ?? '')) return null;
+  if (/expired/i.test(m)) return tNow('انتهت صلاحية هذا الكود.');
+  if (/not active yet|not started/i.test(m)) return tNow('هذا الكود لم يبدأ بعد. جرّبه لاحقًا.');
+  if (/fully redeemed|no uses left|limit/i.test(m)) return tNow('نفدت مرات استخدام هذا الكود.');
+  if (/already used/i.test(m)) return tNow('لقد استخدمت هذا الكود من قبل.');
+  const min = m.match(/minimum order total[^\d]*([\d.,]+)\s*([A-Z]{3})?/i);
+  if (min) {
+    const amount = money(min[1].replace(/,/g, ''), min[2] ?? getCurrency());
+    return tNow('هذا الكود لطلب لا يقلّ عن {amount}. أضف منتجًا آخر لتستفيد منه.', { amount });
+  }
+  return tNow('هذا الكود غير صحيح. تحقّق منه وحاول مجددًا.');
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -28,6 +49,9 @@ export default function CheckoutPage() {
   const methods = usable ?? [];
   const [gateway, setGateway] = useState<string>('');
   const [coupon, setCoupon] = useState('');
+  // the code the current quote carries, and why the last one typed was refused
+  const [applied, setApplied] = useState<string | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // auth guard
@@ -55,6 +79,7 @@ export default function CheckoutPage() {
         currency: getCurrency(),
       });
       setQuote(q);
+      setApplied(couponCode ? couponCode.toUpperCase() : null);
       setStep('review');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -66,9 +91,29 @@ export default function CheckoutPage() {
         setStep('verify');
         return;
       }
+      // a refused coupon must not block the order: say why, and price the cart without it
+      const problem = couponCode && err instanceof ApiError ? couponProblem(err) : null;
+      if (problem) {
+        setCouponError(problem);
+        return buildQuote();
+      }
       setError(err instanceof ApiError ? err.message : tNow('تعذّر تجهيز الطلب.'));
       setStep('review');
     }
+  }
+
+  function applyCoupon() {
+    const code = coupon.trim();
+    setCouponError(null);
+    if (!code) return;
+    if (code.length < 3 || code.length > 40) return setCouponError(tNow('هذا الكود غير صحيح. تحقّق منه وحاول مجددًا.'));
+    buildQuote(code);
+  }
+
+  function removeCoupon() {
+    setCoupon('');
+    setCouponError(null);
+    buildQuote();
   }
 
   useEffect(() => {
@@ -131,7 +176,7 @@ export default function CheckoutPage() {
       <div className="mx-auto max-w-page px-4 py-10">
         <div className="surface mx-auto max-w-[460px] rounded-2xl p-5 shadow-card sm:p-6">
           <VerifyPanel
-            onVerified={() => setTimeout(() => buildQuote(coupon), 1200)}
+            onVerified={() => setTimeout(() => buildQuote(applied ?? undefined), 1200)}
             onSkip={() => router.push('/products')}
             skipLabel={t('ليس الآن، أكمل التسوّق')}
           />
@@ -182,6 +227,12 @@ export default function CheckoutPage() {
             </Link>
           </div>
         </div>
+        {/* #3: right after buying, everything they bought before */}
+        {order && (
+          <div className="mx-auto max-w-[720px]">
+            <PastPurchases excludeId={order.id} before={order.createdAt} />
+          </div>
+        )}
       </div>
     );
   }
@@ -250,21 +301,70 @@ export default function CheckoutPage() {
         {/* totals + pay */}
         <div className="lg:col-span-1">
           <div className="surface sticky top-20 rounded-2xl p-5 shadow-card">
-            {/* coupon */}
-            <div className="flex gap-2">
-              <input
-                value={coupon}
-                onChange={(e) => setCoupon(e.target.value)}
-                placeholder={t('كود خصم')}
-                className="surface-2 hairline w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal"
-              />
-              <button
-                onClick={() => buildQuote(coupon)}
-                className="rounded-xl border border-[rgb(var(--line))] px-3 py-2 text-sm font-bold"
+            {/* coupon (#17) */}
+            {applied && quote ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-sm">
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 font-bold text-ok">
+                    <CheckIcon size={15} />
+                    <span dir="ltr" className="break-all">
+                      {applied}
+                    </span>
+                  </span>
+                  <span className="block text-xs text-ok">
+                    {parseFloat(quote.discount) > 0
+                      ? t('وفّرت {amount}', { amount: money(quote.discount, quote.currency) })
+                      : t('تم تطبيق الكود')}
+                  </span>
+                </span>
+                <button
+                  onClick={removeCoupon}
+                  disabled={step === 'loading' || step === 'working'}
+                  aria-label={t('إزالة الكود')}
+                  className="grid h-8 w-8 flex-none place-items-center rounded-lg text-ok transition hover:bg-ok/15"
+                >
+                  <CloseIcon size={16} />
+                </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  applyCoupon();
+                }}
+                className="flex gap-2"
               >
-                {t('تطبيق')}
-              </button>
-            </div>
+                <input
+                  value={coupon}
+                  onChange={(e) => {
+                    setCoupon(e.target.value.toUpperCase());
+                    setCouponError(null);
+                  }}
+                  placeholder={t('كود خصم')}
+                  aria-label={t('كود خصم')}
+                  aria-invalid={!!couponError}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={
+                    'surface-2 hairline w-full min-w-0 rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal ' +
+                    (couponError ? 'border-bad/60' : '')
+                  }
+                />
+                <button
+                  type="submit"
+                  disabled={step === 'loading' || step === 'working' || !coupon.trim()}
+                  className="flex-none rounded-xl border border-[rgb(var(--line))] px-3 py-2 text-sm font-bold disabled:opacity-60"
+                >
+                  {t('تطبيق')}
+                </button>
+              </form>
+            )}
+            {couponError && (
+              <p role="alert" className="mt-2 text-sm text-bad">
+                {couponError}
+              </p>
+            )}
 
             {quote && (
               <dl className="mt-4 space-y-2 text-sm">

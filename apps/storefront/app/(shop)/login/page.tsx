@@ -33,7 +33,9 @@ function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
   const t = useT();
-  const next = params.get('next') || '/';
+  // only a path inside the shop: "//host" or "https://…" would send the customer elsewhere
+  const asked = params.get('next') ?? '';
+  const next = /^\/(?![/\\])/.test(asked) ? asked : '/';
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [number, setNumber] = useState('');
   const [name, setName] = useState('');

@@ -1,14 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCurrency } from '@/lib/currency';
 import { groupBrands, useCatalog } from '@/lib/brands';
 import { useT } from '@/lib/i18n';
 import { bySection, topBrands } from '@/lib/sections';
+import { noteCatalog } from '@/lib/fresh';
+import { useRecent } from '@/lib/recent';
 import BrandTile, { BrandTileSkeleton } from '@/components/BrandTile';
-import { SearchIcon } from '@/components/icons';
+import BrandRow, { brandsByKeys, useBestSellers } from '@/components/BrandRow';
+import SearchSuggest from '@/components/SearchSuggest';
+import StoreStats from '@/components/StoreStats';
+import { HistoryIcon, TrendIcon } from '@/components/discovery-icons';
 import Banners from '@/components/Banners';
 
 /** Tiles a section column shows before "عرض الكل". */
@@ -21,6 +26,10 @@ export default function HomePage() {
   const { products, error, loading, reload } = useCatalog(currency);
   const brands = useMemo(() => (products ? groupBrands(products) : []), [products]);
   const [q, setQ] = useState('');
+  const recent = brandsByKeys(brands, useRecent());
+  const best = useBestSellers(brands, products);
+
+  useEffect(() => noteCatalog(brands), [brands]);
 
   const top = topBrands(brands);
   const sections = bySection(brands);
@@ -36,25 +45,20 @@ export default function HomePage() {
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted md:text-[15px]">
             {t('ادفع بالتحويل (بنكيلي، مصرفي، سداد) واستلم طلبك في صفحة طلباتك.')}
           </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              router.push(q.trim() ? `/products?q=${encodeURIComponent(q.trim())}` : '/products');
-            }}
+          <SearchSuggest
+            brands={brands}
+            value={q}
+            onChange={setQ}
+            onSubmit={(v) => router.push(v ? `/products?q=${encodeURIComponent(v)}` : '/products')}
+            placeholder={t('عن ماذا تبحث؟')}
             className="surface-2 mt-5 flex max-w-xl items-center gap-2 rounded-2xl p-1.5 ps-4"
-          >
-            <SearchIcon size={18} className="flex-none text-muted" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t('عن ماذا تبحث؟')}
-              aria-label={t('بحث')}
-              className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
-            />
-            <button type="submit" className="btn-brand rounded-xl px-5 py-2.5 text-sm font-bold">
-              {t('بحث')}
-            </button>
-          </form>
+            button={
+              <button type="submit" className="btn-brand flex-none rounded-xl px-4 py-2.5 text-sm font-bold min-[360px]:px-5">
+                {t('بحث')}
+              </button>
+            }
+          />
+          <StoreStats />
         </div>
       </section>
 
@@ -70,6 +74,10 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* where the visitor left off, then what sells */}
+      <BrandRow title={t('شاهدتها مؤخرًا')} icon={<HistoryIcon size={20} />} brands={recent} />
+      <BrandRow title={t('الأكثر مبيعًا هذا الشهر')} icon={<TrendIcon size={20} />} brands={best} />
 
       {/* the brands the owner wants seen first, in their order */}
       <section className="mx-auto max-w-page px-4 pt-7">

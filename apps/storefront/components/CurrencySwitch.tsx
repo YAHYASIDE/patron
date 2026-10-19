@@ -4,11 +4,24 @@ import { useEffect, useRef, useState } from 'react';
 import { CURRENCIES, getCurrency, repriceCart, setCurrency, useCurrency } from '@/lib/currency';
 import { LANGS, setLang, useLang, useT } from '@/lib/i18n';
 import { useMe } from '@/lib/session';
+import { store } from '@/lib/api';
+import { num } from '@/lib/format';
+import type { Rates } from '@/lib/types';
 import { REGIONS, REGION_LABEL, currenciesFor, setRegion, useRegion } from '@/lib/regions';
 
 const FLAG: Record<string, string> = { MR: '🇲🇷', ML: '🇲🇱', DZ: '🇩🇿', NE: '🇳🇪', XX: '🌍' };
 // the Arabic label is the dictionary key; it is translated where it is shown
 const label = (code: string) => CURRENCIES.find((c) => c.code === code)?.label ?? code;
+
+// latest dollar rates, once per visit (null when the API has none)
+let ratesOnce: Promise<Rates | null> | null = null;
+const loadRates = () => {
+  if (!ratesOnce) {
+    ratesOnce = store.rates().catch(() => null);
+    ratesOnce.then((r) => r === null && (ratesOnce = null)); // retried next time
+  }
+  return ratesOnce;
+};
 
 /**
  * The customer's country and currency. Each country has its own currencies
@@ -24,7 +37,11 @@ export default function CurrencySwitch() {
   const region = useRegion(me?.phone);
   const allowed = currenciesFor(region);
   const [open, setOpen] = useState(false);
+  const [rates, setRates] = useState<Rates | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  // the rate line: the chosen currency, or the country's own when paying in dollars
+  const quoted = currency !== 'USD' ? currency : (allowed.find((c) => c !== 'USD') ?? 'MRU');
+  const rate = Number(rates?.rates?.[quoted] ?? 0);
 
   // a cart filled before the switch existed (or in another currency) is brought in line once
   useEffect(() => {
@@ -35,6 +52,10 @@ export default function CurrencySwitch() {
   useEffect(() => {
     if (!allowed.includes(currency)) setCurrency(allowed[0]).catch(() => undefined);
   }, [allowed, currency]);
+
+  useEffect(() => {
+    if (open) loadRates().then(setRates);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -52,14 +73,16 @@ export default function CurrencySwitch() {
           region: t(REGION_LABEL[region]),
           currency: t(label(currency)),
         })}
-        className="flex items-center gap-1.5 rounded-xl bg-[rgb(var(--surface-2))] px-3 py-2 text-xs font-bold"
+        className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-[rgb(var(--surface-2))] px-2.5 text-xs font-bold min-[360px]:px-3"
       >
         <span aria-hidden>{FLAG[region]}</span>
-        {t(label(currency))}
+        {/* under 360px the flag alone, so the header fits a 320px phone */}
+        <span className="max-[359px]:sr-only">{t(label(currency))}</span>
       </button>
 
       {open && (
-        <div className="surface absolute end-0 top-full z-50 mt-2 w-60 rounded-2xl p-3 shadow-float">
+        // phones: pinned under the header across the screen, so it never runs off an edge
+        <div className="surface fixed inset-x-4 top-[4.25rem] z-50 rounded-2xl p-3 shadow-float sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-64">
           <div className="text-xs font-bold text-muted">{t('بلدك')}</div>
           <div className="mt-1.5 flex flex-col">
             {REGIONS.map((r) => (
@@ -94,6 +117,15 @@ export default function CurrencySwitch() {
                 ))}
               </div>
             </>
+          )}
+          {rate > 0 && (
+            // "1 $ = 39.8 أوقية", read left to right in every language
+            <p className="mt-2.5 rounded-lg bg-[rgb(var(--surface-2))] px-2.5 py-1.5 text-xs text-muted">
+              {t('سعر الصرف')}:{' '}
+              <span dir="ltr" className="tnum inline-block font-bold text-[rgb(var(--text))]">
+                1 $ = {num(rate, rate >= 100 ? 0 : rate >= 10 ? 1 : 3)} {t(label(quoted))}
+              </span>
+            </p>
           )}
           <div className="mt-3 text-xs font-bold text-muted">{t('اللغة')}</div>
           <div className="mt-1.5 flex gap-1.5">

@@ -184,6 +184,9 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
   if (res.status === 401 && auth && retry) {
     const refreshed = await tryRefresh();
     if (refreshed) return request<T>(path, { ...opts, retry: false });
+    // the session is over (signed out elsewhere, or expired): sign in again and come back here
+    signInAgain();
+    throw new ApiError(401, tNow('انتهت جلستك. سجّل الدخول من جديد.'));
   }
 
   if (res.status === 204) return undefined as T;
@@ -206,6 +209,15 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
     throw new ApiError(res.status, msg, d.error);
   }
   return data as T;
+}
+
+function signInAgain() {
+  try {
+    const here = location.pathname + location.search;
+    if (!location.pathname.startsWith('/login')) location.assign(`/login?next=${encodeURIComponent(here)}`);
+  } catch {
+    /* SSR */
+  }
 }
 
 async function tryRefresh(): Promise<boolean> {
