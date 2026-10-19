@@ -2,6 +2,23 @@ import type { Dict } from '.';
 
 const dict: Dict = {
   fr: {
+    '«{name}» لم يعد متوفرًا، فأزلناه من سلّتك.':
+      '«{name}» n’est plus disponible, nous l’avons retiré de votre panier.',
+    'هذه المنتجات لم تعد متوفرة، فأزلناها من سلّتك: {names}':
+      'Ces produits ne sont plus disponibles, nous les avons retirés de votre panier : {names}',
+    منتج: 'Un produit',
+    '{name} لم يعد متوفرًا، فأزلناه من سلّتك.':
+      '{name} n’est plus disponible, nous l’avons retiré de votre panier.',
+    'بقي {n} فقط من {name}، فعدّلنا الكمية.': 'Il ne reste que {n} de {name}, nous avons ajusté la quantité.',
+    'الحد الأقصى من {name} في الطلب الواحد هو {n}، فعدّلنا الكمية.':
+      'Le maximum de {name} par commande est {n}, nous avons ajusté la quantité.',
+    'ينقص {field} في {name}. أزله من السلّة وأضفه من جديد مع البيانات.':
+      'Il manque {field} pour {name}. Retirez-le du panier et ajoutez-le à nouveau avec les informations.',
+    '{field} في {name} غير صحيح. أزله من السلّة وأضفه من جديد بالبيانات الصحيحة.':
+      '{field} pour {name} n’est pas valide. Retirez-le du panier et ajoutez-le à nouveau avec les bonnes informations.',
+    'تعذّر تجهيز طلبك الآن. حدّث الصفحة وحاول مجددًا، أو راسلنا على واتساب.':
+      'Impossible de préparer votre commande pour le moment. Actualisez la page et réessayez, ou écrivez-nous sur WhatsApp.',
+    'افتح السلّة': 'Ouvrir le panier',
     'سلّة التسوّق': 'Panier',
     'سلّتك فارغة': 'Votre panier est vide',
     'أضف بعض المنتجات لتبدأ.': 'Ajoutez quelques produits pour commencer.',
@@ -127,6 +144,23 @@ const dict: Dict = {
     'أعدنا لك قيمة هذا الطلب.': 'Nous vous avons remboursé le montant de cette commande.',
   },
   en: {
+    '«{name}» لم يعد متوفرًا، فأزلناه من سلّتك.':
+      '«{name}» is no longer available, so we removed it from your cart.',
+    'هذه المنتجات لم تعد متوفرة، فأزلناها من سلّتك: {names}':
+      'These products are no longer available, so we removed them from your cart: {names}',
+    منتج: 'A product',
+    '{name} لم يعد متوفرًا، فأزلناه من سلّتك.':
+      '{name} is no longer available, so we removed it from your cart.',
+    'بقي {n} فقط من {name}، فعدّلنا الكمية.': 'Only {n} of {name} left, so we adjusted the quantity.',
+    'الحد الأقصى من {name} في الطلب الواحد هو {n}، فعدّلنا الكمية.':
+      'The most {name} per order is {n}, so we adjusted the quantity.',
+    'ينقص {field} في {name}. أزله من السلّة وأضفه من جديد مع البيانات.':
+      '{field} is missing for {name}. Remove it from the cart and add it again with the details.',
+    '{field} في {name} غير صحيح. أزله من السلّة وأضفه من جديد بالبيانات الصحيحة.':
+      '{field} for {name} is not valid. Remove it from the cart and add it again with the right details.',
+    'تعذّر تجهيز طلبك الآن. حدّث الصفحة وحاول مجددًا، أو راسلنا على واتساب.':
+      "We couldn't prepare your order right now. Refresh the page and try again, or message us on WhatsApp.",
+    'افتح السلّة': 'Open the cart',
     'سلّة التسوّق': 'Cart',
     'سلّتك فارغة': 'Your cart is empty',
     'أضف بعض المنتجات لتبدأ.': 'Add some products to get started.',

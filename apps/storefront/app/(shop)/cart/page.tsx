@@ -6,6 +6,7 @@ import { catalog } from '@/lib/api';
 import { useCart } from '@/lib/hooks';
 import { cart, type CartItem } from '@/lib/cart';
 import { useCurrency } from '@/lib/currency';
+import { dropUnavailable, takeRemovedNotice } from '@/lib/cart-check';
 import { money } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { CartIcon, TrashIcon } from '@/components/icons';
@@ -48,12 +49,22 @@ export default function CartPage() {
   const { items, total } = useCart();
   const currency = useCurrency();
   const [changes, setChanges] = useState<Record<string, Change>>({});
+  // products the shop no longer sells, taken out of the cart
+  const [removed, setRemoved] = useState<string[]>([]);
 
   // once per visit to the cart
   useEffect(() => {
     let alive = true;
-    const now = cart.items();
-    if (now.length) refreshPrices(now).then((c) => alive && setChanges(c)).catch(() => undefined);
+    (async () => {
+      await dropUnavailable().catch(() => undefined);
+      const gone = [...new Set(takeRemovedNotice())];
+      if (alive && gone.length) setRemoved(gone);
+      const now = cart.items();
+      if (now.length) {
+        const c = await refreshPrices(now).catch(() => ({}));
+        if (alive) setChanges(c);
+      }
+    })();
     return () => {
       alive = false;
     };
@@ -66,9 +77,18 @@ export default function CartPage() {
 
   const changed = items.filter((i) => changes[cart.keyOf(i)]).length;
 
+  const removedNotice = removed.length > 0 && (
+    <p role="status" className="mt-3 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-warn">
+      {removed.length === 1
+        ? t('«{name}» لم يعد متوفرًا، فأزلناه من سلّتك.', { name: removed[0] })
+        : t('هذه المنتجات لم تعد متوفرة، فأزلناها من سلّتك: {names}', { names: removed.join('، ') })}
+    </p>
+  );
+
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-page px-4 py-20 text-center">
+        {removedNotice}
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-teal/10 text-teal">
           <CartIcon size={28} />
         </div>
@@ -84,6 +104,7 @@ export default function CartPage() {
   return (
     <div className="mx-auto max-w-page px-4 py-8">
       <h1 className="text-2xl font-extrabold">{t('سلّة التسوّق')}</h1>
+      {removedNotice}
       {changed > 0 && (
         <p role="status" className="mt-3 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-warn">
           {changed === 1

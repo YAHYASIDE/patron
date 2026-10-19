@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { catalog } from './api';
 import { cart } from './cart';
+import { isGone, removeProduct } from './cart-check';
 
 /** Display currencies the shop offers; prices come from the API in the chosen one. */
 export const CURRENCIES = [
@@ -52,7 +53,15 @@ export async function repriceCart(code: string) {
   const stale = cart.items().filter((i) => i.currency !== code);
   if (stale.length === 0) return;
   const ids = [...new Set(stale.map((i) => i.productId))];
-  const fresh = await Promise.all(ids.map((id) => catalog.product(id, code).catch(() => null)));
+  const fresh = await Promise.all(
+    ids.map((id) =>
+      catalog.product(id, code).catch((err) => {
+        // a product the shop no longer sells would otherwise stay priced in the old currency
+        if (isGone(err)) removeProduct(id);
+        return null;
+      }),
+    ),
+  );
   const byId = new Map(fresh.filter((p) => p !== null).map((p) => [p.id, p]));
   cart.reprice((i) => {
     const p = byId.get(i.productId);

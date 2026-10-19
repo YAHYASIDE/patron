@@ -53,6 +53,8 @@ export class ApiError extends Error {
     public status: number,
     message: string,
     public code?: string,
+    /** The whole error body, for details beyond the message (e.g. which cart line). */
+    public body?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -206,7 +208,7 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
     const msg = Array.isArray(d.message)
       ? d.message.join(getLang() === 'ar' ? '، ' : ', ')
       : d.message || d.error || tNow('خطأ {status}', { status: res.status });
-    throw new ApiError(res.status, msg, d.error);
+    throw new ApiError(res.status, msg, d.error, typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : undefined);
   }
   return data as T;
 }

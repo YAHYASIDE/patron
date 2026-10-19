@@ -9,7 +9,8 @@ import { useCart } from '@/lib/hooks';
 import { money } from '@/lib/format';
 import type { Order, Quote } from '@/lib/types';
 import { gatewayLabel, useUsableMethods } from '@/lib/payments';
-import { getCurrency } from '@/lib/currency';
+import { getCurrency, repriceCart } from '@/lib/currency';
+import { dropUnavailable, removeProduct, takeRemovedNotice } from '@/lib/cart-check';
 import { useT, useLang, tNow } from '@/lib/i18n';
 import { CheckIcon, BoltIcon, CloseIcon } from '@/components/icons';
 import VerifyPanel from '@/components/VerifyPanel';
@@ -37,11 +38,40 @@ function couponProblem(err: ApiError): string | null {
   return tNow('هذا الكود غير صحيح. تحقّق منه وحاول مجددًا.');
 }
 
+/** What is wrong with one cart line, from the quote's error body; null when the error is not about a line. */
+type ItemProblem = {
+  code: string;
+  productId: string;
+  name: string;
+  max?: number;
+  available?: number;
+  fieldLabelAr?: string;
+};
+function itemProblem(err: unknown): ItemProblem | null {
+  if (!(err instanceof ApiError) || err.status !== 400 || !err.body) return null;
+  const b = err.body;
+  if (typeof b.productId !== 'string') return null;
+  const line = cart.items().find((i) => i.productId === b.productId);
+  return {
+    code: String(b.error ?? ''),
+    productId: b.productId,
+    name: (typeof b.productNameAr === 'string' && b.productNameAr) || line?.nameAr || '',
+    max: typeof b.max === 'number' ? b.max : undefined,
+    available: typeof b.available === 'number' ? b.available : undefined,
+    fieldLabelAr: typeof b.fieldLabelAr === 'string' ? b.fieldLabelAr : undefined,
+  };
+}
+
+/** Lower the quantity of every line of a product to at most `n`. */
+function capProduct(productId: string, n: number) {
+  for (const line of cart.items()) if (line.productId === productId && line.quantity > n) cart.setQuantity(cart.keyOf(line), n);
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const t = useT();
   const lang = useLang();
-  const { total } = useCart();
+  const { items, total } = useCart();
   const [step, setStep] = useState<Step>('loading');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -55,6 +85,10 @@ export default function CheckoutPage() {
   // most customers have no code: the field stays a small link until asked for
   const [couponOpen, setCouponOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // what we changed in the cart so the order could go through, told to the customer
+  const [fixes, setFixes] = useState<string[]>([]);
+  // a line that needs the customer (a missing or wrong player ID): where to fix it
+  const [fixLink, setFixLink] = useState<string | null>(null);
 
   // auth guard
   useEffect(() => {
@@ -62,7 +96,7 @@ export default function CheckoutPage() {
   }, [router]);
 
   // build a quote from the cart on load (and when a coupon is applied)
-  async function buildQuote(couponCode?: string) {
+  async function buildQuote(couponCode?: string, attempt = 0): Promise<void> {
     const items = cart.items();
     if (items.length === 0) {
       setStep('empty');
@@ -70,6 +104,7 @@ export default function CheckoutPage() {
     }
     setStep('loading');
     setError(null);
+    setFixLink(null);
     try {
       const q = await shop.quote({
         items: items.map((i) => ({
@@ -97,9 +132,46 @@ export default function CheckoutPage() {
       const problem = couponCode && err instanceof ApiError ? couponProblem(err) : null;
       if (problem) {
         setCouponError(problem);
-        return buildQuote();
+        return buildQuote(undefined, attempt);
       }
-      setError(err instanceof ApiError ? err.message : tNow('تعذّر تجهيز الطلب.'));
+      // one cart line must never block the whole order: fix it and price the rest
+      const line = itemProblem(err);
+      if (line && attempt < 8) {
+        const name = line.name ? `«${line.name}»` : tNow('منتج');
+        if (line.code === 'PRODUCT_UNAVAILABLE' || (line.code === 'OUT_OF_STOCK' && !line.available)) {
+          removeProduct(line.productId, line.name);
+          takeRemovedNotice(); // told here, not again on the next page
+          setFixes((f) => [...f, tNow('{name} لم يعد متوفرًا، فأزلناه من سلّتك.', { name })]);
+          return buildQuote(couponCode, attempt + 1);
+        }
+        if (line.code === 'OUT_OF_STOCK' && line.available) {
+          capProduct(line.productId, line.available);
+          setFixes((f) => [...f, tNow('بقي {n} فقط من {name}، فعدّلنا الكمية.', { n: line.available!, name })]);
+          return buildQuote(couponCode, attempt + 1);
+        }
+        if (line.code === 'MAX_PER_ORDER' && line.max) {
+          capProduct(line.productId, line.max);
+          setFixes((f) => [...f, tNow('الحد الأقصى من {name} في الطلب الواحد هو {n}، فعدّلنا الكمية.', { n: line.max!, name })]);
+          return buildQuote(couponCode, attempt + 1);
+        }
+        if (line.code === 'INPUT_MISSING' || line.code === 'INPUT_INVALID') {
+          const field = line.fieldLabelAr ? `«${line.fieldLabelAr}»` : tNow('بيانات الحساب');
+          setError(
+            line.code === 'INPUT_MISSING'
+              ? tNow('ينقص {field} في {name}. أزله من السلّة وأضفه من جديد مع البيانات.', { field, name })
+              : tNow('{field} في {name} غير صحيح. أزله من السلّة وأضفه من جديد بالبيانات الصحيحة.', { field, name }),
+          );
+          setFixLink('/cart');
+          setStep('review');
+          return;
+        }
+      }
+      // never show the server's English to a customer
+      setError(
+        err instanceof ApiError && err.status === 0
+          ? err.message
+          : tNow('تعذّر تجهيز طلبك الآن. حدّث الصفحة وحاول مجددًا، أو راسلنا على واتساب.'),
+      );
       setStep('review');
     }
   }
@@ -120,7 +192,17 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!isAuthed()) return;
-    buildQuote();
+    // first bring the cart in line: drop products the shop no longer sells, price the rest in today's currency
+    (async () => {
+      await dropUnavailable().catch(() => undefined);
+      await repriceCart(getCurrency()).catch(() => undefined);
+      // every name taken out so far, by this page or by the currency switch, once each
+      const gone = [...new Set(takeRemovedNotice())];
+      if (gone.length) {
+        setFixes(gone.map((n) => tNow('{name} لم يعد متوفرًا، فأزلناه من سلّتك.', { name: `«${n}»` })));
+      }
+      await buildQuote();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -242,6 +324,13 @@ export default function CheckoutPage() {
   return (
     <div className="mx-auto max-w-page px-4 py-8">
       <h1 className="text-2xl font-extrabold">{t('إتمام الدفع')}</h1>
+      {fixes.length > 0 && (
+        <div role="status" className="mt-3 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-warn">
+          {fixes.map((f, i) => (
+            <p key={i}>{f}</p>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* summary */}
@@ -249,6 +338,19 @@ export default function CheckoutPage() {
           <div className="surface rounded-2xl p-5 shadow-card">
             <h2 className="text-base font-bold">{t('ملخّص الطلب')}</h2>
             {step === 'loading' && <p className="mt-4 text-sm text-muted">{t('جارٍ تجهيز السعر…')}</p>}
+            {!quote && step !== 'loading' && items.length > 0 && (
+              <div className="mt-4 divide-y divide-[rgb(var(--line))]">
+                {items.map((it) => (
+                  <div key={cart.keyOf(it)} className="flex items-start justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <div className="text-[15px] font-bold">{it.nameAr}</div>
+                      <div className="text-xs text-muted">{t('الكمية: {n}', { n: it.quantity })}</div>
+                    </div>
+                    <div className="tnum font-bold">{money(parseFloat(it.unitPrice) * it.quantity, it.currency)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
             {quote && (
               <div className="mt-4 divide-y divide-[rgb(var(--line))]">
                 {quote.items.map((it, i) => (
@@ -397,9 +499,14 @@ export default function CheckoutPage() {
             )}
 
             {error && step === 'review' && (
-              <p role="alert" className="mt-4 rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
-                {error}
-              </p>
+              <div role="alert" className="mt-4 rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
+                <p>{error}</p>
+                {fixLink && (
+                  <Link href={fixLink} className="mt-2 inline-block font-bold underline">
+                    {t('افتح السلّة')}
+                  </Link>
+                )}
+              </div>
             )}
 
             <button
