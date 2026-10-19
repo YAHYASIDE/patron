@@ -9,6 +9,7 @@ package unless a directory overrides them locally.
   `packages/*`.
 - `apps/api` — NestJS backend (Prisma, PostgreSQL, BullMQ).
 - `apps/admin` — Next.js (App Router) admin dashboard.
+- `apps/storefront` — Next.js (App Router) customer store (Arabic first, French and English).
 - `apps/mobile` — Flutter app (built with the Flutter toolchain, outside the
   npm/Turbo graph).
 - `packages/tsconfig` — shared TypeScript base configs (`@patron/tsconfig`).
@@ -72,7 +73,7 @@ runner with ad-hoc scripts that skip lint/type checks.
 
 - API: unit / integration / e2e via Jest (see `apps/api/test`). Keep coverage
   thresholds green.
-- Admin: `lint:check`, `typecheck`, and `build` must pass.
+- Admin and storefront: `lint:check`, `typecheck`, and `build` must pass.
 - Mobile: `flutter analyze` and `flutter test` must pass.
 - Don't merge red. CI runs per-app; a change to one app should not break another.
 
