@@ -12,6 +12,7 @@ import { PayOrder } from '@/components/PayOrder';
 import OrderTimeline from '@/components/OrderTimeline';
 import { reorder } from '@/lib/reorder';
 import { useCurrency } from '@/lib/currency';
+import { useT, useLang } from '@/lib/i18n';
 
 const STATUS: Record<string, { t: string; c: string }> = {
   COMPLETED: { t: 'مكتمل', c: 'bg-ok/12 text-ok' },
@@ -32,6 +33,8 @@ function chip(s: string) {
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const t = useT();
+  const lang = useLang();
   const payWith = useSearchParams().get('pay') ?? undefined;
   useEffect(() => {
     if (!isAuthed()) router.replace(`/login?next=/orders/${id}`);
@@ -51,7 +54,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     if (r.added > 0) return router.push('/cart');
     setAgain({
       busy: false,
-      note: r.unavailable.length ? `غير متوفّر حاليًا: ${r.unavailable.join('، ')}` : 'تعذّر إعادة الطلب.',
+      note: r.unavailable.length
+        ? t('غير متوفّر حاليًا: {items}', { items: r.unavailable.join(lang === 'ar' ? '، ' : ', ') })
+        : t('تعذّر إعادة الطلب.'),
     });
   }
 
@@ -68,7 +73,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     } catch (err) {
       setRevealErr((e) => ({
         ...e,
-        [itemId]: err instanceof ApiError ? err.message : 'تعذّر إظهار الكود.',
+        [itemId]: err instanceof ApiError ? err.message : t('تعذّر إظهار الكود.'),
       }));
     } finally {
       setRevealing(null);
@@ -76,13 +81,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   if (res.loading && !order)
-    return <div className="mx-auto max-w-page px-4 py-16 text-center text-muted">جارٍ التحميل…</div>;
+    return <div className="mx-auto max-w-page px-4 py-16 text-center text-muted">{t('جارٍ التحميل…')}</div>;
   if (res.error || !order)
     return (
       <div className="mx-auto max-w-page px-4 py-20 text-center">
-        <p className="text-muted">{res.error ?? 'الطلب غير موجود.'}</p>
+        <p className="text-muted">{res.error ?? t('الطلب غير موجود.')}</p>
         <Link href="/orders" className="mt-4 inline-block font-bold text-teal hover:underline">
-          طلباتي
+          {t('طلباتي')}
         </Link>
       </div>
     );
@@ -93,7 +98,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     <div className="mx-auto max-w-page px-4 py-8">
       <nav className="mb-5 flex items-center gap-1.5 text-sm text-muted">
         <Link href="/orders" className="hover:text-[rgb(var(--text))]">
-          طلباتي
+          {t('طلباتي')}
         </Link>
         <ChevronIcon size={14} />
         <span dir="ltr" className="text-[rgb(var(--text))]">
@@ -106,10 +111,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <h1 className="text-2xl font-extrabold" dir="ltr">
             {order.orderNumber}
           </h1>
-          <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold ${c.c}`}>{c.t}</span>
+          <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold ${c.c}`}>
+            {t(c.t)}
+          </span>
         </div>
-        <div className="text-left">
-          <div className="text-sm text-muted">الإجمالي</div>
+        <div className="text-end">
+          <div className="text-sm text-muted">{t('الإجمالي')}</div>
           <div className="tnum text-2xl font-extrabold text-teal">{money(order.total, order.currency)}</div>
         </div>
       </div>
@@ -128,13 +135,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <div key={it.id} className="surface rounded-2xl p-4 shadow-card">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-bold">{it.productNameAr || it.productNameEn}</div>
+                  <div className="font-bold">
+                    {lang === 'ar'
+                      ? it.productNameAr || it.productNameEn
+                      : it.productNameEn || it.productNameAr}
+                  </div>
                   <div className="text-xs text-muted">
-                    الكمية: {it.quantity} · {money(it.lineTotal, order.currency)}
+                    {t('الكمية: {n}', { n: it.quantity })} · {money(it.lineTotal, order.currency)}
                   </div>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${chip(it.status).c}`}>
-                  {chip(it.status).t}
+                  {t(chip(it.status).t)}
                 </span>
               </div>
 
@@ -161,13 +172,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   disabled={revealing === it.id}
                   className="btn-brand mt-3 rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-60"
                 >
-                  {revealing === it.id ? 'جارٍ…' : 'إظهار الكود'}
+                  {revealing === it.id ? t('جارٍ…') : t('إظهار الكود')}
                 </button>
               ) : (
                 <p className="mt-3 text-sm text-muted">
                   {order.status === 'PENDING_PAYMENT'
-                    ? 'يُسلَّم هنا بعد تأكيد الدفع.'
-                    : 'نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.'}
+                    ? t('يُسلَّم هنا بعد تأكيد الدفع.')
+                    : t('نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.')}
                 </p>
               )}
 
@@ -188,7 +199,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             disabled={again.busy}
             className="surface hairline w-full rounded-xl border py-3 text-[15px] font-bold text-teal transition hover:border-teal disabled:opacity-60 sm:w-auto sm:px-8"
           >
-            {again.busy ? 'جارٍ التجهيز…' : 'اطلب مجددًا'}
+            {again.busy ? t('جارٍ التجهيز…') : t('اطلب مجددًا')}
           </button>
           {again.note && <p className="mt-2 text-sm text-bad">{again.note}</p>}
         </div>

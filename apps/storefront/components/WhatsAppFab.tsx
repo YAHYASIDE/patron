@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useMe } from '@/lib/session';
+import { useT } from '@/lib/i18n';
 import { WhatsAppMark, supportNumber } from './WhatsAppHelp';
 
 // The sign-in page has its own WhatsApp button.
@@ -16,6 +17,7 @@ const HAS_BUY_BAR = /^\/(brands|products)\/[^/]+/;
  * Hidden when the owner has not set a number.
  */
 export default function WhatsAppFab() {
+  const t = useT();
   const pathname = usePathname();
   const { me } = useMe();
   const [number, setNumber] = useState<string | null>(null);
@@ -25,6 +27,7 @@ export default function WhatsAppFab() {
   if (!number || HIDDEN.includes(pathname)) return null;
 
   const order = pathname.match(/^\/orders\/([^/]+)/);
+  // the owner reads Arabic: the message stays Arabic whatever the page's language
   const lines = [
     'مرحبًا،',
     me ? `أنا ${me.fullName}${me.phone ? ` (${me.phone})` : ''}` : null,
@@ -37,7 +40,7 @@ export default function WhatsAppFab() {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="راسلنا على واتساب"
+      aria-label={t('راسلنا على واتساب')}
       className={`fixed end-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-[#1FA855] text-white shadow-float transition hover:scale-105 lg:bottom-6 ${
         HAS_BUY_BAR.test(pathname) ? 'bottom-28' : 'bottom-5'
       }`}

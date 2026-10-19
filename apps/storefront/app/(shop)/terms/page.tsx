@@ -1,4 +1,10 @@
-export const metadata = { title: 'الشروط وسياسة الاسترجاع | باترون' };
+import { translate } from '@/lib/i18n/core';
+import { serverLang } from '@/lib/i18n/server';
+
+export async function generateMetadata() {
+  const lang = await serverLang();
+  return { title: translate(lang, 'الشروط وسياسة الاسترجاع | باترون') };
+}
 
 const SECTIONS = [
   {
@@ -39,19 +45,22 @@ const SECTIONS = [
   },
 ];
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const lang = await serverLang();
+  const t = (ar: string) => translate(lang, ar);
+
   return (
     <div className="mx-auto max-w-[720px] px-4 py-8">
-      <h1 className="text-2xl font-extrabold">الشروط وسياسة الاسترجاع</h1>
-      <p className="mt-1.5 text-sm text-muted">باستخدامك المتجر وشرائك منه فأنت توافق على ما يلي.</p>
+      <h1 className="text-2xl font-extrabold">{t('الشروط وسياسة الاسترجاع')}</h1>
+      <p className="mt-1.5 text-sm text-muted">{t('باستخدامك المتجر وشرائك منه فأنت توافق على ما يلي.')}</p>
 
       <div className="mt-6 space-y-3">
         {SECTIONS.map((s) => (
           <section key={s.t} className="surface rounded-2xl p-4 shadow-card sm:p-5">
-            <h2 className="font-extrabold">{s.t}</h2>
+            <h2 className="font-extrabold">{t(s.t)}</h2>
             <ul className="mt-2 list-disc space-y-1.5 ps-5 text-sm leading-relaxed text-muted">
               {s.p.map((x) => (
-                <li key={x}>{x}</li>
+                <li key={x}>{t(x)}</li>
               ))}
             </ul>
           </section>

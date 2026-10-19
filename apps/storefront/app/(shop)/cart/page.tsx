@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { useCart } from '@/lib/hooks';
 import { cart } from '@/lib/cart';
 import { money } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { CartIcon, TrashIcon } from '@/components/icons';
 
 export default function CartPage() {
+  const t = useT();
   const { items, total } = useCart();
 
   if (items.length === 0) {
@@ -15,10 +17,10 @@ export default function CartPage() {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-teal/10 text-teal">
           <CartIcon size={28} />
         </div>
-        <h1 className="mt-5 text-xl font-extrabold">سلّتك فارغة</h1>
-        <p className="mt-2 text-muted">أضف بعض المنتجات لتبدأ.</p>
+        <h1 className="mt-5 text-xl font-extrabold">{t('سلّتك فارغة')}</h1>
+        <p className="mt-2 text-muted">{t('أضف بعض المنتجات لتبدأ.')}</p>
         <Link href="/products" className="btn-brand mt-6 inline-block rounded-xl px-6 py-3 font-bold">
-          تصفّح المنتجات
+          {t('تصفّح المنتجات')}
         </Link>
       </div>
     );
@@ -26,7 +28,7 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
-      <h1 className="text-2xl font-extrabold">سلّة التسوّق</h1>
+      <h1 className="text-2xl font-extrabold">{t('سلّة التسوّق')}</h1>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* lines */}
@@ -51,7 +53,7 @@ export default function CartPage() {
                     <h3 className="text-[15px] font-bold leading-snug">{it.nameAr}</h3>
                     <button
                       onClick={() => cart.remove(key)}
-                      aria-label="حذف"
+                      aria-label={t('حذف')}
                       className="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted transition hover:bg-bad/10 hover:text-bad"
                     >
                       <TrashIcon size={17} />
@@ -87,27 +89,27 @@ export default function CartPage() {
             );
           })}
           <button onClick={() => cart.clear()} className="text-sm font-semibold text-muted hover:text-bad">
-            إفراغ السلّة
+            {t('إفراغ السلّة')}
           </button>
         </div>
 
         {/* summary */}
         <div className="lg:col-span-1">
           <div className="surface sticky top-20 rounded-2xl p-5 shadow-card">
-            <h2 className="text-base font-bold">ملخّص الطلب</h2>
+            <h2 className="text-base font-bold">{t('ملخّص الطلب')}</h2>
             <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-muted">الإجمالي</span>
+              <span className="text-muted">{t('الإجمالي')}</span>
               <span className="tnum text-xl font-extrabold text-teal">{money(total.amount, total.currency)}</span>
             </div>
-            <p className="mt-2 text-xs text-muted">تُحتسب الرسوم والضرائب (إن وُجدت) عند الدفع.</p>
+            <p className="mt-2 text-xs text-muted">{t('تُحتسب الرسوم والضرائب (إن وُجدت) عند الدفع.')}</p>
             <Link href="/checkout" className="btn-brand mt-5 block rounded-xl py-3 text-center text-[15px] font-bold">
-              متابعة الدفع
+              {t('متابعة الدفع')}
             </Link>
             <Link
               href="/products"
               className="mt-2 block rounded-xl border border-[rgb(var(--line))] py-3 text-center text-sm font-bold text-muted transition hover:text-[rgb(var(--text))]"
             >
-              مواصلة التسوّق
+              {t('مواصلة التسوّق')}
             </Link>
           </div>
         </div>

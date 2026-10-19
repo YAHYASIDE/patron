@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { SunIcon, MoonIcon } from './icons';
 
 export default function ThemeToggle() {
+  const t = useT();
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -24,8 +26,8 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      aria-label="تبديل السمة"
-      title="تبديل الوضع الليلي/النهاري"
+      aria-label={t('تبديل السمة')}
+      title={t('تبديل الوضع الليلي/النهاري')}
       className="grid h-10 w-10 place-items-center rounded-xl text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
     >
       {dark ? <MoonIcon size={18} /> : <SunIcon size={18} />}

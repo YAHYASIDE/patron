@@ -2,6 +2,7 @@
 
 import { catalog } from './api';
 import { cart } from './cart';
+import { getLang } from './i18n';
 import type { Order } from './types';
 
 const MASKED = '••••';
@@ -23,7 +24,9 @@ export async function reorder(
   for (const it of order.items) {
     const product = await catalog.product(it.productId, currency).catch(() => null);
     if (!product || product.isActive === false || product.inStock === false) {
-      unavailable.push(it.productNameAr || it.productNameEn);
+      unavailable.push(
+        getLang() === 'ar' ? it.productNameAr || it.productNameEn : it.productNameEn || it.productNameAr,
+      );
       continue;
     }
     const inputs = it.inputs ?? [];

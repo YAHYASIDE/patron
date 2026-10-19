@@ -3,17 +3,19 @@
 import { useEffect, useState } from 'react';
 import { auth, ApiError } from '@/lib/api';
 import { refreshMe, useMe } from '@/lib/session';
+import { tNow, useT } from '@/lib/i18n';
 import { DEFAULT_COUNTRY, nationalNumberProblem, toE164 } from '@/lib/countries';
 import PhoneField from './PhoneField';
 import WhatsAppHelp from './WhatsAppHelp';
 import { CheckIcon, CloseIcon, ShieldIcon } from './icons';
 
+// runs in handlers only, so tNow is safe here
 function friendly(err: unknown): string {
-  if (!(err instanceof ApiError)) return 'تعذّر الاتصال بالخادم. حاول مرة أخرى.';
-  if (/Invalid or expired code/i.test(err.message)) return 'الرمز غير صحيح أو انتهت صلاحيته.';
-  if (/Too many attempts/i.test(err.message)) return 'محاولات كثيرة. اطلب رمزًا جديدًا.';
-  if (/another account/i.test(err.message)) return 'هذا الرقم مسجّل في حساب آخر.';
-  if (err.status === 429) return 'طلبت رموزًا كثيرة. انتظر بضع دقائق.';
+  if (!(err instanceof ApiError)) return tNow('تعذّر الاتصال بالخادم. حاول مرة أخرى.');
+  if (/Invalid or expired code/i.test(err.message)) return tNow('الرمز غير صحيح أو انتهت صلاحيته.');
+  if (/Too many attempts/i.test(err.message)) return tNow('محاولات كثيرة. اطلب رمزًا جديدًا.');
+  if (/another account/i.test(err.message)) return tNow('هذا الرقم مسجّل في حساب آخر.');
+  if (err.status === 429) return tNow('طلبت رموزًا كثيرة. انتظر بضع دقائق.');
   return err.message;
 }
 
@@ -31,6 +33,7 @@ export default function VerifyPanel({
   onSkip?: () => void;
   skipLabel?: string;
 }) {
+  const t = useT();
   const { me } = useMe();
   const [stage, setStage] = useState<'ask' | 'code' | 'done'>('ask');
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export default function VerifyPanel({
 
   async function verify(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\d{6}$/.test(code)) return setError('الرمز 6 أرقام.');
+    if (!/^\d{6}$/.test(code)) return setError(tNow('الرمز 6 أرقام.'));
     setBusy(true);
     setError(null);
     try {
@@ -90,8 +93,8 @@ export default function VerifyPanel({
         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-ok/12 text-ok">
           <CheckIcon size={24} />
         </span>
-        <p className="font-bold">تم توثيق حسابك</p>
-        <p className="text-sm text-muted">يمكنك الآن الشراء.</p>
+        <p className="font-bold">{t('تم توثيق حسابك')}</p>
+        <p className="text-sm text-muted">{t('يمكنك الآن الشراء.')}</p>
       </div>
     );
   }
@@ -103,11 +106,11 @@ export default function VerifyPanel({
           <ShieldIcon size={20} />
         </span>
         <div>
-          <p className="font-bold">وثّق رقم واتساب</p>
+          <p className="font-bold">{t('وثّق رقم واتساب')}</p>
           <p className="mt-0.5 text-sm leading-relaxed text-muted">
             {stage === 'ask'
-              ? 'نرسل لك رمزًا من 6 أرقام على واتساب لنتأكد أن الرقم لك. يلزم ذلك مرة واحدة قبل الشراء.'
-              : 'سيرسل لك المتجر الرمز على واتساب خلال دقائق. اكتبه هنا عند وصوله.'}
+              ? t('نرسل لك رمزًا من 6 أرقام على واتساب لنتأكد أن الرقم لك. يلزم ذلك مرة واحدة قبل الشراء.')
+              : t('سيرسل لك المتجر الرمز على واتساب خلال دقائق. اكتبه هنا عند وصوله.')}
           </p>
         </div>
       </div>
@@ -119,7 +122,7 @@ export default function VerifyPanel({
           ) : (
             me?.phone && (
               <p className="surface-2 rounded-xl px-3.5 py-2.5 text-sm">
-                الرقم:{' '}
+                {t('الرقم:')}{' '}
                 <span dir="ltr" className="font-bold">
                   {me.phone}
                 </span>
@@ -136,7 +139,7 @@ export default function VerifyPanel({
             disabled={busy}
             className="btn-brand rounded-xl py-3 text-[15px] font-bold disabled:opacity-60"
           >
-            {busy ? 'جارٍ الطلب…' : 'أرسل لي رمز التحقق'}
+            {busy ? t('جارٍ الطلب…') : t('أرسل لي رمز التحقق')}
           </button>
           {me?.phone && (
             <WhatsAppHelp
@@ -161,7 +164,7 @@ export default function VerifyPanel({
         <form onSubmit={verify} className="flex flex-col gap-3">
           {sentTo && (
             <p className="text-xs text-muted">
-              على الرقم{' '}
+              {t('على الرقم')}{' '}
               <span dir="ltr" className="font-bold text-[rgb(var(--text))]">
                 {sentTo}
               </span>
@@ -175,7 +178,7 @@ export default function VerifyPanel({
             autoFocus
             dir="ltr"
             placeholder="••••••"
-            aria-label="رمز التحقق"
+            aria-label={t('رمز التحقق')}
             className="surface-2 hairline w-full rounded-xl border px-3.5 py-3 text-center text-2xl font-bold tracking-[0.5em] outline-none focus:border-teal"
           />
           {error && (
@@ -188,7 +191,7 @@ export default function VerifyPanel({
             disabled={busy}
             className="btn-brand rounded-xl py-3 text-[15px] font-bold disabled:opacity-60"
           >
-            {busy ? 'جارٍ التحقق…' : 'تحقّق'}
+            {busy ? t('جارٍ التحقق…') : t('تحقّق')}
           </button>
           <button
             type="button"
@@ -196,7 +199,7 @@ export default function VerifyPanel({
             disabled={busy}
             className="text-sm font-bold text-muted hover:text-[rgb(var(--text))]"
           >
-            لم يصلك الرمز؟ أعد الطلب
+            {t('لم يصلك الرمز؟ أعد الطلب')}
           </button>
           <WhatsAppHelp name={me?.fullName} phone={sentTo ?? me?.phone} need="verify" />
         </form>
@@ -204,7 +207,8 @@ export default function VerifyPanel({
 
       {onSkip && (
         <button onClick={onSkip} className="py-1 text-sm font-bold text-muted hover:text-[rgb(var(--text))]">
-          {skipLabel}
+          {/* a label that is already translated comes back unchanged */}
+          {t(skipLabel)}
         </button>
       )}
     </div>
@@ -213,6 +217,7 @@ export default function VerifyPanel({
 
 /** The panel in a bottom sheet (phones) / dialog (desktop). */
 export function VerifySheet({ onClose }: { onClose: () => void }) {
+  const t = useT();
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', esc);
@@ -227,14 +232,14 @@ export function VerifySheet({ onClose }: { onClose: () => void }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="توثيق الحساب"
+        aria-label={t('توثيق الحساب')}
         onClick={(e) => e.stopPropagation()}
         className="surface w-full rounded-t-3xl p-5 shadow-float sm:max-w-md sm:rounded-3xl"
       >
         <div className="mb-2 flex justify-end">
           <button
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t('إغلاق')}
             className="grid h-9 w-9 place-items-center rounded-xl text-muted hover:bg-[rgb(var(--surface-2))]"
           >
             <CloseIcon size={18} />

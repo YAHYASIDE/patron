@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { shop } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 
 let cached: Promise<string | null> | null = null;
 export function supportNumber(): Promise<string | null> {
@@ -32,11 +33,14 @@ export default function WhatsAppHelp({
   /** Runs in the same click (e.g. to request the code), before WhatsApp opens. */
   onOpen?: () => void;
 }) {
+  const t = useT();
   const [number, setNumber] = useState<string | null>(null);
   useEffect(() => {
     supportNumber().then(setNumber);
   }, []);
   if (!number) return null;
+
+  // the owner reads Arabic: the message stays Arabic whatever the page's language
 
   const lines = [
     'مرحبًا،',
@@ -56,7 +60,7 @@ export default function WhatsAppHelp({
       className="flex items-center justify-center gap-2 rounded-xl border border-[#1FA855]/40 bg-[#1FA855]/10 py-3 text-[15px] font-bold text-[#178a45] transition hover:bg-[#1FA855]/15 dark:text-[#3ddc84]"
     >
       <WhatsAppMark size={18} />
-      مستعجل؟ راسلنا على واتساب
+      {t('مستعجل؟ راسلنا على واتساب')}
     </a>
   );
 }

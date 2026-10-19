@@ -4,6 +4,8 @@
  * the list stays short and every name is spelled the way the platform does.
  */
 
+import { tNow } from './i18n';
+
 // Shown first, in this order: Mauritania, then neighbours and the Arab world.
 const PRIORITY =
   'MR222 SN221 ML223 MA212 DZ213 TN216 LY218 EG20 SA966 AE971 QA974 KW965 BH973 OM968 JO962 LB961 SY963 IQ964 PS970 YE967 SD249 FR33 ES34 US1';
@@ -86,12 +88,15 @@ export function toE164(country: Country, national: string): string {
   return `+${country.dial}${digits}`;
 }
 
-/** A light check before the server's: Mauritanian numbers are 8 digits starting 2, 3 or 4. */
+/**
+ * A light check before the server's: Mauritanian numbers are 8 digits starting 2, 3 or 4.
+ * Called from submit handlers only, so the message is translated with tNow.
+ */
 export function nationalNumberProblem(country: Country, national: string): string | null {
   const digits = national.replace(/\D/g, '').replace(/^0+/, '');
-  if (!digits) return 'اكتب رقم واتساب.';
+  if (!digits) return tNow('اكتب رقم واتساب.');
   if (country.iso === 'MR' && !/^[234]\d{7}$/.test(digits))
-    return 'الرقم الموريتاني 8 أرقام ويبدأ بـ 2 أو 3 أو 4.';
-  if (digits.length < 6 || digits.length > 14) return 'تحقّق من الرقم.';
+    return tNow('الرقم الموريتاني 8 أرقام ويبدأ بـ 2 أو 3 أو 4.');
+  if (digits.length < 6 || digits.length > 14) return tNow('تحقّق من الرقم.');
   return null;
 }

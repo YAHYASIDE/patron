@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, ApiError, warmUp } from '@/lib/api';
+import { useT, tNow } from '@/lib/i18n';
 import { refreshMe } from '@/lib/session';
 import { DEFAULT_COUNTRY, nationalNumberProblem, toE164 } from '@/lib/countries';
 import PhoneField from '@/components/PhoneField';
@@ -17,20 +18,21 @@ const field =
   'surface-2 hairline w-full rounded-xl border px-3.5 py-3 text-[16px] outline-none transition focus:border-teal';
 
 function friendly(err: unknown): string {
-  if (!(err instanceof ApiError)) return 'تعذّر الاتصال بالخادم. حاول مرة أخرى.';
-  if (err.code === 'NAME_REQUIRED') return 'اكتب اسمك الكامل.';
-  if (/Full name/i.test(err.message)) return 'اكتب الاسم بحروف عربية أو فرنسية.';
-  if (/E\.164|phone/i.test(err.message)) return 'تحقّق من رقم واتساب.';
-  if (/Invalid or expired code/i.test(err.message)) return 'الرمز غير صحيح أو انتهت صلاحيته.';
-  if (/Too many/i.test(err.message)) return 'محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا.';
-  if (/blocked|inactive/i.test(err.message)) return 'هذا الحساب موقوف. تواصل مع المتجر.';
-  if (err.status === 429) return 'محاولات كثيرة. انتظر دقيقة ثم حاول.';
+  if (!(err instanceof ApiError)) return tNow('تعذّر الاتصال بالخادم. حاول مرة أخرى.');
+  if (err.code === 'NAME_REQUIRED') return tNow('اكتب اسمك الكامل.');
+  if (/Full name/i.test(err.message)) return tNow('اكتب الاسم بحروف عربية أو فرنسية.');
+  if (/E\.164|phone/i.test(err.message)) return tNow('تحقّق من رقم واتساب.');
+  if (/Invalid or expired code/i.test(err.message)) return tNow('الرمز غير صحيح أو انتهت صلاحيته.');
+  if (/Too many/i.test(err.message)) return tNow('محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا.');
+  if (/blocked|inactive/i.test(err.message)) return tNow('هذا الحساب موقوف. تواصل مع المتجر.');
+  if (err.status === 429) return tNow('محاولات كثيرة. انتظر دقيقة ثم حاول.');
   return err.message;
 }
 
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
+  const t = useT();
   const next = params.get('next') || '/';
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [number, setNumber] = useState('');
@@ -60,7 +62,7 @@ function LoginInner() {
 
   const skipLink = (
     <button type="button" onClick={skip} className="py-1 text-sm font-bold text-teal hover:underline">
-      تخطَّ الآن وتصفّح المتجر
+      {t('تخطَّ الآن وتصفّح المتجر')}
     </button>
   );
 
@@ -68,7 +70,7 @@ function LoginInner() {
     e.preventDefault();
     const problem = nationalNumberProblem(country, number);
     if (problem) return setError(problem);
-    if (!NAME.test(name.trim())) return setError('اكتب اسمك الكامل بحروف عربية أو فرنسية.');
+    if (!NAME.test(name.trim())) return setError(t('اكتب اسمك الكامل بحروف عربية أو فرنسية.'));
     setBusy(true);
     setError(null);
     try {
@@ -92,7 +94,7 @@ function LoginInner() {
       done();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.status === 401 ? 'البريد أو كلمة المرور غير صحيحة.' : friendly(err),
+        err instanceof ApiError && err.status === 401 ? t('البريد أو كلمة المرور غير صحيحة.') : friendly(err),
       );
       setBusy(false);
     }
@@ -100,7 +102,7 @@ function LoginInner() {
 
   async function confirm(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\d{6}$/.test(code)) return setError('الرمز 6 أرقام.');
+    if (!/^\d{6}$/.test(code)) return setError(t('الرمز 6 أرقام.'));
     setBusy(true);
     setError(null);
     try {
@@ -117,8 +119,8 @@ function LoginInner() {
       <div className="mx-auto max-w-[440px]">
         {step === 'details' ? (
           <>
-            <h1 className="text-2xl font-extrabold">أهلًا بك في باترون</h1>
-            <p className="mt-1.5 text-sm text-muted">ادخل برقم واتساب واسمك، بلا كلمة مرور.</p>
+            <h1 className="text-2xl font-extrabold">{t('أهلًا بك في باترون')}</h1>
+            <p className="mt-1.5 text-sm text-muted">{t('ادخل برقم واتساب واسمك، بلا كلمة مرور.')}</p>
 
             <form
               onSubmit={start}
@@ -133,16 +135,16 @@ function LoginInner() {
               />
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold">الاسم الكامل</span>
+                <span className="text-sm font-semibold">{t('الاسم الكامل')}</span>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
                   maxLength={80}
-                  placeholder="مثال: سيدي أحمد / Sidi Ahmed"
+                  placeholder={t('مثال: سيدي أحمد / Sidi Ahmed')}
                   className={field}
                 />
-                <span className="text-xs text-muted">بالعربية أو بالفرنسية، كما في هويتك.</span>
+                <span className="text-xs text-muted">{t('بالعربية أو بالفرنسية، كما في هويتك.')}</span>
               </label>
 
               {error && (
@@ -159,14 +161,14 @@ function LoginInner() {
                 disabled={busy}
                 className="btn-brand rounded-xl py-3.5 text-[15px] font-bold disabled:opacity-60"
               >
-                {busy ? 'جارٍ الدخول…' : 'دخول'}
+                {busy ? t('جارٍ الدخول…') : t('دخول')}
               </button>
               {skipLink}
             </form>
 
             <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-muted">
               <ShieldIcon size={15} className="mt-0.5 flex-none text-teal" />
-              نوثّق رقمك برمز يصلك على واتساب قبل أول عملية شراء.
+              {t('نوثّق رقمك برمز يصلك على واتساب قبل أول عملية شراء.')}
             </p>
             <button
               onClick={() => {
@@ -175,18 +177,18 @@ function LoginInner() {
               }}
               className="mt-6 text-sm font-bold text-muted hover:text-[rgb(var(--text))]"
             >
-              لديك حساب بالبريد الإلكتروني؟ ادخل من هنا
+              {t('لديك حساب بالبريد الإلكتروني؟ ادخل من هنا')}
             </button>
           </>
         ) : step === 'email' ? (
           <>
-            <h1 className="text-2xl font-extrabold">الدخول بالبريد الإلكتروني</h1>
+            <h1 className="text-2xl font-extrabold">{t('الدخول بالبريد الإلكتروني')}</h1>
             <form
               onSubmit={emailLogin}
               className="surface mt-6 flex flex-col gap-4 rounded-2xl p-5 shadow-card sm:p-6"
             >
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold">البريد الإلكتروني</span>
+                <span className="text-sm font-semibold">{t('البريد الإلكتروني')}</span>
                 <input
                   type="email"
                   dir="ltr"
@@ -197,7 +199,7 @@ function LoginInner() {
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold">كلمة المرور</span>
+                <span className="text-sm font-semibold">{t('كلمة المرور')}</span>
                 <input
                   type="password"
                   dir="ltr"
@@ -220,26 +222,26 @@ function LoginInner() {
                 disabled={busy}
                 className="btn-brand rounded-xl py-3.5 text-[15px] font-bold disabled:opacity-60"
               >
-                {busy ? 'جارٍ الدخول…' : 'دخول'}
+                {busy ? t('جارٍ الدخول…') : t('دخول')}
               </button>
               <button
                 type="button"
                 onClick={() => setStep('details')}
                 className="text-sm font-bold text-muted hover:text-[rgb(var(--text))]"
               >
-                الدخول برقم واتساب
+                {t('الدخول برقم واتساب')}
               </button>
             </form>
           </>
         ) : (
           <>
-            <h1 className="text-2xl font-extrabold">أدخل رمز الدخول</h1>
+            <h1 className="text-2xl font-extrabold">{t('أدخل رمز الدخول')}</h1>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              هذا الرقم مسجّل لدينا. لحماية حسابك، سيرسل لك المتجر رمزًا من 6 أرقام على واتساب{' '}
+              {t('هذا الرقم مسجّل لدينا. لحماية حسابك، سيرسل لك المتجر رمزًا من 6 أرقام على واتساب')}{' '}
               <span dir="ltr" className="font-bold text-[rgb(var(--text))]">
                 {phone}
               </span>
-              . قد يستغرق ذلك بضع دقائق.
+              {t('. قد يستغرق ذلك بضع دقائق.')}
             </p>
 
             <form
@@ -254,7 +256,7 @@ function LoginInner() {
                 autoFocus
                 dir="ltr"
                 placeholder="••••••"
-                aria-label="رمز الدخول"
+                aria-label={t('رمز الدخول')}
                 className={field + ' text-center text-2xl font-bold tracking-[0.5em]'}
               />
               {error && (
@@ -270,7 +272,7 @@ function LoginInner() {
                 disabled={busy}
                 className="btn-brand rounded-xl py-3.5 text-[15px] font-bold disabled:opacity-60"
               >
-                {busy ? 'جارٍ التحقق…' : 'دخول'}
+                {busy ? t('جارٍ التحقق…') : t('دخول')}
               </button>
               <WhatsAppHelp name={name.trim()} phone={phone} need="login" />
               <div className="flex items-center justify-between gap-3">
@@ -283,14 +285,14 @@ function LoginInner() {
                   }}
                   className="py-2 text-sm font-bold text-muted hover:text-[rgb(var(--text))]"
                 >
-                  تغيير الرقم
+                  {t('تغيير الرقم')}
                 </button>
                 <button
                   type="button"
                   onClick={skip}
                   className="py-2 text-sm font-bold text-teal hover:underline"
                 >
-                  تخطَّ الآن
+                  {t('تخطَّ الآن')}
                 </button>
               </div>
             </form>
@@ -302,8 +304,9 @@ function LoginInner() {
 }
 
 export default function LoginPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<div className="py-20 text-center text-muted">جارٍ التحميل…</div>}>
+    <Suspense fallback={<div className="py-20 text-center text-muted">{t('جارٍ التحميل…')}</div>}>
       <LoginInner />
     </Suspense>
   );

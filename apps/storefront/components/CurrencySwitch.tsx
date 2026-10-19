@@ -2,18 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CURRENCIES, getCurrency, repriceCart, setCurrency, useCurrency } from '@/lib/currency';
+import { LANGS, setLang, useLang, useT } from '@/lib/i18n';
 import { useMe } from '@/lib/session';
 import { REGIONS, REGION_LABEL, currenciesFor, setRegion, useRegion } from '@/lib/regions';
 
 const FLAG: Record<string, string> = { MR: '🇲🇷', ML: '🇲🇱', DZ: '🇩🇿', NE: '🇳🇪', XX: '🌍' };
+// the Arabic label is the dictionary key; it is translated where it is shown
 const label = (code: string) => CURRENCIES.find((c) => c.code === code)?.label ?? code;
 
 /**
  * The customer's country and currency. Each country has its own currencies
  * (Mauritania: ouguiya; Mali and Niger: franc or dollar; Algeria: dinar or
  * dollar; elsewhere: dollar). The country starts from the WhatsApp number.
+ * The store's language is chosen here too.
  */
 export default function CurrencySwitch() {
+  const t = useT();
+  const lang = useLang();
   const currency = useCurrency();
   const { me } = useMe();
   const region = useRegion(me?.phone);
@@ -43,16 +48,19 @@ export default function CurrencySwitch() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label={`البلد: ${REGION_LABEL[region]}، العملة: ${label(currency)}`}
+        aria-label={t('البلد: {region}، العملة: {currency}', {
+          region: t(REGION_LABEL[region]),
+          currency: t(label(currency)),
+        })}
         className="flex items-center gap-1.5 rounded-xl bg-[rgb(var(--surface-2))] px-3 py-2 text-xs font-bold"
       >
         <span aria-hidden>{FLAG[region]}</span>
-        {label(currency)}
+        {t(label(currency))}
       </button>
 
       {open && (
         <div className="surface absolute end-0 top-full z-50 mt-2 w-60 rounded-2xl p-3 shadow-float">
-          <div className="text-xs font-bold text-muted">بلدك</div>
+          <div className="text-xs font-bold text-muted">{t('بلدك')}</div>
           <div className="mt-1.5 flex flex-col">
             {REGIONS.map((r) => (
               <button
@@ -64,13 +72,13 @@ export default function CurrencySwitch() {
                 }`}
               >
                 <span aria-hidden>{FLAG[r.id]}</span>
-                {REGION_LABEL[r.id]}
+                {t(REGION_LABEL[r.id])}
               </button>
             ))}
           </div>
           {allowed.length > 1 && (
             <>
-              <div className="mt-3 text-xs font-bold text-muted">العملة</div>
+              <div className="mt-3 text-xs font-bold text-muted">{t('العملة')}</div>
               <div className="mt-1.5 flex gap-1.5">
                 {allowed.map((c) => (
                   <button
@@ -81,12 +89,29 @@ export default function CurrencySwitch() {
                       c === currency ? 'bg-teal text-white' : 'surface-2 text-muted'
                     }`}
                   >
-                    {label(c)}
+                    {t(label(c))}
                   </button>
                 ))}
               </div>
             </>
           )}
+          <div className="mt-3 text-xs font-bold text-muted">{t('اللغة')}</div>
+          <div className="mt-1.5 flex gap-1.5">
+            {/* each language in its own name */}
+            {LANGS.map((l) => (
+              <button
+                key={l.id}
+                lang={l.id}
+                onClick={() => l.id !== lang && setLang(l.id)}
+                aria-pressed={l.id === lang}
+                className={`flex-1 rounded-lg px-1.5 py-1.5 text-xs font-bold ${
+                  l.id === lang ? 'bg-teal text-white' : 'surface-2 text-muted'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,11 @@
 import Link from 'next/link';
+import { translate } from '@/lib/i18n/core';
+import { serverLang } from '@/lib/i18n/server';
 
-export const metadata = { title: 'كيف أشتري؟ | باترون' };
+export async function generateMetadata() {
+  const lang = await serverLang();
+  return { title: translate(lang, 'كيف أشتري؟ | باترون') };
+}
 
 const STEPS = [
   { t: 'اختر المنتج', d: 'ابحث عن اللعبة أو البطاقة أو الاشتراك، ثم اختر الفئة (القيمة) التي تريدها.' },
@@ -33,11 +38,14 @@ const FAQ = [
   },
 ];
 
-export default function HelpPage() {
+export default async function HelpPage() {
+  const lang = await serverLang();
+  const t = (ar: string) => translate(lang, ar);
+
   return (
     <div className="mx-auto max-w-[720px] px-4 py-8">
-      <h1 className="text-2xl font-extrabold">كيف أشتري؟</h1>
-      <p className="mt-1.5 text-sm text-muted">خمس خطوات بسيطة من الاختيار إلى الاستلام.</p>
+      <h1 className="text-2xl font-extrabold">{t('كيف أشتري؟')}</h1>
+      <p className="mt-1.5 text-sm text-muted">{t('خمس خطوات بسيطة من الاختيار إلى الاستلام.')}</p>
 
       <ol className="mt-6 space-y-3">
         {STEPS.map((s, i) => (
@@ -46,32 +54,32 @@ export default function HelpPage() {
               {i + 1}
             </span>
             <div>
-              <div className="font-bold">{s.t}</div>
-              <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.d}</p>
+              <div className="font-bold">{t(s.t)}</div>
+              <p className="mt-0.5 text-sm leading-relaxed text-muted">{t(s.d)}</p>
             </div>
           </li>
         ))}
       </ol>
 
-      <h2 className="mt-10 text-xl font-extrabold">أسئلة شائعة</h2>
+      <h2 className="mt-10 text-xl font-extrabold">{t('أسئلة شائعة')}</h2>
       <div className="mt-4 space-y-2.5">
         {FAQ.map((f) => (
           <details key={f.q} className="surface group rounded-2xl px-4 py-3.5 shadow-card">
             <summary className="cursor-pointer list-none font-bold marker:hidden">
               <span className="flex items-center justify-between gap-3">
-                {f.q}
+                {t(f.q)}
                 <span className="text-muted transition group-open:rotate-45">+</span>
               </span>
             </summary>
-            <p className="mt-2 text-sm leading-relaxed text-muted">{f.a}</p>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{t(f.a)}</p>
           </details>
         ))}
       </div>
 
       <p className="mt-8 text-sm text-muted">
-        اقرأ أيضًا{' '}
+        {t('اقرأ أيضًا')}{' '}
         <Link href="/terms" className="font-bold text-teal hover:underline">
-          الشروط وسياسة الاسترجاع
+          {t('الشروط وسياسة الاسترجاع')}
         </Link>
         .
       </p>

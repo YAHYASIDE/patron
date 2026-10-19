@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { BASE, catalog } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import type { Banner } from '@/lib/types';
 
 const TONE: Record<Banner['tone'], string> = {
@@ -59,6 +60,7 @@ function Card({ b }: { b: Banner }) {
 
 /** The owner's offers, swipeable, one after another every few seconds. */
 export default function Banners() {
+  const t = useT();
   const [list, setList] = useState<Banner[]>([]);
   const [at, setAt] = useState(0);
   const track = useRef<HTMLDivElement>(null);
@@ -85,7 +87,7 @@ export default function Banners() {
   if (list.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-page px-4 pt-5" aria-label="العروض">
+    <section className="mx-auto max-w-page px-4 pt-5" aria-label={t('العروض')}>
       <div
         ref={track}
         onScroll={(e) => {

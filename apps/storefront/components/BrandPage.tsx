@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { groupBrands, useCatalog, type Brand } from '@/lib/brands';
 import { useCurrency } from '@/lib/currency';
+import { useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
 import BrandView from './BrandView';
 
@@ -11,6 +12,7 @@ import BrandView from './BrandView';
  * the brand of a product id or SKU with that denomination selected (/products/:id).
  */
 export default function BrandPage({ brandKey, productRef }: { brandKey?: string; productRef?: string }) {
+  const t = useT();
   const currency = useCurrency();
   const { products, error, loading, reload } = useCatalog(currency);
   const brands: Brand[] = products ? groupBrands(products) : [];
@@ -32,15 +34,15 @@ export default function BrandPage({ brandKey, productRef }: { brandKey?: string;
   if (error || !brand) {
     return (
       <div className="mx-auto max-w-page px-4 py-20 text-center">
-        <p className="text-muted">{error ?? 'هذا المنتج غير متاح حاليًا.'}</p>
+        <p className="text-muted">{error ?? t('هذا المنتج غير متاح حاليًا.')}</p>
         <div className="mt-4 flex justify-center gap-4">
           {error && (
             <button onClick={reload} className="font-bold text-teal hover:underline">
-              إعادة المحاولة
+              {t('إعادة المحاولة')}
             </button>
           )}
           <Link href="/products" className="font-bold text-teal hover:underline">
-            تصفّح المتجر
+            {t('تصفّح المتجر')}
           </Link>
         </div>
       </div>

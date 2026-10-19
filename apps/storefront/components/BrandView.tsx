@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { cart } from '@/lib/cart';
 import { money } from '@/lib/format';
 import { denominationLabel, type Brand } from '@/lib/brands';
+import { tNow, useLang, useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
 import type { GameInput, Product } from '@/lib/types';
 import BrandTile from './BrandTile';
@@ -40,6 +41,10 @@ export default function BrandView({
   related: Brand[];
 }) {
   const router = useRouter();
+  const t = useT();
+  const lang = useLang();
+  // account input labels come from the game: English for French and English visitors
+  const labelOf = (f: GameInput) => (lang === 'ar' ? f.labelAr || f.labelEn : f.labelEn || f.labelAr);
   const section = sectionOf(brand);
   const firstAvailable = brand.products.find((p) => p.inStock !== false) ?? brand.products[0];
   const [selectedId, setSelectedId] = useState(
@@ -78,13 +83,13 @@ export default function BrandView({
     for (const f of schema) {
       const v = (inputs[f.key] ?? '').trim();
       if (f.required && !v) {
-        setErr(`اكتب ${f.labelAr || f.labelEn} أولًا.`);
+        setErr(tNow('اكتب {label} أولًا.', { label: labelOf(f) }));
         return false;
       }
       if (f.regex && v) {
         try {
           if (!new RegExp(f.regex).test(v)) {
-            setErr(`تحقّق من ${f.labelAr || f.labelEn}: الصيغة غير صحيحة.`);
+            setErr(tNow('تحقّق من {label}: الصيغة غير صحيحة.', { label: labelOf(f) }));
             return false;
           }
         } catch {
@@ -98,7 +103,7 @@ export default function BrandView({
 
   function addToCart(): boolean {
     if (product.inStock === false) {
-      setErr('هذه الفئة غير متوفّرة حاليًا، اختر فئة أخرى.');
+      setErr(tNow('هذه الفئة غير متوفّرة حاليًا، اختر فئة أخرى.'));
       return false;
     }
     if (!validate()) return false;
@@ -132,11 +137,11 @@ export default function BrandView({
     <div className="mx-auto max-w-page px-4 pb-32 pt-6 lg:pb-16">
       <nav className="mb-4 flex items-center gap-1.5 text-sm text-muted">
         <Link href="/products" className="hover:text-[rgb(var(--text))]">
-          المتجر
+          {t('المتجر')}
         </Link>
         <ChevronIcon size={14} />
         <Link href={`/products?s=${section.id}`} className="hover:text-[rgb(var(--text))]">
-          {section.label}
+          {t(section.label)}
         </Link>
       </nav>
 
@@ -156,7 +161,7 @@ export default function BrandView({
           <div className="min-w-0">
             <h1 className="text-xl font-extrabold leading-snug lg:text-2xl">{brand.title}</h1>
             <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-teal">
-              <BoltIcon size={13} /> {manual ? 'يُجهَّز بعد تأكيد الدفع' : 'يُسلَّم فور الدفع'}
+              <BoltIcon size={13} /> {manual ? t('يُجهَّز بعد تأكيد الدفع') : t('يُسلَّم فور الدفع')}
             </p>
             {product.description && (
               <p className="mt-2 hidden text-sm leading-relaxed text-muted sm:block">{product.description}</p>
@@ -166,12 +171,12 @@ export default function BrandView({
 
         <div className="flex flex-col gap-4">
           {schema.length > 0 && (
-            <Section n={1} title="بيانات الحساب">
+            <Section n={1} title={t('بيانات الحساب')}>
               <div className="grid gap-3 sm:grid-cols-2">
                 {schema.map((f) => (
                   <label key={f.key} className="flex flex-col gap-1.5">
                     <span className="text-sm font-semibold">
-                      {f.labelAr || f.labelEn}
+                      {labelOf(f)}
                       {f.required && <span className="text-bad"> *</span>}
                     </span>
                     <input
@@ -191,12 +196,12 @@ export default function BrandView({
                 ))}
               </div>
               <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-muted">
-                <ShieldIcon size={14} className="text-teal" /> لا نطلب كلمة المرور أبدًا.
+                <ShieldIcon size={14} className="text-teal" /> {t('لا نطلب كلمة المرور أبدًا.')}
               </p>
             </Section>
           )}
 
-          <Section n={step + 1} title="اختر الفئة">
+          <Section n={step + 1} title={t('اختر الفئة')}>
             <div role="radiogroup" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
               {brand.products.map((p) => {
                 const on = p.id === product.id;
@@ -230,7 +235,7 @@ export default function BrandView({
                         </span>
                       )}
                     </span>
-                    {out && <span className="text-[11px] font-bold text-bad">غير متوفّر</span>}
+                    {out && <span className="text-[11px] font-bold text-bad">{t('غير متوفّر')}</span>}
                     {on && (
                       <span className="absolute end-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-teal text-white">
                         <CheckIcon size={12} />
@@ -242,16 +247,16 @@ export default function BrandView({
             </div>
           </Section>
 
-          <Section n={step + 2} title="أكمل الشراء">
+          <Section n={step + 2} title={t('أكمل الشراء')}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-muted">الكمية</span>
+                <span className="text-sm font-semibold text-muted">{t('الكمية')}</span>
                 <div className="surface-2 flex items-center rounded-xl">
                   <button
                     onClick={() => setQty((q) => Math.max(1, q - 1))}
                     className="h-10 w-10 text-lg font-bold disabled:opacity-40"
                     disabled={qty <= 1}
-                    aria-label="إنقاص"
+                    aria-label={t('إنقاص')}
                   >
                     −
                   </button>
@@ -260,14 +265,14 @@ export default function BrandView({
                     onClick={() => setQty((q) => Math.min(cap, q + 1))}
                     className="h-10 w-10 text-lg font-bold disabled:opacity-40"
                     disabled={qty >= cap}
-                    aria-label="زيادة"
+                    aria-label={t('زيادة')}
                   >
                     +
                   </button>
                 </div>
               </div>
               <div className="text-end">
-                <div className="text-xs text-muted">الإجمالي</div>
+                <div className="text-xs text-muted">{t('الإجمالي')}</div>
                 <div className="tnum text-2xl font-extrabold text-teal">{money(total, product.currency)}</div>
               </div>
             </div>
@@ -284,13 +289,13 @@ export default function BrandView({
 
             <div className="mt-4 hidden gap-2.5 lg:flex">
               <button onClick={onBuyNow} className="btn-brand flex-1 rounded-xl py-3.5 text-[15px] font-bold">
-                اشترِ الآن
+                {t('اشترِ الآن')}
               </button>
               <button
                 onClick={onAdd}
                 className="rounded-xl border border-[rgb(var(--line))] px-6 text-[15px] font-bold transition hover:border-teal hover:text-teal"
               >
-                {added ? 'أُضيف إلى السلّة' : 'أضف إلى السلّة'}
+                {added ? t('أُضيف إلى السلّة') : t('أضف إلى السلّة')}
               </button>
             </div>
           </Section>
@@ -303,7 +308,7 @@ export default function BrandView({
 
       {related.length > 0 && (
         <section className="mt-12">
-          <h2 className="text-lg font-extrabold">من نفس القسم</h2>
+          <h2 className="text-lg font-extrabold">{t('من نفس القسم')}</h2>
           <div className="mt-4 grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-6 md:grid-cols-8">
             {related.map((b) => (
               <BrandTile key={b.key} brand={b} size="sm" />
@@ -321,13 +326,13 @@ export default function BrandView({
           </div>
           <button
             onClick={onAdd}
-            aria-label="أضف إلى السلّة"
+            aria-label={t('أضف إلى السلّة')}
             className="rounded-xl border border-[rgb(var(--line))] px-3.5 py-3 text-sm font-bold"
           >
-            {added ? 'أُضيف' : 'للسلّة'}
+            {added ? t('أُضيف') : t('للسلّة')}
           </button>
           <button onClick={onBuyNow} className="btn-brand rounded-xl px-6 py-3 text-[15px] font-bold">
-            اشترِ الآن
+            {t('اشترِ الآن')}
           </button>
         </div>
       </div>

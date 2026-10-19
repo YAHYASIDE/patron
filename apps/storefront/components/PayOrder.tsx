@@ -7,6 +7,7 @@ import { gatewayLabel, useUsableMethods, PAYMENT_WINDOW_MIN } from '@/lib/paymen
 import { REGIONS, REGION_LABEL, servesRegion, setRegion, useRegion } from '@/lib/regions';
 import { compressImage } from '@/lib/image';
 import { useMe } from '@/lib/session';
+import { useT, tNow } from '@/lib/i18n';
 import type { ManualAccount, Order } from '@/lib/types';
 import { CheckIcon } from './icons';
 import PayLogo from './PayLogo';
@@ -18,10 +19,10 @@ const field =
 
 function friendly(err: unknown, fallback: string) {
   if (!(err instanceof ApiError)) return fallback;
-  if (err.code === 'INSUFFICIENT_FUNDS' || /funds/i.test(err.message)) return 'رصيد محفظتك غير كافٍ.';
-  if (/not awaiting payment/i.test(err.message)) return 'انتهت مهلة الدفع لهذا الطلب. أنشئ طلبًا جديدًا.';
-  if (/already been reviewed/i.test(err.message)) return 'راجع المتجر هذا التحويل مسبقًا.';
-  if (err.code === 'PROOF_REQUIRED') return 'أرفق صورة التحويل.';
+  if (err.code === 'INSUFFICIENT_FUNDS' || /funds/i.test(err.message)) return tNow('رصيد محفظتك غير كافٍ.');
+  if (/not awaiting payment/i.test(err.message)) return tNow('انتهت مهلة الدفع لهذا الطلب. أنشئ طلبًا جديدًا.');
+  if (/already been reviewed/i.test(err.message)) return tNow('راجع المتجر هذا التحويل مسبقًا.');
+  if (err.code === 'PROOF_REQUIRED') return tNow('أرفق صورة التحويل.');
   return err.message;
 }
 
@@ -31,6 +32,7 @@ function friendly(err: unknown, fallback: string) {
  * for the owner to confirm the money arrived.
  */
 export function PayOrder({ order, initial, onChange }: { order: Order; initial?: string; onChange: () => void }) {
+  const t = useT();
   const methods = useUsableMethods(Number(order.total), order.currency);
   const [gateway, setGateway] = useState('');
   const [manual, setManual] = useState<Manual | null>(null);
@@ -50,7 +52,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
       const [pay, info] = await Promise.all([shop.pay(order.id, 'MANUAL'), shop.manualAccounts()]);
       setManual({ paymentId: pay.paymentId, accounts: info.accounts, note: info.note });
     } catch (err) {
-      setError(friendly(err, 'تعذّر تجهيز التحويل.'));
+      setError(friendly(err, tNow('تعذّر تجهيز التحويل.')));
     } finally {
       setBusy(false);
     }
@@ -62,15 +64,19 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
     const back = new URLSearchParams(window.location.search).get('card');
     if (!back || latest?.gateway !== 'STRIPE') return;
     window.history.replaceState(null, '', window.location.pathname);
-    if (back === 'cancelled') return setCardNote('لم يكتمل الدفع بالبطاقة. يمكنك المحاولة مجددًا.');
-    setCardNote('نتحقّق من الدفع بالبطاقة…');
+    if (back === 'cancelled') return setCardNote(tNow('لم يكتمل الدفع بالبطاقة. يمكنك المحاولة مجددًا.'));
+    setCardNote(tNow('نتحقّق من الدفع بالبطاقة…'));
     shop
       .confirmPayment(latest.id)
       .then((r) => {
         if (r.status === 'CAPTURED') return onChange();
-        setCardNote(r.status === 'FAILED' ? 'رُفض الدفع بالبطاقة. جرّب بطاقة أخرى أو التحويل.' : 'الدفع قيد المعالجة. حدّث الصفحة بعد قليل.');
+        setCardNote(
+          r.status === 'FAILED'
+            ? tNow('رُفض الدفع بالبطاقة. جرّب بطاقة أخرى أو التحويل.')
+            : tNow('الدفع قيد المعالجة. حدّث الصفحة بعد قليل.'),
+        );
       })
-      .catch(() => setCardNote('تعذّر التحقّق من الدفع. حدّث الصفحة.'));
+      .catch(() => setCardNote(tNow('تعذّر التحقّق من الدفع. حدّث الصفحة.')));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -96,8 +102,8 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
     } catch (err) {
       setError(
         gateway === 'STRIPE' && err instanceof ApiError && err.status === 400 && !err.code
-          ? 'تعذّر فتح صفحة الدفع بالبطاقة الآن. حاول بعد قليل أو ادفع بالتحويل.'
-          : friendly(err, 'تعذّر إتمام الدفع.'),
+          ? tNow('تعذّر فتح صفحة الدفع بالبطاقة الآن. حاول بعد قليل أو ادفع بالتحويل.')
+          : friendly(err, tNow('تعذّر إتمام الدفع.')),
       );
     } finally {
       setBusy(false);
@@ -112,15 +118,15 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
             <CheckIcon size={20} />
           </span>
           <div>
-            <h2 className="font-bold">وصلنا تحويلك، بانتظار تأكيد المتجر</h2>
+            <h2 className="font-bold">{t('وصلنا تحويلك، بانتظار تأكيد المتجر')}</h2>
             <p className="mt-1 text-sm text-muted">
-              نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.
+              {t('نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.')}
             </p>
           </div>
         </div>
         <div className="mt-4 flex gap-2">
           <button onClick={onChange} className="btn-brand rounded-xl px-4 py-2 text-sm font-bold">
-            تحديث
+            {t('تحديث')}
           </button>
           <button
             onClick={() => {
@@ -129,7 +135,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
             }}
             className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold text-muted"
           >
-            تصحيح بيانات التحويل
+            {t('تصحيح بيانات التحويل')}
           </button>
         </div>
       </div>
@@ -138,9 +144,10 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
 
   return (
     <div className="surface mt-6 rounded-2xl p-5 shadow-card">
-      <h2 className="text-base font-bold">ادفع لإتمام الطلب</h2>
+      <h2 className="text-base font-bold">{t('ادفع لإتمام الطلب')}</h2>
       <p className="mt-1 text-sm text-muted">
-        المبلغ: <b className="tnum text-[rgb(var(--text))]">{money(order.total, order.currency)}</b> · أكمل الدفع خلال {PAYMENT_WINDOW_MIN} دقيقة من إنشاء الطلب.
+        {t('المبلغ:')} <b className="tnum text-[rgb(var(--text))]">{money(order.total, order.currency)}</b> ·{' '}
+        {t('أكمل الدفع خلال {n} دقيقة من إنشاء الطلب.', { n: PAYMENT_WINDOW_MIN })}
       </p>
 
       {cardNote && (
@@ -149,13 +156,13 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
 
       {rejected && (
         <p className="mt-3 rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
-          لم يُقبل التحويل السابق: {rejected}. يمكنك المحاولة مجددًا.
+          {t('لم يُقبل التحويل السابق: {reason}. يمكنك المحاولة مجددًا.', { reason: rejected })}
         </p>
       )}
 
-      {methods === null && <p className="mt-4 text-sm text-muted">جارٍ التحميل…</p>}
+      {methods === null && <p className="mt-4 text-sm text-muted">{t('جارٍ التحميل…')}</p>}
       {methods?.length === 0 && (
-        <p className="mt-4 text-sm text-muted">لا توجد وسيلة دفع متاحة حاليًا. تواصل مع المتجر.</p>
+        <p className="mt-4 text-sm text-muted">{t('لا توجد وسيلة دفع متاحة حاليًا. تواصل مع المتجر.')}</p>
       )}
 
       {manual ? (
@@ -183,7 +190,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
                   }
                 >
                   <input type="radio" name="gateway" checked={gateway === m} onChange={() => setGateway(m)} className="accent-teal" />
-                  <span className="flex-1 text-[15px] font-semibold">{gatewayLabel(m)}</span>
+                  <span className="flex-1 text-[15px] font-semibold">{gatewayLabel(m, t)}</span>
                   {m === 'STRIPE' && (
                     <span className="flex gap-1">
                       <PayLogo logo="visa" name="Visa" size={28} />
@@ -198,7 +205,13 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
               disabled={busy || !gateway}
               className="btn-brand mt-4 w-full rounded-xl py-3 text-[15px] font-bold disabled:opacity-60"
             >
-              {busy ? 'جارٍ…' : gateway === 'MANUAL' ? 'عرض وسائل التحويل' : gateway === 'STRIPE' ? 'ادفع بالبطاقة' : 'ادفع الآن'}
+              {busy
+                ? t('جارٍ…')
+                : gateway === 'MANUAL'
+                  ? t('عرض وسائل التحويل')
+                  : gateway === 'STRIPE'
+                    ? t('ادفع بالبطاقة')
+                    : t('ادفع الآن')}
             </button>
           </>
         )
@@ -230,6 +243,7 @@ function TransferForm({
   onBack?: () => void;
   onDone: () => void;
 }) {
+  const t = useT();
   const { me } = useMe();
   const region = useRegion(me?.phone);
   const accounts = manual.accounts.filter((a) => servesRegion(a.countries, region));
@@ -242,19 +256,12 @@ function TransferForm({
     if (ownNumber && account?.kind !== 'crypto') setPayerPhone((v) => v || ownNumber);
   }, [ownNumber, account?.kind]);
   const [reference, setReference] = useState('');
-  const [image, setImage] = useState<{ blob: Blob; url: string } | null>(null);
+  const [image, setImage] = useState<{ blob: Blob } | null>(null);
   const [uploaded, setUploaded] = useState<Blob | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(
-    () => () => {
-      if (image) URL.revokeObjectURL(image.url);
-    },
-    [image],
-  );
 
   async function copy(id: string, text: string) {
     try {
@@ -270,17 +277,17 @@ function TransferForm({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) return setError('اختر صورة (لقطة شاشة للتحويل).');
+    if (!file.type.startsWith('image/')) return setError(tNow('اختر صورة (لقطة شاشة للتحويل).'));
     setError(null);
     const blob = await compressImage(file);
-    setImage({ blob, url: URL.createObjectURL(blob) });
+    setImage({ blob });
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!account) return;
-    if (payerPhone.trim().length < 4) return setError(`اكتب ${PAID_FROM[account.kind].label}.`);
-    if (!image) return setError('أرفق صورة التحويل (لقطة شاشة من التطبيق).');
+    if (payerPhone.trim().length < 4) return setError(tNow('اكتب {label}.', { label: tNow(PAID_FROM[account.kind].label) }));
+    if (!image) return setError(tNow('أرفق صورة التحويل (لقطة شاشة من التطبيق).'));
     setBusy(true);
     setError(null);
     try {
@@ -298,8 +305,8 @@ function TransferForm({
     } catch (err) {
       setError(
         err instanceof ApiError && /JPEG, PNG or WebP|too large/i.test(err.message)
-          ? 'تعذّر قبول الصورة. أرسل لقطة شاشة بصيغة JPG أو PNG.'
-          : friendly(err, 'تعذّر إرسال التحويل.'),
+          ? tNow('تعذّر قبول الصورة. أرسل لقطة شاشة بصيغة JPG أو PNG.')
+          : friendly(err, tNow('تعذّر إرسال التحويل.')),
       );
     } finally {
       setBusy(false);
@@ -310,7 +317,7 @@ function TransferForm({
     <form onSubmit={submit} className="mt-4 flex flex-col gap-5">
       <div className="surface-2 flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-sm">
         <span>
-          تدفع من: <b>{REGION_LABEL[region]}</b>
+          {t('تدفع من:')} <b>{t(REGION_LABEL[region])}</b>
         </span>
         <select
           value={region}
@@ -318,12 +325,12 @@ function TransferForm({
             setRegion(e.target.value);
             setAccountId('');
           }}
-          aria-label="بلد الدفع"
+          aria-label={t('بلد الدفع')}
           className="rounded-lg bg-transparent text-sm font-bold text-teal outline-none"
         >
           {REGIONS.map((r) => (
             <option key={r.id} value={r.id}>
-              {REGION_LABEL[r.id]}
+              {t(REGION_LABEL[r.id])}
             </option>
           ))}
         </select>
@@ -331,12 +338,12 @@ function TransferForm({
 
       {accounts.length === 0 ? (
         <p className="rounded-xl border border-dashed border-[rgb(var(--line))] px-4 py-5 text-center text-sm text-muted">
-          لا توجد وسيلة دفع لهذا البلد بعد. راسلنا على واتساب لنساعدك في الدفع.
+          {t('لا توجد وسيلة دفع لهذا البلد بعد. راسلنا على واتساب لنساعدك في الدفع.')}
         </p>
       ) : (
         <>
           <div>
-            <div className="text-sm font-bold">1. اختر الوسيلة وحوّل المبلغ</div>
+            <div className="text-sm font-bold">1. {t('اختر الوسيلة وحوّل المبلغ')}</div>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {accounts.map((a) => (
                 <button
@@ -373,13 +380,13 @@ function TransferForm({
                     onClick={() => copy(account.id, account.accountNumber)}
                     className="flex-none rounded-lg border border-[rgb(var(--line))] px-2.5 py-1 text-xs font-bold text-muted"
                   >
-                    {copied === account.id ? 'نُسخ ✓' : 'نسخ'}
+                    {copied === account.id ? t('نُسخ ✓') : t('نسخ')}
                   </button>
                 </div>
                 {account.instructions && <p className="mt-2 text-xs text-muted">{account.instructions}</p>}
                 <p className="mt-2.5 text-sm">
-                  المبلغ: <b className="tnum text-teal">{money(order.total, order.currency)}</b> · اكتب رقم الطلب{' '}
-                  <b dir="ltr">{order.orderNumber}</b> في ملاحظة التحويل إن أمكن.
+                  {t('المبلغ:')} <b className="tnum text-teal">{money(order.total, order.currency)}</b> ·{' '}
+                  {t('اكتب رقم الطلب')} <b dir="ltr">{order.orderNumber}</b> {t('في ملاحظة التحويل إن أمكن.')}
                 </p>
               </div>
             )}
@@ -388,7 +395,7 @@ function TransferForm({
 
           {account && (
             <div className="flex flex-col gap-2.5">
-              <div className="text-sm font-bold">2. {PAID_FROM[account.kind].label}</div>
+              <div className="text-sm font-bold">2. {t(PAID_FROM[account.kind].label)}</div>
               <input
                 className={field}
                 value={payerPhone}
@@ -396,24 +403,23 @@ function TransferForm({
                 maxLength={120}
                 dir="ltr"
                 inputMode={account.kind === 'crypto' ? 'text' : 'tel'}
-                placeholder={PAID_FROM[account.kind].hint}
+                placeholder={t(PAID_FROM[account.kind].hint)}
               />
             </div>
           )}
 
           <div className="flex flex-col gap-2.5">
-            <div className="text-sm font-bold">3. صورة التحويل</div>
+            <div className="text-sm font-bold">3. {t('صورة التحويل')}</div>
             <input ref={fileRef} type="file" accept="image/*" onChange={pick} className="hidden" />
             {image ? (
               <div className="flex items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element -- a local preview (blob URL) */}
-                <img src={image.url} alt="صورة التحويل" className="h-24 w-20 rounded-xl border border-[rgb(var(--line))] object-cover" />
+                <ReceiptPreview blob={image.blob} label={t('صورة التحويل')} />
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold text-muted"
                 >
-                  تغيير الصورة
+                  {t('تغيير الصورة')}
                 </button>
               </div>
             ) : (
@@ -422,8 +428,8 @@ function TransferForm({
                 onClick={() => fileRef.current?.click()}
                 className="flex flex-col items-center gap-1 rounded-xl border-2 border-dashed border-[rgb(var(--line))] px-4 py-5 text-sm transition hover:border-teal"
               >
-                <span className="font-bold text-teal">+ أرفق لقطة شاشة للتحويل</span>
-                <span className="text-xs text-muted">تظهر فيها العملية والمبلغ</span>
+                <span className="font-bold text-teal">+ {t('أرفق لقطة شاشة للتحويل')}</span>
+                <span className="text-xs text-muted">{t('تظهر فيها العملية والمبلغ')}</span>
               </button>
             )}
             <input
@@ -432,7 +438,7 @@ function TransferForm({
               onChange={(e) => setReference(e.target.value)}
               maxLength={100}
               dir="ltr"
-              placeholder="رقم العملية (اختياري) / Transaction ID"
+              placeholder={t('رقم العملية (اختياري) / Transaction ID')}
             />
           </div>
         </>
@@ -447,15 +453,52 @@ function TransferForm({
       <div className="flex gap-2">
         {accounts.length > 0 && (
           <button type="submit" disabled={busy} className="btn-brand flex-1 rounded-xl py-3 text-[15px] font-bold disabled:opacity-60">
-            {busy ? 'جارٍ الإرسال…' : 'أرسلت المبلغ'}
+            {busy ? t('جارٍ الإرسال…') : t('أرسلت المبلغ')}
           </button>
         )}
         {onBack && (
           <button type="button" onClick={onBack} className="rounded-xl border border-[rgb(var(--line))] px-4 py-3 text-sm font-bold text-muted">
-            رجوع
+            {t('رجوع')}
           </button>
         )}
       </div>
     </form>
+  );
+}
+
+/**
+ * The chosen screenshot, drawn on a canvas: the picture never goes through a
+ * URL, so nothing the customer picked is ever read back as markup.
+ */
+function ReceiptPreview({ blob, label }: { blob: Blob; label: string }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    let alive = true;
+    createImageBitmap(blob)
+      .then((bitmap) => {
+        const el = canvas.current;
+        const ctx = el?.getContext('2d');
+        if (!alive || !el || !ctx) return bitmap.close();
+        // cover an 80×96 box, at twice the pixels for sharp phone screens
+        el.width = 160;
+        el.height = 192;
+        const scale = Math.max(el.width / bitmap.width, el.height / bitmap.height);
+        const w = bitmap.width * scale;
+        const h = bitmap.height * scale;
+        ctx.drawImage(bitmap, (el.width - w) / 2, (el.height - h) / 2, w, h);
+        bitmap.close();
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [blob]);
+  return (
+    <canvas
+      ref={canvas}
+      role="img"
+      aria-label={label}
+      className="h-24 w-20 rounded-xl border border-[rgb(var(--line))] bg-[rgb(var(--surface-2))]"
+    />
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { ApiError } from './api';
 import { cart, type CartItem } from './cart';
+import { tNow } from './i18n';
 
 /** Client-side data fetching with loading/error, and a manual reload. */
 export function useFetch<T>(fn: () => Promise<T>, deps: unknown[] = []) {
@@ -20,7 +21,7 @@ export function useFetch<T>(fn: () => Promise<T>, deps: unknown[] = []) {
     setError(null);
     run()
       .then((d) => alive && setData(d))
-      .catch((e) => alive && setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقّع.'))
+      .catch((e) => alive && setError(e instanceof ApiError ? e.message : tNow('حدث خطأ غير متوقّع.')))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;

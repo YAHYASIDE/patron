@@ -8,8 +8,9 @@ export const GATEWAY_LABELS: Record<string, string> = {
   MANUAL: 'تحويل (بنكيلي، مصرفي، أورنج موني، Binance…)',
   STRIPE: 'بطاقة بنكية',
 };
-export function gatewayLabel(g: string) {
-  return GATEWAY_LABELS[g] ?? g;
+/** A gateway's name, in the page's language (`t` from useT()). */
+export function gatewayLabel(g: string, t: (ar: string) => string) {
+  return GATEWAY_LABELS[g] ? t(GATEWAY_LABELS[g]) : g;
 }
 
 /** Unpaid orders are cancelled after this many minutes (maintenance job). */

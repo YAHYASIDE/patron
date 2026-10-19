@@ -1,16 +1,19 @@
+'use client';
+
 import type { Order } from '@/lib/types';
-import { LOCALE } from '@/lib/format';
+import { locale } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import { CheckIcon } from './icons';
 
 type Step = { t: string; d?: string; state: 'done' | 'now' | 'todo' };
 
 function when(iso?: string | null): string | undefined {
   if (!iso) return undefined;
-  return new Date(iso).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
 /** Where an order stands, in the four steps a customer cares about. */
-function steps(order: Order): Step[] | null {
+function steps(order: Order, t: (ar: string) => string): Step[] | null {
   const s = order.status;
   if (['CANCELLED', 'FAILED', 'REFUNDED'].includes(s)) return null;
   const latest = [...(order.payments ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
@@ -19,17 +22,17 @@ function steps(order: Order): Step[] | null {
   const done = s === 'COMPLETED';
 
   return [
-    { t: 'تم استلام الطلب', d: when(order.createdAt), state: 'done' },
+    { t: t('تم استلام الطلب'), d: when(order.createdAt), state: 'done' },
     {
-      t: paid ? 'تم تأكيد الدفع' : reviewing ? 'نراجع تحويلك' : 'بانتظار الدفع',
-      d: paid ? when(order.paidAt) : reviewing ? 'نؤكّده خلال وقت قصير' : undefined,
+      t: paid ? t('تم تأكيد الدفع') : reviewing ? t('نراجع تحويلك') : t('بانتظار الدفع'),
+      d: paid ? when(order.paidAt) : reviewing ? t('نؤكّده خلال وقت قصير') : undefined,
       state: paid ? 'done' : 'now',
     },
     {
-      t: s === 'PARTIALLY_COMPLETED' ? 'سُلّم جزء من الطلب' : 'نجهّز طلبك',
+      t: s === 'PARTIALLY_COMPLETED' ? t('سُلّم جزء من الطلب') : t('نجهّز طلبك'),
       state: done ? 'done' : paid ? 'now' : 'todo',
     },
-    { t: 'تم التسليم', d: when(order.completedAt), state: done ? 'done' : 'todo' },
+    { t: t('تم التسليم'), d: when(order.completedAt), state: done ? 'done' : 'todo' },
   ];
 }
 
@@ -40,19 +43,20 @@ const ENDED: Record<string, { t: string; d: string }> = {
 };
 
 export default function OrderTimeline({ order }: { order: Order }) {
-  const list = steps(order);
+  const t = useT();
+  const list = steps(order, t);
   if (!list) {
     const e = ENDED[order.status];
     return (
       <div className="surface mt-5 rounded-2xl border border-bad/25 p-4 shadow-card">
-        <div className="font-bold text-bad">{e?.t ?? order.status}</div>
-        {e && <p className="mt-0.5 text-sm text-muted">{e.d}</p>}
+        <div className="font-bold text-bad">{e ? t(e.t) : order.status}</div>
+        {e && <p className="mt-0.5 text-sm text-muted">{t(e.d)}</p>}
       </div>
     );
   }
 
   return (
-    <ol className="surface mt-5 rounded-2xl p-4 shadow-card sm:p-5" aria-label="حالة الطلب">
+    <ol className="surface mt-5 rounded-2xl p-4 shadow-card sm:p-5" aria-label={t('حالة الطلب')}>
       {list.map((st, i) => (
         <li key={st.t} className="relative flex gap-3 pb-5 last:pb-0">
           {i < list.length - 1 && (

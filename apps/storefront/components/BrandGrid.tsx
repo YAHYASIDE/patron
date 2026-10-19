@@ -1,6 +1,7 @@
 'use client';
 
 import type { Brand } from '@/lib/brands';
+import { useT } from '@/lib/i18n';
 import { SECTIONS, sectionOf } from '@/lib/sections';
 import BrandTile, { BrandTileSkeleton } from './BrandTile';
 
@@ -28,28 +29,29 @@ export function SectionTabs({
   value: string | null;
   onChange: (id: string | null) => void;
 }) {
+  const t = useT();
   const present = new Set(brands.map((b) => sectionOf(b).id));
-  const tabs = [{ id: null as string | null, label: 'الكل' }].concat(
-    SECTIONS.filter((s) => present.has(s.id)).map((s) => ({ id: s.id, label: s.label })),
+  const tabs = [{ id: null as string | null, label: t('الكل') }].concat(
+    SECTIONS.filter((s) => present.has(s.id)).map((s) => ({ id: s.id, label: t(s.label) })),
   );
 
   return (
     <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div role="tablist" className="flex w-max gap-2">
-        {tabs.map((t) => (
+        {tabs.map((tab) => (
           <button
-            key={t.id ?? 'all'}
+            key={tab.id ?? 'all'}
             role="tab"
-            aria-selected={value === t.id}
-            onClick={() => onChange(t.id)}
+            aria-selected={value === tab.id}
+            onClick={() => onChange(tab.id)}
             className={
               'whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ' +
-              (value === t.id
+              (value === tab.id
                 ? 'bg-teal text-white'
                 : 'surface text-muted hover:border-teal hover:text-[rgb(var(--text))]')
             }
           >
-            {t.label}
+            {tab.label}
           </button>
         ))}
       </div>

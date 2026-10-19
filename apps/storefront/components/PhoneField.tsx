@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { searchCountries, type Country } from '@/lib/countries';
+import { useLang, useT } from '@/lib/i18n';
 import { CloseIcon, SearchIcon } from './icons';
 
 /** WhatsApp number: a searchable country (Mauritania first) and the national number. */
@@ -18,11 +19,13 @@ export default function PhoneField({
   onChange: (v: string) => void;
   autoFocus?: boolean;
 }) {
+  const t = useT();
+  const lang = useLang();
   const [open, setOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-semibold">رقم واتساب</span>
+      <span className="text-sm font-semibold">{t('رقم واتساب')}</span>
       {/* number first in the reading order of a phone number: country code on the left */}
       <div
         dir="ltr"
@@ -31,7 +34,7 @@ export default function PhoneField({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label={`الدولة: ${country.ar}. تغيير الدولة`}
+          aria-label={t('الدولة: {name}. تغيير الدولة', { name: country[lang] })}
           className="flex flex-none items-center gap-1.5 border-e border-[rgb(var(--line))] px-3 text-[15px] font-bold transition hover:bg-[rgb(var(--line))]/40"
         >
           <span className="text-xl leading-none">{country.flag}</span>
@@ -48,7 +51,7 @@ export default function PhoneField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={country.iso === 'MR' ? '22 12 34 56' : ''}
-          aria-label="رقم واتساب"
+          aria-label={t('رقم واتساب')}
           className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-[16px] tracking-wide outline-none"
         />
       </div>
@@ -75,6 +78,8 @@ function CountrySheet({
   onPick: (c: Country) => void;
   current: Country;
 }) {
+  const t = useT();
+  const lang = useLang();
   const [q, setQ] = useState('');
   const list = useMemo(() => searchCountries(q), [q]);
   const input = useRef<HTMLInputElement>(null);
@@ -98,15 +103,15 @@ function CountrySheet({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="اختر الدولة"
+        aria-label={t('اختر الدولة')}
         onClick={(e) => e.stopPropagation()}
         className="surface flex max-h-[85dvh] w-full flex-col rounded-t-3xl shadow-float sm:max-w-md sm:rounded-3xl"
       >
         <div className="flex items-center justify-between px-5 pt-4">
-          <h2 className="text-base font-extrabold">اختر دولتك</h2>
+          <h2 className="text-base font-extrabold">{t('اختر دولتك')}</h2>
           <button
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t('إغلاق')}
             className="grid h-9 w-9 place-items-center rounded-xl text-muted hover:bg-[rgb(var(--surface-2))]"
           >
             <CloseIcon size={18} />
@@ -118,8 +123,8 @@ function CountrySheet({
             ref={input}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="ابحث عن دولتك أو رمزها"
-            aria-label="ابحث عن دولتك"
+            placeholder={t('ابحث عن دولتك أو رمزها')}
+            aria-label={t('ابحث عن دولتك')}
             className="w-full bg-transparent text-[15px] outline-none"
           />
         </label>
@@ -134,7 +139,7 @@ function CountrySheet({
                 }
               >
                 <span className="text-2xl leading-none">{c.flag}</span>
-                <span className="flex-1 text-[15px]">{c.ar}</span>
+                <span className="flex-1 text-[15px]">{c[lang]}</span>
                 <span dir="ltr" className="tnum text-sm text-muted">
                   +{c.dial}
                 </span>
@@ -142,7 +147,7 @@ function CountrySheet({
             </li>
           ))}
           {list.length === 0 && (
-            <li className="px-3 py-8 text-center text-sm text-muted">لا توجد دولة بهذا الاسم.</li>
+            <li className="px-3 py-8 text-center text-sm text-muted">{t('لا توجد دولة بهذا الاسم.')}</li>
           )}
         </ul>
       </div>

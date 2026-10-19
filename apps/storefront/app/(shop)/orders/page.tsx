@@ -7,6 +7,7 @@ import { isAuthed, shop } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import type { Cursored, Order } from '@/lib/types';
 import { ChevronIcon } from '@/components/icons';
+import { useT, useLang } from '@/lib/i18n';
 
 const STATUS: Record<string, { t: string; c: string }> = {
   COMPLETED: { t: 'مكتمل', c: 'bg-ok/12 text-ok' },
@@ -24,6 +25,8 @@ function chip(s: string) {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const t = useT();
+  const lang = useLang();
   useEffect(() => {
     if (!isAuthed()) router.replace('/login?next=/orders');
   }, [router]);
@@ -32,18 +35,20 @@ export default function OrdersPage() {
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
-      <h1 className="text-2xl font-extrabold">طلباتي</h1>
+      <h1 className="text-2xl font-extrabold">{t('طلباتي')}</h1>
 
-      {res.loading && <p className="mt-6 text-sm text-muted">جارٍ التحميل…</p>}
+      {res.loading && <p className="mt-6 text-sm text-muted">{t('جارٍ التحميل…')}</p>}
       {res.error && (
-        <div className="mt-6 rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{res.error}</div>
+        <div className="mt-6 rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">
+          {res.error}
+        </div>
       )}
 
       {!res.loading && (res.data?.data.length ?? 0) === 0 && !res.error && (
         <div className="mt-8 rounded-2xl border border-[rgb(var(--line))] p-10 text-center text-muted">
-          لا توجد طلبات بعد.{' '}
+          {t('لا توجد طلبات بعد.')}{' '}
           <Link href="/products" className="font-bold text-teal hover:underline">
-            ابدأ التسوّق
+            {t('ابدأ التسوّق')}
           </Link>
         </div>
       )}
@@ -62,10 +67,15 @@ export default function OrdersPage() {
                   <span className="font-bold" dir="ltr">
                     {o.orderNumber}
                   </span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${c.c}`}>{c.t}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${c.c}`}>{t(c.t)}</span>
                 </div>
                 <p className="mt-1 line-clamp-1 text-sm text-muted">
-                  {o.items.map((it) => `${it.productNameAr || it.productNameEn} ×${it.quantity}`).join('، ')}
+                  {o.items
+                    .map(
+                      (it) =>
+                        `${lang === 'ar' ? it.productNameAr || it.productNameEn : it.productNameEn || it.productNameAr} ×${it.quantity}`,
+                    )
+                    .join(lang === 'ar' ? '، ' : ', ')}
                 </p>
               </div>
               <ChevronIcon className="flex-none text-muted" />

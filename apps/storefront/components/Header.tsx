@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/lib/hooks';
 import { isAuthed } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { CartIcon, MenuIcon, CloseIcon, UserIcon } from './icons';
 import ThemeToggle from './ThemeToggle';
 import CurrencySwitch from './CurrencySwitch';
@@ -16,6 +17,7 @@ const NAV = [
 ];
 
 export default function Header() {
+  const t = useT();
   const { count } = useCart();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -35,18 +37,18 @@ export default function Header() {
             P
           </span>
           <span className="text-lg font-extrabold">
-            باترون<span className="text-gold">.</span>
+            {t('باترون')}<span className="text-gold">.</span>
           </span>
         </Link>
 
-        <nav className="mr-4 hidden items-center gap-1 lg:flex">
+        <nav className="ms-4 hidden items-center gap-1 lg:flex">
           {NAV.map((n) => (
             <Link
               key={n.label}
               href={n.href}
               className="rounded-lg px-3 py-2 text-[15px] font-semibold text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
             >
-              {n.label}
+              {t(n.label)}
             </Link>
           ))}
         </nav>
@@ -59,26 +61,26 @@ export default function Header() {
           </div>
           <Link
             href={authed ? '/account' : '/login'}
-            aria-label={authed ? 'حسابي' : 'تسجيل الدخول'}
+            aria-label={authed ? t('حسابي') : t('تسجيل الدخول')}
             className="grid h-10 w-10 place-items-center rounded-xl text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
           >
             <UserIcon size={20} />
           </Link>
           <Link
             href="/cart"
-            aria-label="السلّة"
+            aria-label={t('السلّة')}
             className="relative grid h-10 w-10 place-items-center rounded-xl text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
           >
             <CartIcon size={20} />
             {count > 0 && (
-              <span className="absolute -top-0.5 -left-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-teal px-1 text-[11px] font-bold text-white tnum">
+              <span className="absolute -top-0.5 -end-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-teal px-1 text-[11px] font-bold text-white tnum">
                 {count}
               </span>
             )}
           </Link>
           <button
             onClick={() => setOpen((o) => !o)}
-            aria-label="القائمة"
+            aria-label={t('القائمة')}
             className="grid h-10 w-10 place-items-center rounded-xl text-muted hover:bg-[rgb(var(--surface-2))] lg:hidden"
           >
             {open ? <CloseIcon size={20} /> : <MenuIcon size={20} />}
@@ -94,11 +96,11 @@ export default function Header() {
               href={n.href}
               className="block rounded-lg px-3 py-2.5 text-[15px] font-semibold text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
             >
-              {n.label}
+              {t(n.label)}
             </Link>
           ))}
           <div className="flex items-center justify-between px-3 py-1.5 sm:hidden">
-            <span className="text-[15px] font-semibold text-muted">الوضع الليلي</span>
+            <span className="text-[15px] font-semibold text-muted">{t('الوضع الليلي')}</span>
             <ThemeToggle />
           </div>
         </nav>

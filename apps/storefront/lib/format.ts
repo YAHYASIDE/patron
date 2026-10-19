@@ -1,12 +1,14 @@
-/** Arabic-locale formatting helpers for the storefront. */
+/** Formatting helpers for the storefront, in the page's language (Latin digits always). */
 
-// Arabic words with Latin ("French") digits, the way customers here write numbers.
-export const LOCALE = 'ar-EG-u-nu-latn';
+import { getLang, localeOf, translate } from './i18n';
+
+/** Arabic words with Latin ("French") digits, or the French / English locale. */
+export const locale = () => localeOf(getLang());
 
 export function num(n: number | string | null | undefined, digits = 0): string {
   const v = typeof n === 'string' ? parseFloat(n) : (n ?? 0);
   if (!isFinite(v as number)) return '—';
-  return (v as number).toLocaleString(LOCALE, {
+  return (v as number).toLocaleString(locale(), {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
@@ -18,7 +20,7 @@ export function money(
   currency = 'USD',
   digits = 2,
 ): string {
-  const sym = SYMBOLS[currency] ?? currency;
+  const sym = currencySymbol(currency);
   // ouguiya, franc and dinar prices are whole numbers: no ",00"
   const whole = WHOLE.has(currency) && Number.isInteger(typeof n === 'string' ? parseFloat(n) : n);
   return `${num(n, whole ? 0 : digits)} ${sym}`;
@@ -39,5 +41,5 @@ const SYMBOLS: Record<string, string> = {
 };
 
 export function currencySymbol(code: string): string {
-  return SYMBOLS[code] ?? code;
+  return SYMBOLS[code] ? translate(getLang(), SYMBOLS[code]) : code;
 }

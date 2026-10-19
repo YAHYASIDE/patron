@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { WAKING_EVENT } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 
 /** Shown while the API is waking from a free-tier sleep (see lib/api.ts). */
 export default function WakeBanner() {
+  const t = useT();
   const [waking, setWaking] = useState(false);
 
   useEffect(() => {
@@ -18,7 +20,7 @@ export default function WakeBanner() {
     <div role="status" className="border-b border-teal/20 bg-teal/10">
       <div className="mx-auto flex max-w-page items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-teal">
         <span className="h-4 w-4 flex-none animate-spin rounded-full border-2 border-teal/30 border-t-teal" />
-        جارٍ تشغيل المتجر، لحظات وتظهر المنتجات…
+        {t('جارٍ تشغيل المتجر، لحظات وتظهر المنتجات…')}
       </div>
     </div>
   );

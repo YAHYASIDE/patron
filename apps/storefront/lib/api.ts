@@ -12,6 +12,22 @@ import type {
   Quote,
   TokenPair,
 } from './types';
+import { getLang, tNow } from './i18n';
+
+/**
+ * In French or English the catalogue shows the English names: products carry
+ * nameAr and nameEn, and the rest of the store reads nameAr. Swapping here
+ * once keeps every card, cart line and brand title in the visitor's language.
+ */
+function localizeProduct(p: Product): Product {
+  if (getLang() === 'ar') return p;
+  return {
+    ...p,
+    nameAr: p.nameEn || p.nameAr,
+    category: p.category && { ...p.category, nameAr: p.category.nameEn || p.category.nameAr },
+    game: p.game && { ...p.game, nameAr: p.game.nameEn || p.game.nameAr },
+  };
+}
 
 /**
  * Storefront API client for the public Patron API (/api/v1).
@@ -119,7 +135,7 @@ async function fetchWaking(url: string, init: RequestInit, retryable: boolean): 
         res !== null && res.status >= 502 && res.status <= 504 && !(res.headers.get('content-type') ?? '').includes('json');
       if (res !== null && !gatewayPage) return res;
       if (!retryable || attempt >= WAKE_DELAYS_MS.length) {
-        throw new ApiError(0, 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت ثم حدّث الصفحة.');
+        throw new ApiError(0, tNow('تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت ثم حدّث الصفحة.'));
       }
       if (!counted) {
         counted = true;
@@ -175,7 +191,9 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
 
   if (!res.ok) {
     const d = (data ?? {}) as { message?: string | string[]; error?: string };
-    const msg = Array.isArray(d.message) ? d.message.join('، ') : d.message || d.error || `خطأ ${res.status}`;
+    const msg = Array.isArray(d.message)
+      ? d.message.join(getLang() === 'ar' ? '، ' : ', ')
+      : d.message || d.error || tNow('خطأ {status}', { status: res.status });
     throw new ApiError(res.status, msg, d.error);
   }
   return data as T;
@@ -278,10 +296,13 @@ export const catalog = {
       limit?: number;
     } = {},
   ) {
-    return request<Paginated<Product>>(`/catalog/products${qs(params)}`);
+    return request<Paginated<Product>>(`/catalog/products${qs(params)}`).then((r) => ({
+      ...r,
+      data: r.data.map(localizeProduct),
+    }));
   },
   product(idOrSku: string, currency?: string) {
-    return request<Product>(`/catalog/products/${encodeURIComponent(idOrSku)}${qs({ currency })}`);
+    return request<Product>(`/catalog/products/${encodeURIComponent(idOrSku)}${qs({ currency })}`).then(localizeProduct);
   },
   banners() {
     return request<Banner[]>('/catalog/banners');

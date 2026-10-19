@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { catalog } from './api';
 import aliases from './brand-aliases.json';
+import { tNow } from './i18n';
 import type { Product } from './types';
 
 /**
@@ -132,7 +133,7 @@ export function useCatalog(currency: string) {
       p.catch(() => cache.delete(currency)); // a failed load is retried next time
     }
     p.then((products) => alive && setState({ products, error: null })).catch(
-      () => alive && setState({ products: null, error: 'تعذّر تحميل المنتجات. حاول مرة أخرى.' }),
+      () => alive && setState({ products: null, error: tNow('تعذّر تحميل المنتجات. حاول مرة أخرى.') }),
     );
     return () => {
       alive = false;

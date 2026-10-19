@@ -10,9 +10,11 @@ import { money } from '@/lib/format';
 import { refreshMe } from '@/lib/session';
 import { VerifySheet } from '@/components/VerifyPanel';
 import { CheckIcon, ShieldIcon, UserIcon } from '@/components/icons';
+import { useT } from '@/lib/i18n';
 
 export default function AccountPage() {
   const router = useRouter();
+  const t = useT();
   useEffect(() => {
     if (!isAuthed()) router.replace('/login?next=/account');
   }, [router]);
@@ -28,10 +30,14 @@ export default function AccountPage() {
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
-      <h1 className="text-2xl font-extrabold">حسابي</h1>
+      <h1 className="text-2xl font-extrabold">{t('حسابي')}</h1>
 
-      {me.loading && <p className="mt-6 text-sm text-muted">جارٍ التحميل…</p>}
-      {me.error && <div className="mt-6 rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{me.error}</div>}
+      {me.loading && <p className="mt-6 text-sm text-muted">{t('جارٍ التحميل…')}</p>}
+      {me.error && (
+        <div className="mt-6 rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">
+          {me.error}
+        </div>
+      )}
 
       {me.data && (
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -50,7 +56,7 @@ export default function AccountPage() {
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between gap-3 border-t border-[rgb(var(--line))] pt-4 text-sm">
-              <span className="text-muted">واتساب</span>
+              <span className="text-muted">{t('واتساب')}</span>
               <span className="flex items-center gap-2">
                 {me.data.phone && (
                   <span dir="ltr" className="font-semibold">
@@ -59,14 +65,14 @@ export default function AccountPage() {
                 )}
                 {me.data.phoneVerifiedAt ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-ok/12 px-2 py-0.5 text-xs font-bold text-ok">
-                    <CheckIcon size={12} /> موثّق
+                    <CheckIcon size={12} /> {t('موثّق')}
                   </span>
                 ) : (
                   <button
                     onClick={() => setVerifying(true)}
                     className="inline-flex items-center gap-1 rounded-full bg-warn/12 px-2.5 py-1 text-xs font-bold text-warn"
                   >
-                    <ShieldIcon size={12} /> غير موثّق · وثّقه
+                    <ShieldIcon size={12} /> {t('غير موثّق · وثّقه')}
                   </button>
                 )}
               </span>
@@ -80,22 +86,25 @@ export default function AccountPage() {
               />
             )}
             <div className="mt-4 flex gap-3">
-              <Link href="/orders" className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold">
-                طلباتي
+              <Link
+                href="/orders"
+                className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold"
+              >
+                {t('طلباتي')}
               </Link>
               <button
                 onClick={onLogout}
                 className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold text-muted transition hover:text-bad"
               >
-                تسجيل الخروج
+                {t('تسجيل الخروج')}
               </button>
             </div>
           </div>
 
           <div className="surface rounded-2xl p-5 shadow-card">
-            <h2 className="text-base font-bold">المحفظة</h2>
+            <h2 className="text-base font-bold">{t('المحفظة')}</h2>
             {(me.data.wallets?.length ?? 0) === 0 ? (
-              <p className="mt-3 text-sm text-muted">لا يوجد رصيد بعد.</p>
+              <p className="mt-3 text-sm text-muted">{t('لا يوجد رصيد بعد.')}</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {me.data.wallets!.map((w) => (

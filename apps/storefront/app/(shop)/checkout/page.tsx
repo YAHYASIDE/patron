@@ -10,6 +10,7 @@ import { money } from '@/lib/format';
 import type { Order, Quote } from '@/lib/types';
 import { gatewayLabel, useUsableMethods } from '@/lib/payments';
 import { getCurrency } from '@/lib/currency';
+import { useT, useLang, tNow } from '@/lib/i18n';
 import { CheckIcon, BoltIcon } from '@/components/icons';
 import VerifyPanel from '@/components/VerifyPanel';
 
@@ -17,6 +18,8 @@ type Step = 'loading' | 'review' | 'working' | 'done' | 'empty' | 'verify';
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const t = useT();
+  const lang = useLang();
   const { total } = useCart();
   const [step, setStep] = useState<Step>('loading');
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -63,7 +66,7 @@ export default function CheckoutPage() {
         setStep('verify');
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'تعذّر تجهيز الطلب.');
+      setError(err instanceof ApiError ? err.message : tNow('تعذّر تجهيز الطلب.'));
       setStep('review');
     }
   }
@@ -109,9 +112,9 @@ export default function CheckoutPage() {
       const msg =
         err instanceof ApiError
           ? err.code === 'INSUFFICIENT_FUNDS' || /funds|رصيد/i.test(err.message)
-            ? 'رصيد محفظتك غير كافٍ لإتمام الدفع. اختر وسيلة دفع أخرى أو اشحن محفظتك.'
+            ? tNow('رصيد محفظتك غير كافٍ لإتمام الدفع. اختر وسيلة دفع أخرى أو اشحن محفظتك.')
             : err.message
-          : 'تعذّر إتمام الدفع.';
+          : tNow('تعذّر إتمام الدفع.');
       setError(msg);
       // the order exists: its page lets the customer pay another way
       if (created) {
@@ -130,7 +133,7 @@ export default function CheckoutPage() {
           <VerifyPanel
             onVerified={() => setTimeout(() => buildQuote(coupon), 1200)}
             onSkip={() => router.push('/products')}
-            skipLabel="ليس الآن، أكمل التسوّق"
+            skipLabel={t('ليس الآن، أكمل التسوّق')}
           />
         </div>
       </div>
@@ -140,10 +143,10 @@ export default function CheckoutPage() {
   if (step === 'empty') {
     return (
       <div className="mx-auto max-w-page px-4 py-20 text-center">
-        <h1 className="text-xl font-extrabold">لا يوجد ما يُدفع</h1>
-        <p className="mt-2 text-muted">سلّتك فارغة.</p>
+        <h1 className="text-xl font-extrabold">{t('لا يوجد ما يُدفع')}</h1>
+        <p className="mt-2 text-muted">{t('سلّتك فارغة.')}</p>
         <Link href="/products" className="btn-brand mt-6 inline-block rounded-xl px-6 py-3 font-bold">
-          تصفّح المنتجات
+          {t('تصفّح المنتجات')}
         </Link>
       </div>
     );
@@ -157,25 +160,25 @@ export default function CheckoutPage() {
           <div className={'mx-auto grid h-16 w-16 place-items-center rounded-2xl ' + (paid ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn')}>
             {paid ? <CheckIcon size={30} /> : <BoltIcon size={28} />}
           </div>
-          <h1 className="mt-5 text-2xl font-extrabold">{paid ? 'تم استلام طلبك!' : 'تم إنشاء طلبك'}</h1>
+          <h1 className="mt-5 text-2xl font-extrabold">{paid ? t('تم استلام طلبك!') : t('تم إنشاء طلبك')}</h1>
           <p className="mt-2 text-muted">
-            رقم الطلب: <span className="font-bold text-[rgb(var(--text))]" dir="ltr">{order?.orderNumber}</span>
+            {t('رقم الطلب:')} <span className="font-bold text-[rgb(var(--text))]" dir="ltr">{order?.orderNumber}</span>
           </p>
           {error && (
             <p className="mt-4 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-warn">{error}</p>
           )}
           {!paid && !error && (
-            <p className="mt-4 text-sm text-muted">سيكتمل الطلب بمجرّد تأكيد الدفع.</p>
+            <p className="mt-4 text-sm text-muted">{t('سيكتمل الطلب بمجرّد تأكيد الدفع.')}</p>
           )}
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <Link href={order ? `/orders/${order.id}` : '/orders'} className="btn-brand rounded-xl px-6 py-3 font-bold">
-              {paid ? 'عرض الطلب' : 'أكمل الدفع'}
+              {paid ? t('عرض الطلب') : t('أكمل الدفع')}
             </Link>
             <Link
               href="/products"
               className="rounded-xl border border-[rgb(var(--line))] px-6 py-3 font-bold text-muted transition hover:text-[rgb(var(--text))]"
             >
-              مواصلة التسوّق
+              {t('مواصلة التسوّق')}
             </Link>
           </div>
         </div>
@@ -185,21 +188,21 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
-      <h1 className="text-2xl font-extrabold">إتمام الدفع</h1>
+      <h1 className="text-2xl font-extrabold">{t('إتمام الدفع')}</h1>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* summary */}
         <div className="lg:col-span-2">
           <div className="surface rounded-2xl p-5 shadow-card">
-            <h2 className="text-base font-bold">ملخّص الطلب</h2>
-            {step === 'loading' && <p className="mt-4 text-sm text-muted">جارٍ تجهيز السعر…</p>}
+            <h2 className="text-base font-bold">{t('ملخّص الطلب')}</h2>
+            {step === 'loading' && <p className="mt-4 text-sm text-muted">{t('جارٍ تجهيز السعر…')}</p>}
             {quote && (
               <div className="mt-4 divide-y divide-[rgb(var(--line))]">
                 {quote.items.map((it, i) => (
                   <div key={i} className="flex items-start justify-between gap-3 py-3">
                     <div>
-                      <div className="text-[15px] font-bold">{it.productNameAr || it.productNameEn}</div>
-                      <div className="text-xs text-muted">الكمية: {it.quantity}</div>
+                      <div className="text-[15px] font-bold">{lang === 'ar' ? it.productNameAr || it.productNameEn : it.productNameEn || it.productNameAr}</div>
+                      <div className="text-xs text-muted">{t('الكمية: {n}', { n: it.quantity })}</div>
                       {(it.inputs?.length ?? 0) > 0 && (
                         <div className="mt-0.5 text-xs text-muted">{it.inputs!.map((x) => x.value).join(' · ')}</div>
                       )}
@@ -214,12 +217,12 @@ export default function CheckoutPage() {
           {/* payment method */}
           {quote && usable?.length === 0 && (
             <p className="surface mt-4 rounded-2xl p-5 text-sm text-muted shadow-card">
-              لا توجد وسيلة دفع متاحة حاليًا. تواصل مع المتجر.
+              {t('لا توجد وسيلة دفع متاحة حاليًا. تواصل مع المتجر.')}
             </p>
           )}
           {methods.length > 0 && (
             <div className="surface mt-4 rounded-2xl p-5 shadow-card">
-              <h2 className="text-base font-bold">وسيلة الدفع</h2>
+              <h2 className="text-base font-bold">{t('وسيلة الدفع')}</h2>
               <div className="mt-3 flex flex-col gap-2">
                 {methods.map((m) => (
                   <label
@@ -236,7 +239,7 @@ export default function CheckoutPage() {
                       onChange={() => setGateway(m)}
                       className="accent-teal"
                     />
-                    <span className="text-[15px] font-semibold">{gatewayLabel(m)}</span>
+                    <span className="text-[15px] font-semibold">{gatewayLabel(m, t)}</span>
                   </label>
                 ))}
               </div>
@@ -252,34 +255,34 @@ export default function CheckoutPage() {
               <input
                 value={coupon}
                 onChange={(e) => setCoupon(e.target.value)}
-                placeholder="كود خصم"
+                placeholder={t('كود خصم')}
                 className="surface-2 hairline w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal"
               />
               <button
                 onClick={() => buildQuote(coupon)}
                 className="rounded-xl border border-[rgb(var(--line))] px-3 py-2 text-sm font-bold"
               >
-                تطبيق
+                {t('تطبيق')}
               </button>
             </div>
 
             {quote && (
               <dl className="mt-4 space-y-2 text-sm">
-                <Row label="المجموع" value={money(quote.subtotal, quote.currency)} />
+                <Row label={t('المجموع')} value={money(quote.subtotal, quote.currency)} />
                 {parseFloat(quote.discount) > 0 && (
-                  <Row label="الخصم" value={`- ${money(quote.discount, quote.currency)}`} accent="ok" />
+                  <Row label={t('الخصم')} value={`- ${money(quote.discount, quote.currency)}`} accent="ok" />
                 )}
-                {parseFloat(quote.fees) > 0 && <Row label="رسوم" value={money(quote.fees, quote.currency)} />}
-                {parseFloat(quote.taxAmount) > 0 && <Row label="ضريبة" value={money(quote.taxAmount, quote.currency)} />}
+                {parseFloat(quote.fees) > 0 && <Row label={t('رسوم')} value={money(quote.fees, quote.currency)} />}
+                {parseFloat(quote.taxAmount) > 0 && <Row label={t('ضريبة')} value={money(quote.taxAmount, quote.currency)} />}
                 <div className="flex items-center justify-between border-t border-[rgb(var(--line))] pt-3">
-                  <span className="font-bold">الإجمالي</span>
+                  <span className="font-bold">{t('الإجمالي')}</span>
                   <span className="tnum text-xl font-extrabold text-teal">{money(quote.total, quote.currency)}</span>
                 </div>
               </dl>
             )}
 
             {!quote && step !== 'loading' && (
-              <p className="mt-4 tnum text-sm text-muted">الإجمالي التقديري: {money(total.amount, total.currency)}</p>
+              <p className="mt-4 tnum text-sm text-muted">{t('الإجمالي التقديري: {amount}', { amount: money(total.amount, total.currency) })}</p>
             )}
 
             {error && step === 'review' && (
@@ -293,9 +296,9 @@ export default function CheckoutPage() {
               disabled={!quote || step === 'working' || !gateway}
               className="btn-brand mt-5 w-full rounded-xl py-3.5 text-[15px] font-bold disabled:opacity-60"
             >
-              {step === 'working' ? 'جارٍ المعالجة…' : gateway === 'MANUAL' ? 'متابعة إلى التحويل' : 'ادفع الآن'}
+              {step === 'working' ? t('جارٍ المعالجة…') : gateway === 'MANUAL' ? t('متابعة إلى التحويل') : t('ادفع الآن')}
             </button>
-            <p className="mt-3 text-center text-xs text-muted">بالضغط على «ادفع الآن» فأنت توافق على الشروط.</p>
+            <p className="mt-3 text-center text-xs text-muted">{t('بالضغط على «ادفع الآن» فأنت توافق على الشروط.')}</p>
           </div>
         </div>
       </div>

@@ -1,6 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import type { Brand } from '@/lib/brands';
 import { money } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 const SIZES = {
   // four to a row on phones, like app icons
@@ -10,6 +13,7 @@ const SIZES = {
 
 /** One brand in the shop grid: its card, its name, and the lowest price. */
 export default function BrandTile({ brand, size = 'md' }: { brand: Brand; size?: keyof typeof SIZES }) {
+  const t = useT();
   const s = SIZES[size];
   const from = brand.products[0];
   const allOut = brand.products.every((p) => p.inStock === false);
@@ -41,10 +45,11 @@ export default function BrandTile({ brand, size = 'md' }: { brand: Brand; size?:
         <div className={`line-clamp-2 min-h-[2.5em] font-bold leading-[1.25] ${s.name}`}>{brand.title}</div>
         <div className={`mt-0.5 text-muted ${s.price}`}>
           {allOut ? (
-            'غير متوفّر'
+            t('غير متوفّر')
           ) : (
             <>
-              من <span className="tnum font-bold text-teal">{money(from.sellPrice, from.currency)}</span>
+              {t('من')}{' '}
+              <span className="tnum font-bold text-teal">{money(from.sellPrice, from.currency)}</span>
             </>
           )}
         </div>
