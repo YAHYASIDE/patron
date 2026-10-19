@@ -10,10 +10,11 @@ import account from './account';
 import pages from './pages';
 import discovery from './discovery';
 import myaccount from './myaccount';
+import feedback from './feedback';
 
 export type Dict = { fr: Record<string, string>; en: Record<string, string> };
 
-const parts: Dict[] = [common, catalog, checkout, account, pages, discovery, myaccount];
+const parts: Dict[] = [common, catalog, checkout, account, pages, discovery, myaccount, feedback];
 
 export const FR: Record<string, string> = Object.assign({}, ...parts.map((p) => p.fr));
 export const EN: Record<string, string> = Object.assign({}, ...parts.map((p) => p.en));

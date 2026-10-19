@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { LANGS, setLang, useLang, useT } from '@/lib/i18n';
 import { BoltIcon, ShieldIcon, HeadsetIcon } from './icons';
+import SuggestButton from './SuggestProduct';
 
 export default function Footer() {
   const t = useT();
@@ -55,6 +56,7 @@ export default function Footer() {
             <Link href="/terms" className="hover:text-[rgb(var(--text))]">
               {t('الشروط والاسترجاع')}
             </Link>
+            <SuggestButton className="hover:text-[rgb(var(--text))]">{t('اقترح منتجًا')}</SuggestButton>
             <span>© {new Date().getFullYear()}</span>
           </div>
           {/* each language in its own name */}

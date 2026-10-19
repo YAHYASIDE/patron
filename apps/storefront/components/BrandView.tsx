@@ -10,6 +10,7 @@ import { tNow, useLang, useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
 import type { GameInput, Product } from '@/lib/types';
 import { pushRecent } from '@/lib/recent';
+import { report } from '@/lib/events';
 import { etaMinutes, useIsNew } from '@/lib/fresh';
 import BrandTile from './BrandTile';
 import Guide, { guideOf } from './Guide';
@@ -76,6 +77,10 @@ export default function BrandView({
   const [remember, setRemember] = useState(true);
 
   useEffect(() => pushRecent(brand.key), [brand.key]);
+  // for the owner's "most viewed": the title is the Arabic one (French and English visits show another name)
+  useEffect(() => {
+    report('brand_view', brand.key, lang === 'ar' ? { detail: { title: brand.title } } : undefined);
+  }, [brand.key, brand.title, lang]);
 
   // the buy bar sits at the bottom on phones, so bring a problem into view
   useEffect(() => {

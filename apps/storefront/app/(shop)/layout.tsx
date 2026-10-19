@@ -5,6 +5,7 @@ import VerifyBanner from '@/components/VerifyBanner';
 import AuthGate from '@/components/AuthGate';
 import WhatsAppFab from '@/components/WhatsAppFab';
 import InstallPrompt from '@/components/InstallPrompt';
+import ErrorReporter from '@/components/ErrorReporter';
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       <Footer />
       <WhatsAppFab />
       <InstallPrompt />
+      <ErrorReporter />
     </div>
   );
 }

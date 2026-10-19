@@ -9,6 +9,7 @@ import { SECTIONS } from '@/lib/sections';
 import { noteCatalog } from '@/lib/fresh';
 import BrandGrid, { SectionTabs, filterBrands } from '@/components/BrandGrid';
 import SearchSuggest from '@/components/SearchSuggest';
+import SuggestButton from '@/components/SuggestProduct';
 
 const SORTS = [
   { id: 'best', label: 'الأنسب' },
@@ -117,6 +118,14 @@ function ProductsInner() {
           {offers && !search
             ? t('لا توجد عروض في هذا القسم الآن.')
             : t('لا يوجد ما يطابق «{search}». جرّب اسمًا آخر أو اختر قسمًا.', { search })}
+          {search.trim() && (
+            <SuggestButton
+              text={search}
+              className="mt-3 block w-full text-sm font-bold text-teal hover:underline"
+            >
+              {t('لم تجد ما تبحث عنه؟ اقترح علينا')}
+            </SuggestButton>
+          )}
         </div>
       )}
     </div>

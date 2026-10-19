@@ -1,14 +1,17 @@
 'use client';
 
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brand } from '@/lib/brands';
 import { money } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { report } from '@/lib/events';
 import { filterBrands } from './BrandGrid';
 import { SearchIcon } from './icons';
 
 const MAX = 6;
+/** A search that matches no brand for this long (typing has stopped) is reported to the owner. */
+const MISS_AFTER_MS = 1500;
 
 /**
  * A search box that suggests brands while typing (a combobox: arrows move,
@@ -42,6 +45,15 @@ export default function SearchSuggest({
 
   const list = useMemo(() => (value.trim() ? filterBrands(brands, null, value).slice(0, MAX) : []), [brands, value]);
   const shown = open && list.length > 0;
+
+  // nothing in the whole catalog for what the visitor typed: tell the owner (once the catalog is in)
+  const typed = value.trim().replace(/\s+/g, ' ').slice(0, 100);
+  const miss = brands.length > 0 && typed.length >= 2 && list.length === 0;
+  useEffect(() => {
+    if (!miss) return;
+    const timer = setTimeout(() => report('search_miss', typed), MISS_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [miss, typed]);
 
   function go(b: Brand) {
     setOpen(false);
