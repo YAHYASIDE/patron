@@ -89,7 +89,8 @@ export class FeedbackService implements OnModuleInit, OnModuleDestroy {
         GROUP BY 1 ORDER BY 2 DESC, 3 DESC LIMIT 30`,
       this.prisma.$queryRaw<Array<{ brandKey: string; title: string | null; views: number }>>`
         SELECT "value" AS "brandKey",
-               (array_agg("detail"->>'title' ORDER BY "createdAt" DESC))[1] AS "title",
+               -- views in French or English carry no Arabic title; the latest one that has it
+               (array_agg("detail"->>'title' ORDER BY "createdAt" DESC) FILTER (WHERE "detail"->>'title' IS NOT NULL))[1] AS "title",
                count(*)::int AS "views"
         FROM "store_events"
         WHERE "kind" = 'brand_view' AND "createdAt" >= ${since}
