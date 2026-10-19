@@ -173,6 +173,17 @@ describe('ProductsService', () => {
     });
   });
 
+  describe('findOneAdmin', () => {
+    it('returns the staff view of one product, or NotFound', async () => {
+      prisma.product.findFirst.mockResolvedValue(product());
+      expect(await service.findOneAdmin('p1')).toEqual(product());
+      expect(prisma.product.findFirst.mock.calls[0][0].where).toEqual({ id: 'p1', deletedAt: null });
+
+      prisma.product.findFirst.mockResolvedValue(null);
+      await expect(service.findOneAdmin('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('findAllAdmin', () => {
     it('includes cost and computes margin percent', async () => {
       const res: any = await service.findAllAdmin(query());
@@ -194,6 +205,7 @@ describe('ProductsService', () => {
       expect(where.gameId).toBe('g1');
       expect(where.OR).toEqual([
         { nameEn: { contains: 'sku', mode: 'insensitive' } },
+        { nameAr: { contains: 'sku' } }, // the owner searches in Arabic
         { sku: { contains: 'sku', mode: 'insensitive' } },
       ]);
     });

@@ -260,12 +260,13 @@ export class ReportsService {
 
     return this.prisma.$queryRaw<
       Array<{
-        sku: string; name: string; units: bigint; revenue_base: string;
+        sku: string; name: string; name_ar: string; units: bigint; revenue_base: string;
         cost_base: string; profit_base: string; margin_percent: string; failure_rate: string;
       }>
     >`
       SELECT pr."sku",
              pr."nameEn" AS name,
+             pr."nameAr" AS name_ar,
              SUM(i."quantity") AS units,
              SUM(i."lineTotal" / o."fxRate")::text AS revenue_base,
              SUM(i."unitCost" * i."quantity")::text AS cost_base,
@@ -278,7 +279,7 @@ export class ReportsService {
       JOIN "orders" o ON o."id" = i."orderId"
       JOIN "products" pr ON pr."id" = i."productId"
       WHERE o."paidAt" BETWEEN ${from} AND ${to}
-      GROUP BY pr."sku", pr."nameEn"
+      GROUP BY pr."sku", pr."nameEn", pr."nameAr"
       ORDER BY revenue_base DESC
       LIMIT ${dto.limit}
     `;

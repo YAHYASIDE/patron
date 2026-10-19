@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsObject, IsOptional,
   IsString, IsUUID, Length, Matches, Max, Min,
 } from 'class-validator';
 import { DeliveryMode, ProductType } from '@prisma/client';
@@ -95,4 +95,14 @@ export class QueryCatalogDto extends PaginationDto {
 
   /** Currency the customer is shopping in; defaults to the base currency. */
   @IsOptional() @IsString() @Length(3, 3) currency?: string;
+}
+
+export class AddCodesDto {
+  /** One code per entry (the dashboard splits a pasted list by line). */
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(1000)
+  @IsString({ each: true }) @Length(1, 500, { each: true })
+  codes!: string[];
+
+  @IsOptional() @IsString() @Length(0, 60) batchRef?: string;
+  @IsOptional() @IsDateString() expiresAt?: string;
 }

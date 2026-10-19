@@ -1,15 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CategoriesService } from './categories.service';
 import { GamesService } from './games.service';
 import { ProductsService } from './products.service';
 import { PricingService } from './pricing.service';
+import { CodeStockService } from './code-stock.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
-  CreateCategoryDto, CreateGameDto, CreateProductDto, QueryCatalogDto,
+  AddCodesDto, CreateCategoryDto, CreateGameDto, CreateProductDto, QueryCatalogDto,
   UpdateCategoryDto, UpdateGameDto, UpdateProductDto,
 } from './dto/catalog.dto';
 
@@ -57,6 +58,7 @@ export class CatalogAdminController {
     private categories: CategoriesService,
     private games: GamesService,
     private products: ProductsService,
+    private codes: CodeStockService,
   ) {}
 
   // Categories
@@ -101,6 +103,9 @@ export class CatalogAdminController {
   @RequirePermissions('catalog.read') @Get('products')
   listProducts(@Query() query: QueryCatalogDto) { return this.products.findAllAdmin(query); }
 
+  @RequirePermissions('catalog.read') @Get('products/:id')
+  product(@Param('id', ParseUUIDPipe) id: string) { return this.products.findOneAdmin(id); }
+
   @RequirePermissions('catalog.write') @Post('products')
   createProduct(@Body() dto: CreateProductDto, @CurrentUser('id') actorId: string) {
     return this.products.create(dto, actorId);
@@ -115,5 +120,25 @@ export class CatalogAdminController {
   @RequirePermissions('catalog.delete') @Delete('products/:id')
   removeProduct(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.products.remove(id, actorId);
+  }
+
+  // Codes in stock: delivered automatically once an order is paid
+  @RequirePermissions('codes.manage') @Get('products/:id/codes')
+  codeStock(@Param('id', ParseUUIDPipe) id: string) {
+    return this.codes.summary(id);
+  }
+
+  @RequirePermissions('codes.manage') @Post('products/:id/codes')
+  addCodes(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AddCodesDto, @CurrentUser('id') actorId: string) {
+    return this.codes.add(id, dto, actorId);
+  }
+
+  @RequirePermissions('codes.manage') @Delete('products/:id/codes/:codeId')
+  removeCode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('codeId', ParseUUIDPipe) codeId: string,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.codes.remove(id, codeId, actorId);
   }
 }

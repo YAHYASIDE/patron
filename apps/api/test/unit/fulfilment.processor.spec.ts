@@ -21,7 +21,7 @@ describe('FulfilmentProcessor', () => {
       fulfilItem: jest.fn().mockResolvedValue({ ok: true }),
       pollItem: jest.fn().mockResolvedValue({ polled: true }),
     };
-    orders = { syncStatus: jest.fn().mockResolvedValue(undefined) };
+    orders = { syncStatus: jest.fn().mockResolvedValue(undefined), deliverFromStock: jest.fn().mockResolvedValue(0) };
     tracing = {
       traceId: jest.fn().mockReturnValue('trace-abc'),
       // withSpan just runs the wrapped work in these tests.
@@ -54,6 +54,16 @@ describe('FulfilmentProcessor', () => {
   });
 
   describe('fulfil-order', () => {
+    it('hands out stocked codes first; an order fully served from stock skips the provider engine', async () => {
+      orders.deliverFromStock.mockResolvedValue(1);
+      prisma.order.findUniqueOrThrow.mockResolvedValue({ id: 'o1', status: 'COMPLETED', items: [] });
+
+      const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
+      expect(orders.deliverFromStock).toHaveBeenCalledWith('o1');
+      expect(result).toEqual({ fromStock: 1, processed: 0 });
+      expect(engine.fulfilItem).not.toHaveBeenCalled();
+    });
+
     it('leaves MANUAL items for staff instead of failing them with "no provider"', async () => {
       prisma.order.findUniqueOrThrow.mockResolvedValue({
         status: 'PAID',
@@ -65,7 +75,7 @@ describe('FulfilmentProcessor', () => {
 
       const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
 
-      expect(result).toEqual({ processed: 1 });
+      expect(result).toEqual({ fromStock: 0, processed: 1 });
       expect(engine.fulfilItem).toHaveBeenCalledWith('i2');
       expect(engine.fulfilItem).not.toHaveBeenCalledWith('i1');
     });
@@ -82,7 +92,7 @@ describe('FulfilmentProcessor', () => {
 
       const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
 
-      expect(result).toEqual({ processed: 2 });
+      expect(result).toEqual({ fromStock: 0, processed: 2 });
       expect(engine.fulfilItem).toHaveBeenCalledWith('i1');
       expect(engine.fulfilItem).toHaveBeenCalledWith('i3');
       expect(engine.fulfilItem).not.toHaveBeenCalledWith('i2');
@@ -96,7 +106,7 @@ describe('FulfilmentProcessor', () => {
       });
 
       const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
-      expect(result).toEqual({ processed: 1 });
+      expect(result).toEqual({ fromStock: 0, processed: 1 });
     });
 
     it('skips a non-paid order (e.g. refunded) without touching the engine', async () => {
@@ -122,7 +132,7 @@ describe('FulfilmentProcessor', () => {
       const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
 
       // A failed item does not blow up the whole batch — count is still the pending total.
-      expect(result).toEqual({ processed: 2 });
+      expect(result).toEqual({ fromStock: 0, processed: 2 });
       expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('provider 500'));
       expect(orders.syncStatus).toHaveBeenCalledWith('o1');
     });
@@ -134,7 +144,7 @@ describe('FulfilmentProcessor', () => {
       });
 
       const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
-      expect(result).toEqual({ processed: 0 });
+      expect(result).toEqual({ fromStock: 0, processed: 0 });
       expect(engine.fulfilItem).not.toHaveBeenCalled();
       expect(orders.syncStatus).toHaveBeenCalledWith('o1');
     });

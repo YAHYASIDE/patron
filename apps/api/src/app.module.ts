@@ -1,3 +1,5 @@
+// Side effect first: BigInt values from raw report queries must serialise (see the file).
+import './common/serialization/bigint-json';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';

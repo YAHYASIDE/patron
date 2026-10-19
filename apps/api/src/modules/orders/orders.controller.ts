@@ -124,6 +124,13 @@ export class OrdersAdminController {
     return this.orders.deliverManually(id, itemId, dto, actorId);
   }
 
+  /** Codes stocked after the order was paid: hand them out now. */
+  @RequirePermissions('orders.fulfil_manual') @HttpCode(200) @Post(':id/deliver-from-stock')
+  async deliverFromStock(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') actorId: string) {
+    const delivered = await this.orders.deliverFromStock(id, actorId);
+    return { delivered, order: await this.orders.findOneAdmin(id) };
+  }
+
   @RequirePermissions('orders.cancel') @HttpCode(200) @Post(':id/cancel')
   cancel(@Param('id') id: string, @Body('reason') reason: string, @CurrentUser('id') actorId: string) {
     return this.orders.cancelUnpaid(id, reason ?? 'Cancelled by staff', actorId);

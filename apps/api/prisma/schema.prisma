@@ -410,19 +410,21 @@ model ProductCode {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   codeEnc   String // AES-256-GCM ciphertext
+  codeHash  String?   @unique // SHA-256 of the normalised code: a code is never stocked twice
   serialEnc String?
   batchRef  String?
   expiresAt DateTime?
 
   isUsed      Boolean    @default(false)
   usedAt      DateTime?
-  orderItemId String?    @unique @db.Uuid
+  orderItemId String?    @db.Uuid // an item of quantity n takes n codes
   orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([productId, isUsed])
   @@index([expiresAt])
+  @@index([orderItemId])
   @@map("product_codes")
 }
 
@@ -611,7 +613,7 @@ model OrderItem {
   inputs        OrderInput[]
   results       OrderResult[]
   providerCalls ProviderCall[]
-  assignedCode  ProductCode?
+  assignedCodes ProductCode[]
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

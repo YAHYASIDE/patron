@@ -120,6 +120,7 @@ export class ProductsService {
       ...(query.search && {
         OR: [
           { nameEn: { contains: query.search, mode: 'insensitive' } },
+          { nameAr: { contains: query.search } },
           { sku: { contains: query.search, mode: 'insensitive' } },
         ],
       }),
@@ -136,7 +137,8 @@ export class ProductsService {
           game: { select: { id: true, nameEn: true } },
           prices: { include: { currency: { select: { code: true, symbol: true } } } },
           providers: { include: { provider: { select: { id: true, code: true, name: true, isActive: true } } } },
-          _count: { select: { codes: true } },
+          // codes still in stock (unused), not every code ever uploaded
+          _count: { select: { codes: { where: { isUsed: false } } } },
         },
       }),
       this.prisma.product.count({ where }),
@@ -152,6 +154,21 @@ export class ProductsService {
       total,
       query,
     );
+  }
+
+  /** One product as staff see it (cost included), for the edit page. */
+  async findOneAdmin(id: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        category: { select: { id: true, nameEn: true } },
+        game: { select: { id: true, nameEn: true } },
+        prices: { include: { currency: { select: { code: true, symbol: true } } } },
+        _count: { select: { codes: { where: { isUsed: false } } } },
+      },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    return product;
   }
 
   async create(dto: CreateProductDto, actorId: string) {

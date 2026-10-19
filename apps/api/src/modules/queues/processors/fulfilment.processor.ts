@@ -56,6 +56,9 @@ export class FulfilmentProcessor extends WorkerHost {
   }
 
   private async fulfilOrder(orderId: string) {
+    // Codes the owner stocked in advance go out first, the moment the order is paid.
+    const fromStock = await this.orders.deliverFromStock(orderId);
+
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: orderId },
       include: { items: { select: { id: true, status: true, product: { select: { delivery: true } } } } },
@@ -63,13 +66,14 @@ export class FulfilmentProcessor extends WorkerHost {
 
     // Only fulfil paid orders. A refunded or cancelled order that had a job
     // queued before the state changed must not be delivered.
+    if (fromStock > 0 && order.status === 'COMPLETED') return { fromStock, processed: 0 }; // all from stock
     if (!['PAID', 'PROCESSING'].includes(order.status)) {
       this.logger.warn(`Skipping fulfilment for order ${orderId} in status ${order.status}`);
       return { skipped: order.status };
     }
 
-    // MANUAL items wait for staff (OrdersService.deliverManually); a provider
-    // attempt would only mark them FAILED with "no provider".
+    // MANUAL items without stock wait for staff (OrdersService.deliverManually);
+    // a provider attempt would only mark them FAILED with "no provider".
     const pending = order.items.filter(
       (i) => ['PENDING', 'FAILED'].includes(i.status) && i.product?.delivery !== 'MANUAL',
     );
@@ -80,7 +84,7 @@ export class FulfilmentProcessor extends WorkerHost {
     }
 
     await this.orders.syncStatus(orderId);
-    return { processed: pending.length };
+    return { fromStock, processed: pending.length };
   }
 
   private async fulfilItem(orderItemId: string, providerId?: string) {

@@ -62,6 +62,7 @@ describe('CatalogAdminController', () => {
   let categories: any;
   let games: any;
   let products: any;
+  let codes: any;
   let controller: CatalogAdminController;
 
   beforeEach(() => {
@@ -79,11 +80,32 @@ describe('CatalogAdminController', () => {
     };
     products = {
       findAllAdmin: jest.fn().mockReturnValue('prods'),
+      findOneAdmin: jest.fn().mockReturnValue('prod'),
       create: jest.fn().mockReturnValue('p-created'),
       update: jest.fn().mockReturnValue('p-updated'),
       remove: jest.fn().mockReturnValue('p-removed'),
     };
-    controller = new CatalogAdminController(categories, games, products);
+    codes = {
+      summary: jest.fn().mockReturnValue('stock'),
+      add: jest.fn().mockReturnValue('added'),
+      remove: jest.fn().mockReturnValue('removed'),
+    };
+    controller = new CatalogAdminController(categories, games, products, codes);
+  });
+
+  describe('code stock', () => {
+    it('reads one product for the edit page', () => {
+      expect(controller.product('p1')).toBe('prod');
+      expect(products.findOneAdmin).toHaveBeenCalledWith('p1');
+    });
+
+    it('reads, adds and removes codes for a product', () => {
+      expect(controller.codeStock('p1')).toBe('stock');
+      expect(controller.addCodes('p1', { codes: ['A'] } as any, 'admin')).toBe('added');
+      expect(codes.add).toHaveBeenCalledWith('p1', { codes: ['A'] }, 'admin');
+      expect(controller.removeCode('p1', 'c1', 'admin')).toBe('removed');
+      expect(codes.remove).toHaveBeenCalledWith('p1', 'c1', 'admin');
+    });
   });
 
   describe('categories', () => {

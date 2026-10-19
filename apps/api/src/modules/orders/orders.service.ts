@@ -164,6 +164,9 @@ export class OrdersService {
         OR: [
           { orderNumber: { contains: query.search, mode: 'insensitive' } },
           { user: { email: { contains: query.search, mode: 'insensitive' } } },
+          // the owner looks customers up by WhatsApp number ("22123456") or name
+          { user: { phone: { contains: query.search.replace(/[^\d+]/g, '') || query.search } } },
+          { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
         ],
       }),
     };
@@ -217,7 +220,19 @@ export class OrdersService {
       where: { id },
       include: {
         user: { select: { id: true, email: true, fullName: true, phone: true, phoneVerifiedAt: true } },
-        items: { include: { inputs: true, results: true, product: { select: { sku: true, delivery: true, imageUrl: true } } } },
+        items: {
+          include: {
+            inputs: true,
+            results: true,
+            product: {
+              select: {
+                sku: true, delivery: true, imageUrl: true,
+                // codes in stock, so the order page can offer "deliver from stock"
+                _count: { select: { codes: { where: { isUsed: false, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } } } },
+              },
+            },
+          },
+        },
         payments: {
           orderBy: { createdAt: 'desc' },
           select: {
@@ -289,6 +304,70 @@ export class OrdersService {
 
     await this.syncStatus(orderId);
     return this.findOneAdmin(orderId);
+  }
+
+  /**
+   * Hand out codes from the owner's stock to each paid item that has enough of
+   * them. An item without enough stock is left as it is: for staff (MANUAL) or
+   * the provider engine. Codes are claimed with SKIP LOCKED, so two orders paid
+   * at the same moment never receive the same code, and an item is delivered
+   * all at once or not at all.
+   */
+  async deliverFromStock(orderId: string, actorId?: string): Promise<number> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { product: { select: { delivery: true } } } } },
+    });
+    if (!order || !['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'FAILED'].includes(order.status)) return 0;
+
+    let delivered = 0;
+    for (const item of order.items) {
+      if (!['PENDING', 'FAILED'].includes(item.status) || item.product?.delivery === 'AUTO_PROVIDER') continue;
+
+      const done = await this.prisma.$transaction(async (tx) => {
+        const codes = await tx.$queryRaw<{ id: string; codeEnc: string; serialEnc: string | null }[]>`
+          SELECT "id", "codeEnc", "serialEnc" FROM "product_codes"
+          WHERE "productId" = ${item.productId}::uuid AND "isUsed" = false
+            AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+          ORDER BY "createdAt" ASC
+          LIMIT ${item.quantity}
+          FOR UPDATE SKIP LOCKED`;
+        if (codes.length < item.quantity) return false;
+
+        const claimed = await tx.orderItem.updateMany({
+          where: { id: item.id, status: { in: ['PENDING', 'FAILED'] } },
+          data: { status: 'DELIVERED', deliveredAt: new Date(), lastError: null },
+        });
+        if (claimed.count === 0) return false;
+
+        const current = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true } });
+        if (current.status === 'PAID' || current.status === 'FAILED') {
+          assertTransition(current.status, 'PROCESSING');
+          await tx.order.update({ where: { id: orderId }, data: { status: 'PROCESSING', version: { increment: 1 } } });
+        }
+
+        await tx.productCode.updateMany({
+          where: { id: { in: codes.map((c) => c.id) } },
+          data: { isUsed: true, usedAt: new Date(), orderItemId: item.id },
+        });
+        // stock and results share one key, so the ciphertext moves as it is
+        await tx.orderResult.createMany({
+          data: codes.flatMap((c) => [
+            { orderItemId: item.id, resultType: 'code', valueEnc: c.codeEnc, providerRef: `stock:${c.id}` },
+            ...(c.serialEnc ? [{ orderItemId: item.id, resultType: 'serial', valueEnc: c.serialEnc, providerRef: `stock:${c.id}` }] : []),
+          ]),
+        });
+        await this.audit.record(tx, {
+          actorId, action: 'orders.deliver_from_stock', entityType: 'OrderItem', entityId: item.id,
+          after: { orderId, codes: codes.length },
+        });
+        return true;
+      });
+      if (done) delivered++;
+    }
+
+    if (delivered > 0) await this.syncStatus(orderId);
+    return delivered;
   }
 
   /**

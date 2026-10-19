@@ -20,6 +20,7 @@ describe('Orders controllers', () => {
       cancelUnpaid: jest.fn().mockResolvedValue({ id: 'o1' }),
       findOneAdmin: jest.fn().mockResolvedValue({ id: 'o1' }),
       deliverManually: jest.fn().mockResolvedValue({ id: 'o1' }),
+      deliverFromStock: jest.fn().mockResolvedValue(2),
     };
   });
 
@@ -86,6 +87,11 @@ describe('Orders controllers', () => {
     it('deliver passes the codes and the acting staff member', async () => {
       await controller.deliver('o1', 'i1', { values: ['CODE-1'] }, 'admin1');
       expect(orders.deliverManually).toHaveBeenCalledWith('o1', 'i1', { values: ['CODE-1'] }, 'admin1');
+    });
+
+    it('deliver-from-stock reports how many items went out, with the refreshed order', async () => {
+      expect(await controller.deliverFromStock('o1', 'admin1')).toEqual({ delivered: 2, order: { id: 'o1' } });
+      expect(orders.deliverFromStock).toHaveBeenCalledWith('o1', 'admin1');
     });
 
     it('cancel passes the supplied reason and actor', async () => {

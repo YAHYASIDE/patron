@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UsersService } from '../../src/modules/users/users.service';
+import { Prisma } from '@prisma/client';
 
 describe('UsersService', () => {
   let prisma: any;
@@ -24,7 +25,7 @@ describe('UsersService', () => {
         update: jest.fn(),
       },
       role: { findUniqueOrThrow: jest.fn() },
-      order: { count: jest.fn() },
+      order: { count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
       refreshToken: { updateMany: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       // Handles both callback and array forms of $transaction.
@@ -39,14 +40,20 @@ describe('UsersService', () => {
   describe('findAll', () => {
     it('returns a paginated, role-flattened list with no filters', async () => {
       const rows = [
-        { id: 'u1', email: 'a@b.c', roles: [{ role: { id: 'r1', name: 'customer' } }] },
+        { id: 'u1', email: 'a@b.c', roles: [{ role: { id: 'r1', name: 'customer' } }], _count: { orders: 3 } },
       ];
       prisma.user.findMany.mockResolvedValue(rows);
       prisma.user.count.mockResolvedValue(1);
+      prisma.order.groupBy.mockResolvedValue([
+        { userId: 'u1', _sum: { totalBase: new Prisma.Decimal('12.5') }, _count: { _all: 2 }, _max: { createdAt: new Date('2026-10-18') } },
+      ]);
 
       const res = await service.findAll({ skip: 0, limit: 20, page: 1, order: 'desc' } as any);
 
-      expect(res.data).toEqual([{ id: 'u1', email: 'a@b.c', roles: [{ id: 'r1', name: 'customer' }] }]);
+      expect(res.data).toEqual([{
+        id: 'u1', email: 'a@b.c', roles: [{ id: 'r1', name: 'customer' }],
+        ordersCount: 3, paidOrders: 2, totalSpentBase: new Prisma.Decimal('12.5'), lastOrderAt: new Date('2026-10-18'),
+      }]);
       expect(res.meta).toEqual({ page: 1, limit: 20, total: 1, pages: 1 });
       // Default where only filters soft-deleted rows.
       expect(prisma.user.findMany).toHaveBeenCalledWith(

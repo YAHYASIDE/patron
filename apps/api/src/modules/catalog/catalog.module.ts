@@ -4,10 +4,11 @@ import { CategoriesService } from './categories.service';
 import { GamesService } from './games.service';
 import { ProductsService } from './products.service';
 import { PricingService } from './pricing.service';
+import { CodeStockService } from './code-stock.service';
 
 @Module({
   controllers: [CatalogPublicController, CatalogAdminController],
-  providers: [CategoriesService, GamesService, ProductsService, PricingService],
+  providers: [CategoriesService, GamesService, ProductsService, PricingService, CodeStockService],
   // PricingService is exported: Orders and Payments must reuse the exact
   // same conversion and rounding rules the storefront quoted.
   exports: [PricingService, ProductsService],

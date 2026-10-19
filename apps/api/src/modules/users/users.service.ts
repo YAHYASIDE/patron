@@ -10,8 +10,11 @@ import { toAuditJson } from '../../common/audit/audit.service';
 const PUBLIC_FIELDS = {
   id: true, email: true, phone: true, fullName: true, avatarUrl: true,
   locale: true, defaultCurrency: true, isActive: true, isBlocked: true,
-  emailVerifiedAt: true, lastLoginAt: true, createdAt: true,
+  emailVerifiedAt: true, phoneVerifiedAt: true, lastLoginAt: true, createdAt: true,
 } satisfies Prisma.UserSelect;
+
+/** Orders that count as a sale (paid, being delivered, or done). */
+const SOLD = ['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'COMPLETED'] as const;
 
 @Injectable()
 export class UsersService {
@@ -35,7 +38,11 @@ export class UsersService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        select: { ...PUBLIC_FIELDS, roles: { select: { role: { select: { id: true, name: true } } } } },
+        select: {
+          ...PUBLIC_FIELDS,
+          roles: { select: { role: { select: { id: true, name: true } } } },
+          _count: { select: { orders: true } },
+        },
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: query.order },
@@ -43,8 +50,25 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
+    // what each customer on the page has bought, in the base currency, in one query
+    const spent = await this.prisma.order.groupBy({
+      by: ['userId'],
+      where: { userId: { in: data.map((u) => u.id) }, status: { in: [...SOLD] } },
+      _sum: { totalBase: true },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    });
+    const byUser = new Map(spent.map((s) => [s.userId, s]));
+
     return paginate(
-      data.map(({ roles, ...u }) => ({ ...u, roles: roles.map((r) => r.role) })),
+      data.map(({ roles, _count, ...u }) => ({
+        ...u,
+        roles: roles.map((r) => r.role),
+        ordersCount: _count.orders,
+        paidOrders: byUser.get(u.id)?._count._all ?? 0,
+        totalSpentBase: byUser.get(u.id)?._sum.totalBase ?? new Prisma.Decimal(0),
+        lastOrderAt: byUser.get(u.id)?._max.createdAt ?? null,
+      })),
       total,
       query,
     );

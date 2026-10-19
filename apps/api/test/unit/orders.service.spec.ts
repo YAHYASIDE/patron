@@ -406,6 +406,65 @@ describe('OrdersService', () => {
     });
   });
 
+  describe('deliverFromStock', () => {
+    const order = (items: any[], status = 'PAID') => ({ id: 'o1', status, items });
+    const item = (over: Partial<any> = {}) => ({
+      id: 'i1', productId: 'p1', quantity: 2, status: 'PENDING', product: { delivery: 'MANUAL' }, ...over,
+    });
+
+    beforeEach(() => {
+      tx.$queryRaw = jest.fn().mockResolvedValue([
+        { id: 'c1', codeEnc: 'enc:A', serialEnc: null },
+        { id: 'c2', codeEnc: 'enc:B', serialEnc: 'enc:S' },
+      ]);
+      tx.order.findUniqueOrThrow.mockResolvedValue({ status: 'PAID' });
+      tx.productCode = { updateMany: jest.fn().mockResolvedValue({ count: 2 }) };
+      tx.orderResult.createMany = jest.fn().mockResolvedValue({ count: 3 });
+      jest.spyOn(service, 'syncStatus').mockResolvedValue({} as any);
+    });
+
+    it('delivers an item from stock: claims the codes, copies them as results, completes the item', async () => {
+      prisma.order.findUnique.mockResolvedValue(order([item()]));
+
+      expect(await service.deliverFromStock('o1')).toBe(1);
+      expect(tx.order.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'PROCESSING' }) }));
+      expect(tx.productCode.updateMany.mock.calls[0][0]).toMatchObject({
+        where: { id: { in: ['c1', 'c2'] } }, data: { isUsed: true, orderItemId: 'i1' },
+      });
+      const results = tx.orderResult.createMany.mock.calls[0][0].data;
+      expect(results.map((r: any) => [r.resultType, r.valueEnc])).toEqual([['code', 'enc:A'], ['code', 'enc:B'], ['serial', 'enc:S']]);
+      expect(service.syncStatus).toHaveBeenCalledWith('o1');
+    });
+
+    it('leaves an item whose stock is short, rather than half-delivering it', async () => {
+      prisma.order.findUnique.mockResolvedValue(order([item({ quantity: 3 })]));
+
+      expect(await service.deliverFromStock('o1')).toBe(0);
+      expect(tx.orderItem.updateMany).not.toHaveBeenCalled();
+      expect(service.syncStatus).not.toHaveBeenCalled();
+    });
+
+    it('skips provider items, delivered items, and orders that are not paid', async () => {
+      prisma.order.findUnique.mockResolvedValue(order([item({ product: { delivery: 'AUTO_PROVIDER' } }), item({ id: 'i2', status: 'DELIVERED' })]));
+      expect(await service.deliverFromStock('o1')).toBe(0);
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
+
+      prisma.order.findUnique.mockResolvedValue(order([item()], 'PENDING_PAYMENT'));
+      expect(await service.deliverFromStock('o1')).toBe(0);
+      prisma.order.findUnique.mockResolvedValue(order([item()], 'REFUNDED'));
+      expect(await service.deliverFromStock('o1')).toBe(0);
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('does not hand out codes for an item someone else just delivered', async () => {
+      prisma.order.findUnique.mockResolvedValue(order([item()]));
+      tx.orderItem.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      expect(await service.deliverFromStock('o1')).toBe(0);
+      expect(tx.productCode.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findOneAdmin', () => {
     it('exposes the reported transfer and review, never a raw gateway payload', async () => {
       prisma.order.findUnique.mockResolvedValue({
