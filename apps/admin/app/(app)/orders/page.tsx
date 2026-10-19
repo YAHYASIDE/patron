@@ -39,6 +39,8 @@ const FILTERS: { key: string; label: string }[] = [
 export default function OrdersPage() {
   const router = useRouter();
   const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const [search, setSearch] = useState('');
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -55,6 +57,7 @@ export default function OrdersPage() {
         const qs = new URLSearchParams({ limit: '20' });
         if (next) qs.set('cursor', next);
         if (status) qs.set('status', status);
+        if (search) qs.set('search', search);
         const resp = await api.get<OrdersResp>(`/admin/orders?${qs.toString()}`);
         setRows((prev) => (next ? [...prev, ...resp.data] : resp.data));
         setHasMore(resp.meta?.hasMore ?? false);
@@ -66,8 +69,23 @@ export default function OrdersPage() {
         setFirst(false);
       }
     },
-    [status],
+    [status, search],
   );
+
+  // the customers page links here with ?search=<their number>
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get('search');
+    if (s) {
+      setQ(s);
+      setSearch(s);
+    }
+  }, []);
+
+  // search as the owner types, without a request per keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(q.trim().replace(/^[\d\s+]+$/, (n) => n.replace(/\s/g, ''))), 350);
+    return () => clearTimeout(t);
+  }, [q]);
 
   useEffect(() => {
     load(null);
@@ -117,6 +135,13 @@ export default function OrdersPage() {
           </div>
         </section>
       )}
+
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="ابحث برقم الطلب أو اسم الزبون أو رقم واتساب"
+        className="surface hairline rounded-xl border px-4 py-3 text-[15px] outline-none focus:border-teal"
+      />
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (

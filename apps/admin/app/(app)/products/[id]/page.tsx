@@ -6,16 +6,13 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import ProductForm, { type ProductInput } from '@/components/ProductForm';
-
-type Paginated<T> = { data: T[] };
+import CodeStock from '@/components/CodeStock';
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  // There is no admin get-by-id route; the admin list returns full rows
-  // (including cost), and the catalog is small, so find it there.
-  const list = useFetch<Paginated<ProductInput>>('/admin/catalog/products?limit=100');
-  const product = list.data?.data.find((p) => p.id === id);
+  const list = useFetch<ProductInput>(`/admin/catalog/products/${id}`);
+  const product = list.data;
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,10 +55,14 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         )}
       </div>
 
-      {error && <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>}
+      {error && (
+        <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
+      )}
       {list.loading && <p className="text-sm text-muted">جارٍ التحميل…</p>}
       {list.error && <p className="text-sm text-bad">{list.error}</p>}
       {!list.loading && !list.error && !product && <p className="text-sm text-muted">المنتج غير موجود.</p>}
+
+      {product?.id && <CodeStock productId={product.id} />}
 
       {product && (
         <ProductForm

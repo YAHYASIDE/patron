@@ -10,6 +10,8 @@ const NAV = [
   { href: '/', label: 'لوحة القيادة', icon: 'grid' },
   { href: '/products', label: 'المنتجات', icon: 'box' },
   { href: '/orders', label: 'الطلبات', icon: 'receipt' },
+  { href: '/customers', label: 'الزبائن', icon: 'users' },
+  { href: '/reports', label: 'التقارير', icon: 'chart' },
   { href: '/verifications', label: 'رموز التحقق', icon: 'shield' },
   { href: '/currencies', label: 'العملات', icon: 'coins' },
   { href: '/settings', label: 'الإعدادات', icon: 'gear' },
@@ -49,6 +51,20 @@ function Icon({ name }: { name: string }) {
         <svg {...common}>
           <path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1-2-1Z" />
           <path d="M9 8h6M9 12h6" />
+        </svg>
+      );
+    case 'chart':
+      return (
+        <svg {...common}>
+          <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+        </svg>
+      );
+    case 'users':
+      return (
+        <svg {...common}>
+          <circle cx="9" cy="8" r="3.5" />
+          <path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5" />
+          <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.8 3 2.6 3.5 5.2" />
         </svg>
       );
     case 'shield':

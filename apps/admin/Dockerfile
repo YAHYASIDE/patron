@@ -14,6 +14,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Example: --build-arg NEXT_PUBLIC_API_URL=https://shop.etssadagha.com/api/v1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# where customers see their orders (links in WhatsApp messages)
+ARG NEXT_PUBLIC_STORE_URL
+ENV NEXT_PUBLIC_STORE_URL=${NEXT_PUBLIC_STORE_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # The committed tsconfig.json extends ../../packages/tsconfig, which is outside

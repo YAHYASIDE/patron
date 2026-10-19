@@ -31,7 +31,7 @@ type Item = {
   quantity: number;
   lineTotal: string;
   status: string;
-  product?: { sku: string; delivery: string };
+  product?: { sku: string; delivery: string; _count?: { codes: number } };
   inputs: { fieldKey: string; fieldLabel: string; value: string }[];
   results: { id: string; resultType: string; revealed: boolean; deliveredAt: string }[];
 };
@@ -47,6 +47,26 @@ type Order = {
   items: Item[];
   payments: Payment[];
 };
+
+// where the customer sees their order (for the WhatsApp message)
+const STORE_URL = (process.env.NEXT_PUBLIC_STORE_URL ?? 'https://etssadagha-store.onrender.com').replace(
+  /\/+$/,
+  '',
+);
+
+/** The customer's WhatsApp, opened on a message that hands over the order. */
+function deliveryMessage(order: Order, item: Item, codes: string[]): string | null {
+  if (!order.user.phone) return null;
+  const lines = [
+    `مرحبًا ${order.user.fullName}،`,
+    `طلبك ${order.orderNumber} جاهز.`,
+    codes.length ? `${item.productNameAr}:` : `${item.productNameAr} ×${item.quantity}`,
+    ...codes,
+    `تجده أيضًا في صفحة طلبك: ${STORE_URL}/orders/${order.id}`,
+    'شكرًا لتسوّقك من باترون.',
+  ];
+  return `https://wa.me/${order.user.phone.replace(/\D/g, '')}?text=${encodeURIComponent(lines.join('\n'))}`;
+}
 
 const DELIVERABLE_ORDER = ['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'FAILED'];
 const DELIVERABLE_ITEM = ['PENDING', 'PROCESSING', 'FAILED'];
@@ -129,12 +149,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               item={it}
               canDeliver={canDeliver && DELIVERABLE_ITEM.includes(it.status)}
               orderPaid={canDeliver}
-              busy={busy === `deliver-${it.id}`}
+              busy={busy === `deliver-${it.id}` || busy === 'stock'}
               onDeliver={(values, resultType) =>
                 act(`deliver-${it.id}`, () =>
                   api.post(`/admin/orders/${order.id}/items/${it.id}/deliver`, { values, resultType }),
                 )
               }
+              onFromStock={() => act('stock', () => api.post(`/admin/orders/${order.id}/deliver-from-stock`))}
+              whatsapp={(codes) => deliveryMessage(order, it, codes)}
             />
           ))}
         </div>
@@ -268,14 +290,21 @@ function ItemCard({
   orderPaid,
   busy,
   onDeliver,
+  onFromStock,
+  whatsapp,
 }: {
   item: Item;
   canDeliver: boolean;
   orderPaid: boolean;
   busy: boolean;
   onDeliver: (values: string[], resultType: 'code' | 'message') => void;
+  onFromStock: () => void;
+  whatsapp: (codes: string[]) => string | null;
 }) {
   const [text, setText] = useState('');
+  // what was just typed and delivered, so the WhatsApp message can carry it
+  const [sent, setSent] = useState<string[]>([]);
+  const inStock = item.product?._count?.codes ?? 0;
   const [type, setType] = useState<'code' | 'message'>('code');
   const ic = statusChip(item.status);
   const values = text
@@ -305,10 +334,32 @@ function ItemCard({
       )}
 
       {item.results.length > 0 && (
-        <p className="mt-3 text-sm text-ok">
-          سُلّم {item.results.length}{' '}
-          {item.results.some((r) => r.revealed) ? '· الزبون اطّلع عليه' : '· لم يفتحه الزبون بعد'}
-        </p>
+        <div className="mt-3 flex flex-col gap-2.5">
+          <p className="text-sm text-ok">
+            سُلّم {item.results.length}{' '}
+            {item.results.some((r) => r.revealed) ? '· الزبون اطّلع عليه' : '· لم يفتحه الزبون بعد'}
+          </p>
+          {whatsapp(sent) && (
+            <a
+              href={whatsapp(sent)!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-xl bg-[#1FA855] py-2.5 text-center text-sm font-bold text-white transition hover:opacity-90"
+            >
+              {sent.length ? 'أرسل الكود للزبون عبر واتساب' : 'أرسل للزبون رابط طلبه عبر واتساب'}
+            </a>
+          )}
+        </div>
+      )}
+
+      {canDeliver && inStock >= item.quantity && (
+        <button
+          onClick={onFromStock}
+          disabled={busy}
+          className="mt-4 w-full rounded-xl bg-teal py-3 text-sm font-bold text-white transition hover:bg-teal-deep disabled:opacity-60"
+        >
+          {busy ? 'جارٍ…' : `سلّم من المخزون (${inStock} متوفّر)`}
+        </button>
       )}
 
       {canDeliver && (
@@ -344,7 +395,9 @@ function ItemCard({
                   !confirm(`المطلوب ${item.quantity} وأدخلت ${values.length}. المتابعة؟`)
                 )
                   return;
-                onDeliver(type === 'message' ? [text.trim()] : values, type);
+                const delivered = type === 'message' ? [text.trim()] : values;
+                setSent(delivered);
+                onDeliver(delivered, type);
               }}
               className="ms-auto rounded-xl bg-teal px-5 py-2.5 text-sm font-bold text-white transition hover:bg-teal-deep disabled:opacity-50"
             >

@@ -132,6 +132,9 @@ services:
       # This points at the API service's public URL above.
       - key: NEXT_PUBLIC_API_URL
         value: https://etssadagha-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_STORE_URL
+        # order links in the WhatsApp messages the owner sends customers
+        value: https://etssadagha-store.onrender.com
 
   # ─────────────── Customer storefront (Next.js) ───────────────
   - type: web
