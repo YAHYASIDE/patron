@@ -97,6 +97,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     );
 
   const c = orderChip(order);
+  // money already sent back on this order (partial or full refunds)
+  const refunded = (order.payments ?? []).reduce((sum, p) => sum + Number(p.refundedAmount ?? 0), 0);
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
@@ -127,6 +129,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <OrderTimeline order={order} />
+
+      {refunded > 0 && (
+        <div role="status" className="mt-4 rounded-2xl border border-teal/30 bg-teal/10 p-4 text-sm">
+          <p className="font-bold text-teal">{t('أعدنا إليك {amount}', { amount: money(refunded, order.currency) })}</p>
+          <p className="mt-1 text-muted">
+            {(order.payments ?? []).some((p) => p.gateway === 'WALLET' || p.gateway === 'MANUAL')
+              ? t('يصل المبلغ إلى محفظتك في المتجر أو إلى الرقم الذي دفعت منه، وستجد التفاصيل في الإشعارات.')
+              : t('ستجد تفاصيل الاسترجاع في الإشعارات.')}
+          </p>
+        </div>
+      )}
 
       {/* items */}
       <div className="mt-6 space-y-3">

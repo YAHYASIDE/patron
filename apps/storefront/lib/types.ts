@@ -227,7 +227,7 @@ export type Order = {
     inputs?: { fieldKey: string; fieldLabel: string; value: string }[];
     results?: { id: string; resultType: string; hasValue: boolean; revealed: boolean; deliveredAt?: string | null }[];
   }[];
-  payments?: { id: string; gateway: string; status: string; amount: string; failureReason?: string | null; createdAt: string }[];
+  payments?: { id: string; gateway: string; status: string; amount: string; refundedAmount?: string; failureReason?: string | null; createdAt: string }[];
 };
 
 /** An offer the owner pins to the top of the home page. */
