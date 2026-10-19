@@ -393,7 +393,8 @@ log('dashboard sign-in page');
 await browser.close();
 
 // ─── 4. report ───
-const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+// a markdown table cell: backslashes first, then the pipe that would end the cell
+const cell = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const MAX_ROWS = 150;
 const lines = [
   `# فحص المتجر الحي / Live shop check`,
