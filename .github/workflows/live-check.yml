@@ -60,7 +60,12 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
 
+      # Render deploys only after every check on a commit passes. After a push
+      # this checks the version still live, so failing here would also hold
+      # back the fix: on a push it reports (comment below) without failing.
       - name: Check the live shop
+        id: check
+        continue-on-error: ${{ github.event_name == 'push' }}
         run: node check.mjs
 
       - name: Upload report and screenshots
@@ -73,7 +78,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Report the failure on the PR (or an issue)
-        if: failure()
+        if: failure() || steps.check.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
