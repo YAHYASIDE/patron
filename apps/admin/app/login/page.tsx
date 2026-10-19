@@ -54,8 +54,8 @@ export default function LoginPage() {
           <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-teal-soft to-teal text-[20px] font-extrabold text-teal-ink shadow-[0_8px_22px_rgba(45,212,191,.3)]">
             P
           </span>
-          <span className="text-2xl font-extrabold">
-            باترون<span className="text-gold">.</span>
+          <span dir="ltr" className="text-2xl font-extrabold">
+            patron<span className="text-gold">.</span>
           </span>
         </div>
 
@@ -120,7 +120,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-5 text-center text-xs text-muted">
-          لوحة إدارة باترون — للموظّفين المصرّح لهم فقط.
+          لوحة إدارة patron — للموظّفين المصرّح لهم فقط.
         </p>
       </div>
     </main>

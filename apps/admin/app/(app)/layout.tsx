@@ -202,8 +202,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-teal-soft to-teal text-[16px] font-extrabold text-teal-ink">
           P
         </span>
-        <span className="text-lg font-extrabold">
-          باترون<span className="text-gold">.</span>
+        <span dir="ltr" className="text-lg font-extrabold">
+          patron<span className="text-gold">.</span>
         </span>
       </div>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">

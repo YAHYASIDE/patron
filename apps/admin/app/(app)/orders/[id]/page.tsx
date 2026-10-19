@@ -73,7 +73,7 @@ function deliveryMessage(order: Order, item: Item, codes: string[]): string | nu
     codes.length ? `${item.productNameAr}:` : `${item.productNameAr} ×${item.quantity}`,
     ...codes,
     `تجده أيضًا في صفحة طلبك: ${STORE_URL}/orders/${order.id}`,
-    'شكرًا لتسوّقك من باترون.',
+    'شكرًا لتسوّقك من patron.',
   ];
   return `https://wa.me/${order.user.phone.replace(/\D/g, '')}?text=${encodeURIComponent(lines.join('\n'))}`;
 }

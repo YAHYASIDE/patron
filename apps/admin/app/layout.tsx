@@ -10,8 +10,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: 'لوحة تحكم باترون',
-  description: 'لوحة إدارة منصة باترون للمنتجات الرقمية.',
+  title: 'لوحة تحكم patron',
+  description: 'لوحة إدارة منصة patron للمنتجات الرقمية.',
 };
 
 // Apply the stored or system theme before paint to avoid a flash.

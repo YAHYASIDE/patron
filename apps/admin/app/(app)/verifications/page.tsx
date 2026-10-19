@@ -21,7 +21,7 @@ const PURPOSE: Record<Pending['purpose'], string> = {
 
 function whatsappLink(p: Pending) {
   const digits = (p.user.phone ?? '').replace(/\D/g, '');
-  const text = `مرحبًا ${p.user.fullName}، رمز التحقق الخاص بك في متجر باترون هو: ${p.code}\nلا تشاركه مع أي أحد.`;
+  const text = `مرحبًا ${p.user.fullName}، رمز التحقق الخاص بك في متجر patron هو: ${p.code}\nلا تشاركه مع أي أحد.`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
