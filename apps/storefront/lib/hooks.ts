@@ -31,12 +31,15 @@ export function useFetch<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   return { data, loading, error, reload: () => setTick((t) => t + 1) };
 }
 
+// the server snapshot must be the same reference every call, or React warns
+const NO_ITEMS: CartItem[] = [];
+
 /** Subscribe to the cart store; re-renders on any change. */
 export function useCart(): { items: CartItem[]; count: number; total: { amount: number; currency: string } } {
   const items = useSyncExternalStore(
     cart.subscribe,
     () => cart.items(),
-    () => [] as CartItem[],
+    () => NO_ITEMS,
   );
   return {
     items,

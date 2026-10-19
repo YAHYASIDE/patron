@@ -136,15 +136,29 @@ export type Order = {
   completedAt?: string | null;
   items: {
     id: string;
+    productId: string;
     productNameAr: string;
     productNameEn: string;
     quantity: number;
     unitPrice: string;
     lineTotal: string;
     status: string;
+    /** What the customer entered (e.g. the player ID); sensitive values come back as "••••". */
+    inputs?: { fieldKey: string; fieldLabel: string; value: string }[];
     results?: { id: string; resultType: string; hasValue: boolean; revealed: boolean; deliveredAt?: string | null }[];
   }[];
   payments?: { id: string; gateway: string; status: string; amount: string; failureReason?: string | null; createdAt: string }[];
+};
+
+/** An offer the owner pins to the top of the home page. */
+export type Banner = {
+  id: string;
+  titleAr: string;
+  subtitleAr: string | null;
+  imageUrl: string | null;
+  tone: 'teal' | 'gold' | 'ink' | 'rose';
+  linkType: 'product' | 'offers' | 'url' | null;
+  linkValue: string | null;
 };
 
 export type ManualAccount = {

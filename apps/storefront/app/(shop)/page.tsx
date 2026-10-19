@@ -8,6 +8,7 @@ import { groupBrands, useCatalog } from '@/lib/brands';
 import { bySection, topBrands } from '@/lib/sections';
 import BrandTile, { BrandTileSkeleton } from '@/components/BrandTile';
 import { SearchIcon } from '@/components/icons';
+import Banners from '@/components/Banners';
 
 /** Tiles a section column shows before "عرض الكل". */
 const PER_SECTION = 8;
@@ -54,6 +55,8 @@ export default function HomePage() {
           </form>
         </div>
       </section>
+
+      <Banners />
 
       {error && (
         <div className="mx-auto mt-6 max-w-page px-4">

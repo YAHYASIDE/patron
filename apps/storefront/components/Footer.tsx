@@ -37,12 +37,18 @@ export default function Footer() {
               باترون<span className="text-gold">.</span>
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <Link href="/products" className="hover:text-[rgb(var(--text))]">
               المنتجات
             </Link>
             <Link href="/orders" className="hover:text-[rgb(var(--text))]">
               طلباتي
+            </Link>
+            <Link href="/help" className="hover:text-[rgb(var(--text))]">
+              كيف أشتري؟
+            </Link>
+            <Link href="/terms" className="hover:text-[rgb(var(--text))]">
+              الشروط والاسترجاع
             </Link>
             <span>© {new Date().getFullYear()}</span>
           </div>

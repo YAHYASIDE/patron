@@ -3,6 +3,7 @@ import Footer from '@/components/Footer';
 import WakeBanner from '@/components/WakeBanner';
 import VerifyBanner from '@/components/VerifyBanner';
 import AuthGate from '@/components/AuthGate';
+import WhatsAppFab from '@/components/WhatsAppFab';
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         <AuthGate>{children}</AuthGate>
       </main>
       <Footer />
+      <WhatsAppFab />
     </div>
   );
 }

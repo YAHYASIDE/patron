@@ -1,4 +1,5 @@
 import type {
+  Banner,
   Category,
   Currency,
   Game,
@@ -279,6 +280,9 @@ export const catalog = {
   },
   product(idOrSku: string, currency?: string) {
     return request<Product>(`/catalog/products/${encodeURIComponent(idOrSku)}${qs({ currency })}`);
+  },
+  banners() {
+    return request<Banner[]>('/catalog/banners');
   },
 };
 

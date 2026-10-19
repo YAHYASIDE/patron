@@ -9,6 +9,9 @@ import { money } from '@/lib/format';
 import type { Order } from '@/lib/types';
 import { ChevronIcon, CheckIcon } from '@/components/icons';
 import { PayOrder } from '@/components/PayOrder';
+import OrderTimeline from '@/components/OrderTimeline';
+import { reorder } from '@/lib/reorder';
+import { useCurrency } from '@/lib/currency';
 
 const STATUS: Record<string, { t: string; c: string }> = {
   COMPLETED: { t: 'مكتمل', c: 'bg-ok/12 text-ok' },
@@ -36,6 +39,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   const res = useFetch<Order>(() => shop.order(id), [id]);
   const order = res.data;
+  const currency = useCurrency();
+  const [again, setAgain] = useState<{ busy: boolean; note: string | null }>({ busy: false, note: null });
+
+  // same items, same player ID, today's prices
+  async function buyAgain() {
+    if (!order) return;
+    setAgain({ busy: true, note: null });
+    const r = await reorder(order, currency);
+    if (r.fillIn) return router.push(`/products/${r.fillIn}`);
+    if (r.added > 0) return router.push('/cart');
+    setAgain({
+      busy: false,
+      note: r.unavailable.length ? `غير متوفّر حاليًا: ${r.unavailable.join('، ')}` : 'تعذّر إعادة الطلب.',
+    });
+  }
 
   const [codes, setCodes] = useState<Record<string, { resultType: string; value: string }[]>>({});
   const [revealing, setRevealing] = useState<string | null>(null);
@@ -95,6 +113,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className="tnum text-2xl font-extrabold text-teal">{money(order.total, order.currency)}</div>
         </div>
       </div>
+
+      <OrderTimeline order={order} />
 
       {/* items */}
       <div className="mt-6 space-y-3">
@@ -159,6 +179,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {order.status === 'PENDING_PAYMENT' && (
         <PayOrder order={order} initial={payWith} onChange={res.reload} />
+      )}
+
+      {order.status !== 'PENDING_PAYMENT' && (
+        <div className="mt-6">
+          <button
+            onClick={buyAgain}
+            disabled={again.busy}
+            className="surface hairline w-full rounded-xl border py-3 text-[15px] font-bold text-teal transition hover:border-teal disabled:opacity-60 sm:w-auto sm:px-8"
+          >
+            {again.busy ? 'جارٍ التجهيز…' : 'اطلب مجددًا'}
+          </button>
+          {again.note && <p className="mt-2 text-sm text-bad">{again.note}</p>}
+        </div>
       )}
     </div>
   );
