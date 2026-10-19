@@ -58,6 +58,15 @@ const MAX_REASON = 500;
 // offered even when the customer has no balance in them yet
 const WALLET_CURRENCIES = ['MRU', 'XOF', 'USD'];
 
+/** The API writes order and refund lines in English; the dashboard reads Arabic. */
+function describe(text: string): string {
+  const refund = /^Refund for order (\S+)$/.exec(text);
+  if (refund) return `استرجاع الطلب ${refund[1]}`;
+  const order = /^Order (\S+)$/.exec(text);
+  if (order) return `دفع الطلب ${order[1]}`;
+  return text;
+}
+
 const LEDGER_TYPE: Record<LedgerType, string> = {
   TOPUP: 'شحن',
   ORDER_PAYMENT: 'دفع طلب',
@@ -426,7 +435,7 @@ function Ledger({ rows }: { rows: LedgerRow[] }) {
             <>
               <span className="min-w-0">
                 <span className="block font-semibold">{LEDGER_TYPE[l.type] ?? l.type}</span>
-                {l.description && <span className="block text-xs text-muted">{l.description}</span>}
+                {l.description && <span className="block text-xs text-muted">{describe(l.description)}</span>}
                 <span className="block text-xs text-muted">
                   {dateTime(l.createdAt)}
                   {l.by ? ` · بواسطة ${l.by}` : ''}

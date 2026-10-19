@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
@@ -78,9 +78,13 @@ export default function OrdersPage() {
   const [to, setTo] = useState('');
   const filtered = !!(gateway || country || from || to);
   const pending = useFetch<PendingTransfer[]>('/admin/payments/manual/pending');
+  // only the latest request may fill the list: a tab opened from a link
+  // reloads while the first, unfiltered load is still on its way
+  const latest = useRef(0);
 
   const load = useCallback(
     async (next: string | null) => {
+      const id = ++latest.current;
       setLoading(true);
       setError(null);
       try {
@@ -93,10 +97,12 @@ export default function OrdersPage() {
         if (from) qs.set('from', dayIso(from));
         if (to) qs.set('to', dayIso(to, true));
         const resp = await api.get<OrdersResp>(`/admin/orders?${qs.toString()}`);
+        if (id !== latest.current) return;
         setRows((prev) => (next ? [...prev, ...resp.data] : resp.data));
         setHasMore(resp.meta?.hasMore ?? false);
         setCursor(resp.meta?.nextCursor ?? null);
       } catch (e) {
+        if (id !== latest.current) return;
         // an older server rejects the new filter fields
         setError(
           e instanceof ApiError && /should not exist/i.test(e.message)
@@ -107,8 +113,10 @@ export default function OrdersPage() {
         );
         if (!next) setRows([]);
       } finally {
-        setLoading(false);
-        setFirst(false);
+        if (id === latest.current) {
+          setLoading(false);
+          setFirst(false);
+        }
       }
     },
     [status, search, gateway, country, from, to],
