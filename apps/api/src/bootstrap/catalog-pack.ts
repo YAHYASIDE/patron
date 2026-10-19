@@ -742,7 +742,23 @@ export const V6_HIDE = [
 
 async function applyV6(prisma: Db) {
   const res = await prisma.product.updateMany({ where: { sku: { in: V6_HIDE }, isActive: true }, data: { isActive: false } });
-  return { hidden: res.count };
+
+  // the USDT help named a choice («Binance ID») the menu does not have; it now names the menu's own
+  // choices, in steps that read right to left. Only where the help is still the pack's first text.
+  let help = 0;
+  const usdt = GUIDES.usdt?.help;
+  const row = await prisma.game.findUnique({ where: { slug: 'usdt-binance' } });
+  if (usdt && row && Array.isArray(row.inputSchema)) {
+    const STALE: Record<string, string> = { network: '«Binance ID»', address: 'Binance ID:' };
+    const schema = (row.inputSchema as unknown as Input[]).map((f) => {
+      const fresh = usdt[f.key];
+      if (!fresh || !STALE[f.key] || !f.helpAr?.includes(STALE[f.key])) return f;
+      help++;
+      return { ...f, helpAr: fresh.ar, helpFr: fresh.fr, helpEn: fresh.en };
+    });
+    if (help) await prisma.game.update({ where: { id: row.id }, data: { inputSchema: schema as unknown as Prisma.InputJsonValue } });
+  }
+  return { hidden: res.count, help };
 }
 
 const PACKS: Array<{ key: string; description: string; apply: (prisma: Db) => Promise<Record<string, number>> }> = [

@@ -181,6 +181,23 @@ describe('applyCatalogPack', () => {
     expect(client.product.update).not.toHaveBeenCalled();
   });
 
+  it('v6 rewrites the USDT help that named a choice the menu does not have, unless the owner changed it', async () => {
+    const { client, games } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY, CATALOG_PACK_V5_KEY] });
+    games.set('usdt-binance', {
+      id: 'g-usdt', slug: 'usdt-binance',
+      inputSchema: [
+        { key: 'network', labelAr: 'الشبكة', helpAr: 'لديك حساب بينانس؟ اختر «Binance ID» (تحويل داخلي مجاني وفوري).' },
+        { key: 'address', labelAr: 'العنوان', helpAr: 'نص كتبه المالك' },
+      ],
+    });
+    await applyCatalogPack(asClient(client));
+
+    const schema = games.get('usdt-binance')!.inputSchema as Array<Record<string, string>>;
+    expect(schema[0].helpAr).toContain('«تحويل داخلي إلى معرّف Binance (UID)»');
+    expect(schema[0].helpFr).toContain('Binance (UID)');
+    expect(schema[1].helpAr).toBe('نص كتبه المالك');
+  });
+
   it('does nothing once every marker exists', async () => {
     const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY, CATALOG_PACK_V5_KEY, CATALOG_PACK_V6_KEY] });
     await applyCatalogPack(asClient(client));

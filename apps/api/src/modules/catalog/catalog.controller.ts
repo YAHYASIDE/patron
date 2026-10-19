@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CategoriesService } from './categories.service';
@@ -16,6 +16,14 @@ import {
 
 // ─────────────── Storefront (public) ───────────────
 
+/**
+ * The public catalogue is the same for everyone and changes when the owner
+ * edits it, so browsers and the edge may keep it a minute and refresh it in
+ * the background for five more. A price change shows within a minute; the
+ * quote always reprices from the database, so a cached price is never charged.
+ */
+const CATALOG_CACHE = 'public, max-age=60, stale-while-revalidate=300';
+
 @ApiTags('catalog')
 @Public()
 @Controller('catalog')
@@ -27,23 +35,23 @@ export class CatalogPublicController {
     private pricing: PricingService,
   ) {}
 
-  @Get('currencies') currencies() { return this.pricing.listCurrencies(); }
+  @Header('Cache-Control', CATALOG_CACHE) @Get('currencies') currencies() { return this.pricing.listCurrencies(); }
 
-  @Get('categories') categoryTree() { return this.categories.findTree(); }
+  @Header('Cache-Control', CATALOG_CACHE) @Get('categories') categoryTree() { return this.categories.findTree(); }
 
-  @Get('categories/:idOrSlug') category(@Param('idOrSlug') idOrSlug: string) {
+  @Header('Cache-Control', CATALOG_CACHE) @Get('categories/:idOrSlug') category(@Param('idOrSlug') idOrSlug: string) {
     return this.categories.findOne(idOrSlug);
   }
 
-  @Get('games') gameList(@Query() query: QueryCatalogDto) { return this.games.findAll(query); }
+  @Header('Cache-Control', CATALOG_CACHE) @Get('games') gameList(@Query() query: QueryCatalogDto) { return this.games.findAll(query); }
 
-  @Get('games/:idOrSlug') game(@Param('idOrSlug') idOrSlug: string) { return this.games.findOne(idOrSlug); }
+  @Header('Cache-Control', CATALOG_CACHE) @Get('games/:idOrSlug') game(@Param('idOrSlug') idOrSlug: string) { return this.games.findOne(idOrSlug); }
 
-  @Get('products') productList(@Query() query: QueryCatalogDto) {
+  @Header('Cache-Control', CATALOG_CACHE) @Get('products') productList(@Query() query: QueryCatalogDto) {
     return this.products.findAllPublic(query);
   }
 
-  @Get('products/:idOrSku') product(@Param('idOrSku') idOrSku: string, @Query('currency') currency?: string) {
+  @Header('Cache-Control', CATALOG_CACHE) @Get('products/:idOrSku') product(@Param('idOrSku') idOrSku: string, @Query('currency') currency?: string) {
     return this.products.findOnePublic(idOrSku, currency);
   }
 }

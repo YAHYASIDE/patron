@@ -68,10 +68,13 @@ export class OrdersService {
       const existing = await this.prisma.order.findUnique({ where: { quoteId } });
       if (existing) return this.findOne(existing.id, userId);
     }
-    if (quote.status !== QuoteStatus.ACTIVE) throw new BadRequestException('This quote is no longer valid');
+    // a code the store can act on (price the cart again), with the English for logs and the API docs
+    if (quote.status !== QuoteStatus.ACTIVE) {
+      throw new BadRequestException({ message: 'This quote is no longer valid', error: 'QUOTE_EXPIRED' });
+    }
     if (quote.expiresAt < new Date()) {
       await this.prisma.checkoutQuote.update({ where: { id: quoteId }, data: { status: QuoteStatus.EXPIRED } });
-      throw new BadRequestException('This quote has expired — please request a new price');
+      throw new BadRequestException({ message: 'This quote has expired — please request a new price', error: 'QUOTE_EXPIRED' });
     }
 
     const order = await this.prisma.$transaction(async (tx) => {
