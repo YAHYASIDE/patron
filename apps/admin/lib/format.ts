@@ -1,9 +1,12 @@
 /** Arabic-locale formatting helpers. The API reports money in the base currency (USD). */
 
+// Arabic words with Latin ("French") digits: the owner reads 1 250, not ١٬٢٥٠.
+const LOCALE = 'ar-EG-u-nu-latn';
+
 export function num(n: number | string | null | undefined, digits = 0): string {
   const v = typeof n === 'string' ? parseFloat(n) : n ?? 0;
   if (!isFinite(v as number)) return '—';
-  return (v as number).toLocaleString('ar-EG', {
+  return (v as number).toLocaleString(LOCALE, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
@@ -26,7 +29,7 @@ export function moneyIn(n: number | string | null | undefined, currency: string)
 export function date(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleDateString('ar-EG', {
+    return new Date(iso).toLocaleDateString(LOCALE, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -76,7 +79,7 @@ export const GATEWAY_LABEL: Record<string, string> = {
 export function dateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(iso).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
     return '—';
   }
