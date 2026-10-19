@@ -5,7 +5,7 @@ import { shop } from './api';
 
 export const GATEWAY_LABELS: Record<string, string> = {
   WALLET: 'رصيد المحفظة',
-  MANUAL: 'تحويل (بنكيلي، مصرفي، سداد…)',
+  MANUAL: 'تحويل (بنكيلي، مصرفي، أورنج موني، Binance…)',
   STRIPE: 'بطاقة بنكية',
 };
 export function gatewayLabel(g: string) {

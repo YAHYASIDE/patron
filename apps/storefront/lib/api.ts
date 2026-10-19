@@ -135,7 +135,9 @@ async function fetchWaking(url: string, init: RequestInit, retryable: boolean): 
 async function request<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = 'GET', body, auth = false, idempotent = false, retry = true } = opts;
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // a file goes as multipart; the browser sets the boundary itself
+  const form = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !form) headers['Content-Type'] = 'application/json';
   if (idempotent) headers['Idempotency-Key'] = idempotencyKey();
   if (auth) {
     const token = getAccess();
@@ -147,7 +149,7 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
     {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
       cache: 'no-store',
     },
     method === 'GET',
@@ -328,7 +330,13 @@ export const shop = {
   manualAccounts() {
     return request<{ accounts: ManualAccount[]; note: string | null }>('/payments/manual-accounts');
   },
-  submitTransfer(paymentId: string, body: { accountId: string; reference: string; payerName?: string; payerPhone?: string }) {
+  /** The screenshot of the transfer; required before reporting it. */
+  uploadProof(paymentId: string, image: Blob) {
+    const body = new FormData();
+    body.append('file', image, 'receipt.jpg');
+    return request<{ proofId: string }>(`/payments/${paymentId}/proof`, { method: 'POST', body, auth: true });
+  },
+  submitTransfer(paymentId: string, body: { accountId: string; payerPhone: string; reference?: string; payerName?: string }) {
     return request<{ paymentId: string; status: string }>(`/payments/${paymentId}/transfer`, {
       method: 'POST',
       body,

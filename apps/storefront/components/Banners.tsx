@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { catalog } from '@/lib/api';
+import { BASE, catalog } from '@/lib/api';
 import type { Banner } from '@/lib/types';
 
 const TONE: Record<Banner['tone'], string> = {
@@ -29,7 +29,11 @@ function Card({ b }: { b: Banner }) {
       {b.imageUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- owner-supplied link on any host */}
-          <img src={b.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={b.imageUrl.startsWith('/uploads/') ? `${BASE}${b.imageUrl}` : b.imageUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
           <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
         </>
       )}

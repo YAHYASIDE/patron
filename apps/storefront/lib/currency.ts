@@ -8,6 +8,8 @@ import { cart } from './cart';
 export const CURRENCIES = [
   { code: 'MRU', label: 'أوقية' },
   { code: 'USD', label: 'دولار' },
+  { code: 'XOF', label: 'فرنك' },
+  { code: 'DZD', label: 'دينار' },
 ] as const;
 
 /** Mauritania first: ouguiya unless the customer picks another. */

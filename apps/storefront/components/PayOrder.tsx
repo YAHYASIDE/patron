@@ -1,11 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { shop, ApiError } from '@/lib/api';
 import { money } from '@/lib/format';
 import { gatewayLabel, useUsableMethods, PAYMENT_WINDOW_MIN } from '@/lib/payments';
+import { REGIONS, REGION_LABEL, servesRegion, setRegion, useRegion } from '@/lib/regions';
+import { compressImage } from '@/lib/image';
+import { useMe } from '@/lib/session';
 import type { ManualAccount, Order } from '@/lib/types';
 import { CheckIcon } from './icons';
+import PayLogo from './PayLogo';
 
 type Manual = { paymentId: string; accounts: ManualAccount[]; note: string | null };
 
@@ -17,6 +21,7 @@ function friendly(err: unknown, fallback: string) {
   if (err.code === 'INSUFFICIENT_FUNDS' || /funds/i.test(err.message)) return 'رصيد محفظتك غير كافٍ.';
   if (/not awaiting payment/i.test(err.message)) return 'انتهت مهلة الدفع لهذا الطلب. أنشئ طلبًا جديدًا.';
   if (/already been reviewed/i.test(err.message)) return 'راجع المتجر هذا التحويل مسبقًا.';
+  if (err.code === 'PROOF_REQUIRED') return 'أرفق صورة التحويل.';
   return err.message;
 }
 
@@ -85,7 +90,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
             <CheckIcon size={20} />
           </span>
           <div>
-            <h2 className="font-bold">وصلنا رقم عمليتك، بانتظار تأكيد المتجر</h2>
+            <h2 className="font-bold">وصلنا تحويلك، بانتظار تأكيد المتجر</h2>
             <p className="mt-1 text-sm text-muted">
               نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.
             </p>
@@ -102,7 +107,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
             }}
             className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold text-muted"
           >
-            تصحيح رقم العملية
+            تصحيح بيانات التحويل
           </button>
         </div>
       </div>
@@ -161,7 +166,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
               disabled={busy || !gateway}
               className="btn-brand mt-4 w-full rounded-xl py-3 text-[15px] font-bold disabled:opacity-60"
             >
-              {busy ? 'جارٍ…' : gateway === 'MANUAL' ? 'عرض حسابات التحويل' : 'ادفع الآن'}
+              {busy ? 'جارٍ…' : gateway === 'MANUAL' ? 'عرض وسائل التحويل' : 'ادفع الآن'}
             </button>
           </>
         )
@@ -176,6 +181,12 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
   );
 }
 
+const PAID_FROM: Record<ManualAccount['kind'], { label: string; hint: string; ltr: boolean }> = {
+  mobile: { label: 'الرقم الذي حوّلت منه', hint: 'رقم هاتفك في التطبيق الذي دفعت به', ltr: true },
+  bank: { label: 'الحساب أو الرقم الذي حوّلت منه', hint: 'رقم حسابك أو هاتفك في تطبيق البنك', ltr: true },
+  crypto: { label: 'معرّف Binance أو عنوان محفظتك', hint: 'الحساب الذي أرسلت منه', ltr: true },
+};
+
 function TransferForm({
   manual,
   order,
@@ -187,13 +198,31 @@ function TransferForm({
   onBack?: () => void;
   onDone: () => void;
 }) {
-  const [accountId, setAccountId] = useState(manual.accounts[0]?.id ?? '');
-  const [reference, setReference] = useState('');
-  const [payerName, setPayerName] = useState('');
+  const { me } = useMe();
+  const region = useRegion(me?.phone);
+  const accounts = manual.accounts.filter((a) => servesRegion(a.countries, region));
+  const [accountId, setAccountId] = useState('');
+  const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
   const [payerPhone, setPayerPhone] = useState('');
+  // most pay from their own number: start with it once the account has loaded
+  const ownNumber = me?.phone?.replace(/^\+222/, '') ?? '';
+  useEffect(() => {
+    if (ownNumber && account?.kind !== 'crypto') setPayerPhone((v) => v || ownNumber);
+  }, [ownNumber, account?.kind]);
+  const [reference, setReference] = useState('');
+  const [image, setImage] = useState<{ blob: Blob; url: string } | null>(null);
+  const [uploaded, setUploaded] = useState<Blob | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(
+    () => () => {
+      if (image) URL.revokeObjectURL(image.url);
+    },
+    [image],
+  );
 
   async function copy(id: string, text: string) {
     try {
@@ -205,98 +234,177 @@ function TransferForm({
     }
   }
 
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return setError('اختر صورة (لقطة شاشة للتحويل).');
+    setError(null);
+    const blob = await compressImage(file);
+    setImage({ blob, url: URL.createObjectURL(blob) });
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (reference.trim().length < 3) {
-      setError('اكتب رقم العملية كما يظهر في رسالة التحويل.');
-      return;
-    }
+    if (!account) return;
+    if (payerPhone.trim().length < 4) return setError(`اكتب ${PAID_FROM[account.kind].label}.`);
+    if (!image) return setError('أرفق صورة التحويل (لقطة شاشة من التطبيق).');
     setBusy(true);
     setError(null);
     try {
+      // the same picture is not sent twice if the report itself failed
+      if (uploaded !== image.blob) {
+        await shop.uploadProof(manual.paymentId, image.blob);
+        setUploaded(image.blob);
+      }
       await shop.submitTransfer(manual.paymentId, {
-        accountId,
-        reference: reference.trim(),
-        payerName: payerName.trim() || undefined,
-        payerPhone: payerPhone.trim() || undefined,
+        accountId: account.id,
+        payerPhone: payerPhone.trim(),
+        reference: reference.trim() || undefined,
       });
       onDone();
     } catch (err) {
-      setError(friendly(err, 'تعذّر إرسال رقم العملية.'));
+      setError(
+        err instanceof ApiError && /JPEG, PNG or WebP|too large/i.test(err.message)
+          ? 'تعذّر قبول الصورة. أرسل لقطة شاشة بصيغة JPG أو PNG.'
+          : friendly(err, 'تعذّر إرسال التحويل.'),
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  if (manual.accounts.length === 0) {
-    return <p className="mt-4 text-sm text-muted">لم يضف المتجر حسابات التحويل بعد. تواصل مع المتجر.</p>;
-  }
-
   return (
-    <form onSubmit={submit} className="mt-4 flex flex-col gap-4">
-      <div>
-        <div className="text-sm font-bold">1. حوّل المبلغ إلى أحد هذه الحسابات</div>
-        <div className="mt-2 flex flex-col gap-2">
-          {manual.accounts.map((a) => (
-            <label
-              key={a.id}
-              className={
-                'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ' +
-                (accountId === a.id ? 'border-teal bg-teal/5' : 'border-[rgb(var(--line))]')
-              }
-            >
-              <input type="radio" name="account" checked={accountId === a.id} onChange={() => setAccountId(a.id)} className="mt-1 accent-teal" />
-              <div className="min-w-0 flex-1">
-                <div className="font-bold">{a.method}</div>
-                <div className="text-sm text-muted">{a.accountName}</div>
-                <div className="mt-1 flex items-center gap-2">
-                  <span dir="ltr" className="select-all font-mono text-[15px] font-bold">
-                    {a.accountNumber}
+    <form onSubmit={submit} className="mt-4 flex flex-col gap-5">
+      <div className="surface-2 flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-sm">
+        <span>
+          تدفع من: <b>{REGION_LABEL[region]}</b>
+        </span>
+        <select
+          value={region}
+          onChange={(e) => {
+            setRegion(e.target.value);
+            setAccountId('');
+          }}
+          aria-label="بلد الدفع"
+          className="rounded-lg bg-transparent text-sm font-bold text-teal outline-none"
+        >
+          {REGIONS.map((r) => (
+            <option key={r.id} value={r.id}>
+              {REGION_LABEL[r.id]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {accounts.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-[rgb(var(--line))] px-4 py-5 text-center text-sm text-muted">
+          لا توجد وسيلة دفع لهذا البلد بعد. راسلنا على واتساب لنساعدك في الدفع.
+        </p>
+      ) : (
+        <>
+          <div>
+            <div className="text-sm font-bold">1. اختر الوسيلة وحوّل المبلغ</div>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {accounts.map((a) => (
+                <button
+                  type="button"
+                  key={a.id}
+                  onClick={() => setAccountId(a.id)}
+                  aria-pressed={account?.id === a.id}
+                  className={
+                    'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-start transition ' +
+                    (account?.id === a.id ? 'border-teal bg-teal/5 ring-1 ring-teal' : 'border-[rgb(var(--line))]')
+                  }
+                >
+                  <PayLogo logo={a.logo} name={a.method} size={34} />
+                  <span className="min-w-0 text-[13px] font-bold leading-tight">{a.method}</span>
+                </button>
+              ))}
+            </div>
+
+            {account && (
+              <div className="surface-2 mt-3 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <PayLogo logo={account.logo} name={account.method} size={44} />
+                  <div className="min-w-0">
+                    <div className="font-bold">{account.method}</div>
+                    {account.accountName && <div className="text-sm text-muted">{account.accountName}</div>}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-[rgb(var(--surface))] px-3 py-2.5">
+                  <span dir="ltr" className="select-all break-all font-mono text-[17px] font-bold">
+                    {account.accountNumber}
                   </span>
                   <button
                     type="button"
-                    onClick={() => copy(a.id, a.accountNumber)}
-                    className="rounded-lg border border-[rgb(var(--line))] px-2 py-0.5 text-xs font-bold text-muted"
+                    onClick={() => copy(account.id, account.accountNumber)}
+                    className="flex-none rounded-lg border border-[rgb(var(--line))] px-2.5 py-1 text-xs font-bold text-muted"
                   >
-                    {copied === a.id ? 'نُسخ ✓' : 'نسخ'}
+                    {copied === account.id ? 'نُسخ ✓' : 'نسخ'}
                   </button>
                 </div>
-                {a.instructions && <p className="mt-1 text-xs text-muted">{a.instructions}</p>}
+                {account.instructions && <p className="mt-2 text-xs text-muted">{account.instructions}</p>}
+                <p className="mt-2.5 text-sm">
+                  المبلغ: <b className="tnum text-teal">{money(order.total, order.currency)}</b> · اكتب رقم الطلب{' '}
+                  <b dir="ltr">{order.orderNumber}</b> في ملاحظة التحويل إن أمكن.
+                </p>
               </div>
-            </label>
-          ))}
-        </div>
-        <p className="mt-2 text-sm">
-          المبلغ المطلوب: <b className="tnum text-teal">{money(order.total, order.currency)}</b> · اكتب رقم الطلب{' '}
-          <b dir="ltr">{order.orderNumber}</b> في ملاحظة التحويل إن أمكن.
-        </p>
-        {manual.note && <p className="mt-1 text-xs text-muted">{manual.note}</p>}
-      </div>
+            )}
+            {manual.note && <p className="mt-2 text-xs text-muted">{manual.note}</p>}
+          </div>
 
-      <div className="flex flex-col gap-2.5">
-        <div className="text-sm font-bold">2. أرسل لنا رقم العملية</div>
-        <input
-          className={field}
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          maxLength={100}
-          dir="ltr"
-          placeholder="رقم العملية / Transaction ID"
-          required
-        />
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          <input className={field} value={payerName} onChange={(e) => setPayerName(e.target.value)} maxLength={80} placeholder="اسم المحوِّل (اختياري)" />
-          <input
-            className={field}
-            value={payerPhone}
-            onChange={(e) => setPayerPhone(e.target.value)}
-            maxLength={20}
-            dir="ltr"
-            inputMode="tel"
-            placeholder="رقم هاتف المحوِّل (اختياري)"
-          />
-        </div>
-      </div>
+          {account && (
+            <div className="flex flex-col gap-2.5">
+              <div className="text-sm font-bold">2. {PAID_FROM[account.kind].label}</div>
+              <input
+                className={field}
+                value={payerPhone}
+                onChange={(e) => setPayerPhone(e.target.value)}
+                maxLength={120}
+                dir="ltr"
+                inputMode={account.kind === 'crypto' ? 'text' : 'tel'}
+                placeholder={PAID_FROM[account.kind].hint}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2.5">
+            <div className="text-sm font-bold">3. صورة التحويل</div>
+            <input ref={fileRef} type="file" accept="image/*" onChange={pick} className="hidden" />
+            {image ? (
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a local preview (blob URL) */}
+                <img src={image.url} alt="صورة التحويل" className="h-24 w-20 rounded-xl border border-[rgb(var(--line))] object-cover" />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold text-muted"
+                >
+                  تغيير الصورة
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex flex-col items-center gap-1 rounded-xl border-2 border-dashed border-[rgb(var(--line))] px-4 py-5 text-sm transition hover:border-teal"
+              >
+                <span className="font-bold text-teal">+ أرفق لقطة شاشة للتحويل</span>
+                <span className="text-xs text-muted">تظهر فيها العملية والمبلغ</span>
+              </button>
+            )}
+            <input
+              className={field}
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              maxLength={100}
+              dir="ltr"
+              placeholder="رقم العملية (اختياري) / Transaction ID"
+            />
+          </div>
+        </>
+      )}
 
       {error && (
         <p role="alert" className="rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
@@ -305,11 +413,13 @@ function TransferForm({
       )}
 
       <div className="flex gap-2">
-        <button type="submit" disabled={busy} className="btn-brand flex-1 rounded-xl py-3 text-[15px] font-bold disabled:opacity-60">
-          {busy ? 'جارٍ الإرسال…' : 'أرسلت المبلغ'}
-        </button>
+        {accounts.length > 0 && (
+          <button type="submit" disabled={busy} className="btn-brand flex-1 rounded-xl py-3 text-[15px] font-bold disabled:opacity-60">
+            {busy ? 'جارٍ الإرسال…' : 'أرسلت المبلغ'}
+          </button>
+        )}
         {onBack && (
-          <button type="button" onClick={onBack} className="rounded-xl border border-[rgb(var(--line))] px-4 text-sm font-bold text-muted">
+          <button type="button" onClick={onBack} className="rounded-xl border border-[rgb(var(--line))] px-4 py-3 text-sm font-bold text-muted">
             رجوع
           </button>
         )}

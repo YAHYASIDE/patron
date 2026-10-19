@@ -164,8 +164,11 @@ export type Banner = {
 export type ManualAccount = {
   id: string;
   method: string;
-  country?: string;
+  /** ISO codes it is offered in; "XX" = every other country; empty = everywhere. */
+  countries: string[];
   accountName: string;
   accountNumber: string;
+  kind: 'mobile' | 'bank' | 'crypto';
+  logo?: string;
   instructions?: string;
 };

@@ -19,12 +19,16 @@ export function money(
   digits = 2,
 ): string {
   const sym = SYMBOLS[currency] ?? currency;
-  // ouguiya prices are whole numbers (MRU rounds to 1): no ",00"
-  const whole = currency === 'MRU' && Number.isInteger(typeof n === 'string' ? parseFloat(n) : n);
+  // ouguiya, franc and dinar prices are whole numbers: no ",00"
+  const whole = WHOLE.has(currency) && Number.isInteger(typeof n === 'string' ? parseFloat(n) : n);
   return `${num(n, whole ? 0 : digits)} ${sym}`;
 }
 
+const WHOLE = new Set(['MRU', 'XOF', 'DZD']);
+
 const SYMBOLS: Record<string, string> = {
+  XOF: 'FCFA',
+  DZD: 'د.ج',
   USD: '$',
   EUR: '€',
   LYD: 'د.ل',
