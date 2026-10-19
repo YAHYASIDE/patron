@@ -30,6 +30,8 @@ interface GameInputField {
   labelEn: string;
   required: boolean;
   regex?: string;
+  /** A fixed choice (e.g. the network a wallet address is on): the value must be one of these. */
+  options?: Array<{ value: string }>;
   sensitive?: boolean;
 }
 
@@ -234,6 +236,9 @@ export class QuotesService {
       }
       if (value && field.regex && !new RegExp(field.regex).test(value)) {
         throw new BadRequestException(`Invalid format for ${field.labelEn}`);
+      }
+      if (value && field.options?.length && !field.options.some((o) => o.value === value)) {
+        throw new BadRequestException(`Choose one of the options for ${field.labelEn}`);
       }
       return {
         fieldKey: field.key,

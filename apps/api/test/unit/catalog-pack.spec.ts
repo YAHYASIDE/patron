@@ -8,6 +8,7 @@ import {
   CATALOG_PACK_V2_KEY,
   CATALOG_PACK_V3_KEY,
   CATALOG_PACK_V4_KEY,
+  CATALOG_PACK_V5_KEY,
 } from '../../src/bootstrap/catalog-pack';
 
 type Row = Record<string, unknown> & { id: string };
@@ -50,12 +51,37 @@ function fakePrisma(
         categories.set(data.slug, row);
         return Promise.resolve(row);
       }),
+      updateMany: jest.fn(({ where, data }) => {
+        let count = 0;
+        for (const row of categories.values()) {
+          if (matches(row, where)) {
+            Object.assign(row, data);
+            count++;
+          }
+        }
+        return Promise.resolve({ count });
+      }),
     },
     game: {
       findUnique: jest.fn(({ where }) => Promise.resolve(games.get(where.slug) ?? null)),
       create: jest.fn(({ data }) => {
         const row = { ...data, id: id() };
         games.set(data.slug, row);
+        return Promise.resolve(row);
+      }),
+      updateMany: jest.fn(({ where, data }) => {
+        let count = 0;
+        for (const row of games.values()) {
+          if (matches(row, where)) {
+            Object.assign(row, data);
+            count++;
+          }
+        }
+        return Promise.resolve({ count });
+      }),
+      update: jest.fn(({ where, data }) => {
+        const row = [...games.values()].find((g) => g.id === where.id);
+        if (row) Object.assign(row, data);
         return Promise.resolve(row);
       }),
     },
@@ -76,7 +102,18 @@ function fakePrisma(
         }
         return Promise.resolve({ count });
       }),
-      update: jest.fn(),
+      update: jest.fn(({ where, data }) => {
+        const row = [...products.values()].find((p) => p.id === where.id);
+        if (row) Object.assign(row, data);
+        return Promise.resolve(row);
+      }),
+      findMany: jest.fn(({ where }) =>
+        Promise.resolve(
+          [...products.values()].filter((p) =>
+            (where.OR as Array<{ sku: { startsWith: string } }>).some((c) => String(p.sku).startsWith(c.sku.startsWith)),
+          ),
+        ),
+      ),
       upsert: jest.fn(),
     },
     currency: {
@@ -97,7 +134,7 @@ function fakePrisma(
     },
     $disconnect: jest.fn(),
   };
-  return { client, products, settings, categories, currencies, prices };
+  return { client, products, settings, categories, games, currencies, prices };
 }
 
 const asClient = (c: unknown) => c as PrismaClient;
@@ -119,20 +156,20 @@ describe('applyCatalogPack', () => {
       expect(p.imageUrl).toBe(artUrl(p.sku as string));
       if (p.type === 'GAME_TOPUP') expect(p.gameId).toBeTruthy(); // the API enforces this too
     }
-    expect([CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY].every((k) => settings.has(k))).toBe(true);
+    expect([CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY, CATALOG_PACK_V5_KEY].every((k) => settings.has(k))).toBe(true);
   });
 
-  it('creates crypto vouchers and their section hidden', async () => {
+  it('keeps the crypto vouchers hidden, and v5 opens the crypto section for the top-ups', async () => {
     const { client, products, categories } = fakePrisma();
     await applyCatalogPack(asClient(client));
 
     expect(CATALOG_PACK_HIDDEN_SKUS.length).toBeGreaterThan(0);
     for (const sku of CATALOG_PACK_HIDDEN_SKUS) expect(products.get(sku)?.isActive).toBe(false);
-    expect(categories.get('crypto')?.isActive).toBe(false);
+    expect(categories.get('crypto')?.isActive).toBe(true);
   });
 
   it('does nothing once every marker exists', async () => {
-    const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY] });
+    const { client } = fakePrisma({ settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY, CATALOG_PACK_V5_KEY] });
     await applyCatalogPack(asClient(client));
 
     expect(client.category.create).not.toHaveBeenCalled();
@@ -143,7 +180,7 @@ describe('applyCatalogPack', () => {
   it('on a store that already has v1 (the live case) only adds v2, fills missing art and keeps the owner image', async () => {
     const ownImage = 'https://example.com/my-own-photo.jpg';
     const { client, products } = fakePrisma({
-      settings: [CATALOG_PACK_KEY],
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V5_KEY],
       categories: ['games', 'gift-cards', 'subscriptions', 'software', 'apps-topup'],
       products: [
         { sku: 'TOP-PUBG-660', imageUrl: null },
@@ -167,7 +204,7 @@ describe('applyCatalogPack', () => {
 
   it('v3 adds Mauritanian airtime with a phone input, priced at face value in MRU', async () => {
     const { client, products, prices, currencies } = fakePrisma({
-      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY],
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V5_KEY],
       currencies: [{ code: 'MRU', roundingStep: null }],
     });
     await applyCatalogPack(asClient(client));
@@ -190,7 +227,7 @@ describe('applyCatalogPack', () => {
 
   it('v3 keeps an owner-chosen MRU rounding and an existing MRU price', async () => {
     const { client, prices, currencies } = fakePrisma({
-      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY],
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V5_KEY],
       currencies: [{ code: 'MRU', roundingStep: 5 }],
       products: [{ sku: 'TOP-MATTEL-100' }],
     });
@@ -203,7 +240,7 @@ describe('applyCatalogPack', () => {
 
   it('v4 adds Claude Pro with an account-email input, featured, with art', async () => {
     const { client, products } = fakePrisma({
-      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY],
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V5_KEY],
       categories: ['subscriptions'],
     });
     await applyCatalogPack(asClient(client));
@@ -224,6 +261,92 @@ describe('applyCatalogPack', () => {
     const created = client.product.create.mock.calls.map(([a]) => a.data.sku);
     expect(created).not.toContain('GC-RIOT-10');
     expect(created).toHaveLength(CATALOG_PACK_SKUS.length - 1);
+  });
+
+  it('v5 corrects untouched prices, names and non-existent packs, and leaves owner edits alone', async () => {
+    const { client, products } = fakePrisma({
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY],
+      products: [
+        { sku: 'TOP-MLBB-86', sellPrice: 1.6, costPrice: 1.4, nameAr: 'موبايل ليجندز 86 جوهرة' }, // as v1 left it
+        { sku: 'TOP-MLBB-706', sellPrice: 13, costPrice: 11.2 }, // the owner repriced it
+        { sku: 'TOP-FF-310', sellPrice: 3.1, isActive: true }, // a pack that does not exist
+        { sku: 'TOP-FF-520', sellPrice: 6, isActive: true }, // …but the owner edited this one
+        { sku: 'TOP-YALLA-5', sellPrice: 5.4, nameAr: 'يلا لودو شحن بقيمة 5$' },
+        { sku: 'TOP-YALLA-10', sellPrice: 10.6, nameAr: 'اسم اختاره المالك' },
+      ],
+    });
+    await applyCatalogPack(asClient(client));
+
+    expect(products.get('TOP-MLBB-86')).toMatchObject({ sellPrice: 1.33, costPrice: 1.21 });
+    expect(products.get('TOP-MLBB-706')).toMatchObject({ sellPrice: 13 });
+    expect(products.get('TOP-FF-310')?.isActive).toBe(false);
+    expect(products.get('TOP-FF-520')?.isActive).toBe(true);
+    expect(products.get('TOP-YALLA-5')).toMatchObject({ nameAr: 'يلا لودو 2,320 جوهرة', nameEn: 'Yalla Ludo 2,320 Diamonds' });
+    expect(products.get('TOP-YALLA-10')?.nameAr).toBe('اسم اختاره المالك');
+    // the real packages that were missing
+    for (const sku of ['TOP-PUBG-3850', 'TOP-FF-530', 'APP-TIKTOK-3500', 'SUB-TGPREMIUM-6M', 'GC-PSN-US-100']) expect(products.has(sku)).toBe(true);
+  });
+
+  it('v5 adds USDT, Kast and RedotPay top-ups with a network choice, an address check and ouguiya prices', async () => {
+    const { client, products, games, prices, categories } = fakePrisma({
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY],
+      categories: ['crypto'],
+      currencies: [{ code: 'MRU', roundingStep: 1 }],
+    });
+    await applyCatalogPack(asClient(client));
+
+    const usdt = games.get('usdt-binance') as unknown as { inputSchema: Array<{ key: string; regex?: string; options?: Array<{ value: string }> }> };
+    expect(usdt.inputSchema[0].options?.map((o) => o.value)).toEqual(['binance_uid', 'bep20']);
+    const address = new RegExp(usdt.inputSchema[1].regex as string);
+    expect(address.test('123456789')).toBe(true); // a Binance UID
+    expect(address.test('0x' + 'a'.repeat(40))).toBe(true); // a BEP20 address
+    expect(address.test('TXYZ')).toBe(false);
+    for (const prefix of ['CRYPTO-USDT', 'CRYPTO-KAST', 'CRYPTO-REDOTPAY']) {
+      const p = products.get(`${prefix}-20`) as Row;
+      expect(p).toMatchObject({ type: 'GAME_TOPUP', delivery: 'MANUAL' });
+      expect(p.sellPrice as number).toBeGreaterThan(p.costPrice as number);
+      expect(prices.get(`${p.id}:MRU`)?.sellPrice).toBe(900);
+    }
+    expect(games.has('kast') && games.has('redotpay')).toBe(true);
+    expect(categories.get('crypto')).toBeTruthy();
+  });
+
+  it('v5 makes airtime numbers match their operator and fixes the Jawaker and Bigo account fields', async () => {
+    const { client, games } = fakePrisma({
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY],
+      games: ['mattel', 'mauritel', 'chinguitel', 'jawaker', 'bigo-live'],
+    });
+    await applyCatalogPack(asClient(client));
+
+    const regex = (slug: string) => new RegExp((games.get(slug) as unknown as { inputSchema: Array<{ regex: string }> }).inputSchema[0].regex);
+    expect(regex('mattel').test('+22236123456')).toBe(true);
+    expect(regex('mattel').test('46123456')).toBe(false);
+    expect(regex('mauritel').test('46123456')).toBe(true);
+    expect(regex('chinguitel').test('22123456')).toBe(true);
+    expect((games.get('jawaker') as unknown as { inputSchema: Array<{ key: string }> }).inputSchema[0].key).toBe('player_id');
+    expect((games.get('bigo-live') as unknown as { inputSchema: Array<{ key: string }> }).inputSchema[0].key).toBe('bigo_id');
+  });
+
+  it('v5 gives every brand\'s products a three-language guide and each account field its help text', async () => {
+    const { client, products, games } = fakePrisma({
+      settings: [CATALOG_PACK_KEY, CATALOG_PACK_V2_KEY, CATALOG_PACK_V3_KEY, CATALOG_PACK_V4_KEY],
+      games: ['pubg-mobile'],
+      products: [
+        { sku: 'TOP-PUBG-60', sellPrice: 1.1, metadata: null },
+        { sku: 'GC-APPLE-US-10', sellPrice: 10.9, metadata: { region: 'US', guide: { after: [{ ar: 'دليل المالك' }] } } },
+      ],
+    });
+    (games.get('pubg-mobile') as Row).inputSchema = [{ key: 'player_id', labelAr: 'x', labelEn: 'x', required: true }];
+    await applyCatalogPack(asClient(client));
+
+    const pubg = products.get('TOP-PUBG-60')?.metadata as { guide: { before: Array<{ ar: string; fr: string; en: string }>; warning: object } };
+    expect(pubg.guide.before.length).toBeGreaterThan(0);
+    expect(pubg.guide.before[0]).toEqual({ ar: expect.any(String), fr: expect.any(String), en: expect.any(String) });
+    expect(pubg.guide.warning).toBeTruthy();
+    // a guide already there (the owner's) is kept, and other metadata survives
+    expect(products.get('GC-APPLE-US-10')?.metadata).toEqual({ region: 'US', guide: { after: [{ ar: 'دليل المالك' }] } });
+    const field = (games.get('pubg-mobile') as unknown as { inputSchema: Array<{ helpAr?: string; helpEn?: string }> }).inputSchema[0];
+    expect(field.helpAr && field.helpEn).toBeTruthy();
   });
 
   it('keeps SKUs unique, within the DTO limit, and clear of the retired demo SKUs', () => {

@@ -274,6 +274,14 @@ describe('QuotesService', () => {
         service.create('u1', dto({ items: [{ productId: 'p1', quantity: 1, inputs: [{ key: 'player', value: 'abc' }] }] })),
       ).rejects.toThrow(/Invalid format for Player/);
     });
+
+    it('accepts only a listed option for a choice field', async () => {
+      const network = { key: 'network', labelEn: 'Network', required: true, options: [{ value: 'bep20' }, { value: 'binance_uid' }] };
+      prisma.product.findFirst.mockResolvedValue(withGame([network]));
+      await expect(
+        service.create('u1', dto({ items: [{ productId: 'p1', quantity: 1, inputs: [{ key: 'network', value: 'erc20' }] }] })),
+      ).rejects.toThrow(/Choose one of the options for Network/);
+    });
   });
 
   describe('resolveCoupon (via create)', () => {
