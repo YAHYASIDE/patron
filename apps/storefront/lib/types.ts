@@ -38,6 +38,22 @@ export type GameInput = {
   required?: boolean;
   regex?: string;
   sensitive?: boolean;
+  /** How the customer finds this value (e.g. where the Player ID is in the game). */
+  helpAr?: string;
+  helpFr?: string;
+  helpEn?: string;
+  /** A fixed choice instead of free text (e.g. the network a wallet address is on). */
+  options?: { value: string; labelAr: string; labelEn: string }[];
+};
+
+/** A text in the store's three languages; French and English may be missing (Arabic shows). */
+export type Localized = { ar: string; fr?: string; en?: string };
+
+/** What the customer should know about a product: before buying, after delivery, and the one costly mistake. */
+export type ProductGuide = {
+  before?: Localized[];
+  after?: Localized[];
+  warning?: Localized;
 };
 
 export type Game = {
@@ -143,6 +159,8 @@ export type Order = {
     unitPrice: string;
     lineTotal: string;
     status: string;
+    /** How to use what was bought (redeem the card, where the coins appear…). */
+    guide?: ProductGuide | null;
     /** What the customer entered (e.g. the player ID); sensitive values come back as "••••". */
     inputs?: { fieldKey: string; fieldLabel: string; value: string }[];
     results?: { id: string; resultType: string; hasValue: boolean; revealed: boolean; deliveredAt?: string | null }[];

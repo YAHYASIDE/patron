@@ -10,6 +10,7 @@ import type { Order } from '@/lib/types';
 import { ChevronIcon, CheckIcon } from '@/components/icons';
 import { PayOrder } from '@/components/PayOrder';
 import OrderTimeline from '@/components/OrderTimeline';
+import Guide from '@/components/Guide';
 import { reorder } from '@/lib/reorder';
 import { useCurrency } from '@/lib/currency';
 import { useT, useLang } from '@/lib/i18n';
@@ -180,6 +181,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     ? t('يُسلَّم هنا بعد تأكيد الدفع.')
                     : t('نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.')}
                 </p>
+              )}
+
+              {delivered && !!it.guide?.after?.length && (
+
+                <div className="mt-3">
+
+                  <Guide title="طريقة الاستخدام" steps={it.guide.after} tone="ok" />
+
+                </div>
+
               )}
 
               {revealErr[it.id] && <p className="mt-2 text-sm text-bad">{revealErr[it.id]}</p>}

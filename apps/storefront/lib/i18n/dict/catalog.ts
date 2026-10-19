@@ -2,6 +2,9 @@ import type { Dict } from '.';
 
 const dict: Dict = {
   fr: {
+    'قبل الدفع': 'Avant de payer',
+    'طريقة الاستخدام': 'Comment l’utiliser',
+    'اختر…': 'Choisir…',
     // brand tiles and grid
     'غير متوفّر': 'Indisponible',
     'من': 'dès',
@@ -66,6 +69,9 @@ const dict: Dict = {
     'تعذّر تحميل المنتجات. حاول مرة أخرى.': 'Impossible de charger les produits. Veuillez réessayer.',
   },
   en: {
+    'قبل الدفع': 'Before you pay',
+    'طريقة الاستخدام': 'How to use it',
+    'اختر…': 'Choose…',
     // brand tiles and grid
     'غير متوفّر': 'Out of stock',
     'من': 'from',

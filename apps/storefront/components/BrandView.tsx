@@ -10,6 +10,7 @@ import { tNow, useLang, useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
 import type { GameInput, Product } from '@/lib/types';
 import BrandTile from './BrandTile';
+import Guide, { guideOf } from './Guide';
 import { BoltIcon, CheckIcon, ChevronIcon, ShieldIcon } from './icons';
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
@@ -45,6 +46,8 @@ export default function BrandView({
   const lang = useLang();
   // account input labels come from the game: English for French and English visitors
   const labelOf = (f: GameInput) => (lang === 'ar' ? f.labelAr || f.labelEn : f.labelEn || f.labelAr);
+  // where to find the value, in the page's language (Arabic when no translation)
+  const helpOf = (f: GameInput) => (lang === 'fr' ? f.helpFr : lang === 'en' ? f.helpEn : f.helpAr) || f.helpAr;
   const section = sectionOf(brand);
   const firstAvailable = brand.products.find((p) => p.inStock !== false) ?? brand.products[0];
   const [selectedId, setSelectedId] = useState(
@@ -70,6 +73,8 @@ export default function BrandView({
     [product],
   );
   const manual = product.delivery === 'MANUAL';
+  // the brand's guide lives on its products; the selected one, else the first that has one
+  const guide = guideOf(product.metadata) ?? brand.products.map((p) => guideOf(p.metadata)).find(Boolean) ?? null;
   const total = parseFloat(product.sellPrice) * qty;
   const step = schema.length > 0 ? 1 : 0;
 
@@ -179,19 +184,38 @@ export default function BrandView({
                       {labelOf(f)}
                       {f.required && <span className="text-bad"> *</span>}
                     </span>
-                    <input
-                      type={
-                        f.sensitive ? 'password' : f.type === 'tel' || f.type === 'email' ? f.type : 'text'
-                      }
-                      inputMode={f.type === 'tel' ? 'tel' : undefined}
-                      dir={f.type === 'tel' || f.type === 'email' ? 'ltr' : undefined}
-                      value={inputs[f.key] ?? ''}
-                      onChange={(e) => {
-                        setInputs((v) => ({ ...v, [f.key]: e.target.value }));
-                        setErr(null);
-                      }}
-                      className="surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal"
-                    />
+                    {f.options?.length ? (
+                      <select
+                        value={inputs[f.key] ?? ''}
+                        onChange={(e) => {
+                          setInputs((v) => ({ ...v, [f.key]: e.target.value }));
+                          setErr(null);
+                        }}
+                        className="surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal"
+                      >
+                        <option value="">{t('اختر…')}</option>
+                        {f.options.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {lang === 'ar' ? o.labelAr : o.labelEn}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={
+                          f.sensitive ? 'password' : f.type === 'tel' || f.type === 'email' ? f.type : 'text'
+                        }
+                        inputMode={f.type === 'tel' ? 'tel' : undefined}
+                        dir={f.type === 'tel' || f.type === 'email' || f.type === 'address' ? 'ltr' : undefined}
+                        value={inputs[f.key] ?? ''}
+                        onChange={(e) => {
+                          setInputs((v) => ({ ...v, [f.key]: e.target.value }));
+                          setErr(null);
+                        }}
+                        className="surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal"
+                      />
+                    )}
+                    {helpOf(f) && <span className="text-xs leading-relaxed text-muted">{helpOf(f)}</span>}
                   </label>
                 ))}
               </div>
@@ -199,6 +223,10 @@ export default function BrandView({
                 <ShieldIcon size={14} className="text-teal" /> {t('لا نطلب كلمة المرور أبدًا.')}
               </p>
             </Section>
+          )}
+
+          {guide && (guide.before?.length || guide.warning) && (
+            <Guide title="قبل الدفع" steps={guide.before} warning={guide.warning} />
           )}
 
           <Section n={step + 1} title={t('اختر الفئة')}>
