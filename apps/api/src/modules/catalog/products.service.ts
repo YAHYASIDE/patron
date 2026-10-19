@@ -36,13 +36,7 @@ export class ProductsService {
       ...(query.gameId && { gameId: query.gameId }),
       ...(query.type && { type: query.type }),
       ...(query.isFeatured !== undefined && { isFeatured: query.isFeatured }),
-      ...(query.search && {
-        OR: [
-          { nameEn: { contains: query.search, mode: 'insensitive' } },
-          { nameAr: { contains: query.search } },
-          { sku: { contains: query.search, mode: 'insensitive' } },
-        ],
-      }),
+      ...(query.search && searchWords(query.search)),
     };
 
     const [products, total] = await this.prisma.$transaction([
@@ -117,13 +111,7 @@ export class ProductsService {
       ...(query.gameId && { gameId: query.gameId }),
       ...(query.type && { type: query.type }),
       ...(query.isActive !== undefined && { isActive: query.isActive }),
-      ...(query.search && {
-        OR: [
-          { nameEn: { contains: query.search, mode: 'insensitive' } },
-          { nameAr: { contains: query.search } },
-          { sku: { contains: query.search, mode: 'insensitive' } },
-        ],
-      }),
+      ...(query.search && searchWords(query.search)),
     };
 
     const [data, total] = await this.prisma.$transaction([
@@ -336,4 +324,21 @@ export class ProductsService {
       data: { userId, action, entityType: 'Product', entityId, before: toAuditJson(before), after: toAuditJson(after) },
     });
   }
+}
+
+/**
+ * Every word must appear somewhere (name in either language or SKU), in any
+ * order: "ببجي 60" finds "ببجي موبايل 60 شدة", and "pubg 60" finds it too.
+ */
+export function searchWords(search: string): Prisma.ProductWhereInput {
+  const words = search.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  return {
+    AND: words.map((w) => ({
+      OR: [
+        { nameEn: { contains: w, mode: 'insensitive' as const } },
+        { nameAr: { contains: w } },
+        { sku: { contains: w, mode: 'insensitive' as const } },
+      ],
+    })),
+  };
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PaymentStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { COUNTED_ITEM, NET_JOINS, NET_REVENUE, PAID_ORDER } from '../reports/sales-sql';
 import { FxService } from '../fx/fx.service';
 import { OverviewQueryDto } from './insights.dto';
 
@@ -90,7 +91,7 @@ export class InsightsService {
   /**
    * Yesterday and today (UTC days). An order counts on the day it was paid,
    * as in the revenue report; failed, refunded and cancelled orders are not
-   * sales. Cost is the frozen unit cost of the items that were not failed or
+   * sales, and refunds and owed lines come off (reports/sales-sql.ts). Cost is the frozen unit cost of the items that were not failed or
    * refunded, so profit = revenue − cost is known before delivery finishes.
    */
   private async salesByDay(yesterday: Date, today: Date): Promise<{ today: DayFigures; yesterday: DayFigures }> {
@@ -98,16 +99,17 @@ export class InsightsService {
     const rows = await this.prisma.$queryRaw<Array<{ day: Date; orders: number; revenue: string; cost: string }>>`
       SELECT date_trunc('day', o."paidAt") AS day,
              COUNT(*)::int AS orders,
-             COALESCE(SUM(o."totalBase"), 0)::text AS revenue,
+             COALESCE(SUM(${NET_REVENUE}), 0)::text AS revenue,
              COALESCE(SUM(c.cost), 0)::text AS cost
       FROM "orders" o
+      ${NET_JOINS}
       LEFT JOIN LATERAL (
         SELECT SUM(i."unitCost" * i."quantity") AS cost
         FROM "order_items" i
-        WHERE i."orderId" = o."id" AND i."status" NOT IN ('FAILED', 'REFUNDED', 'CANCELLED')
+        WHERE i."orderId" = o."id" AND ${COUNTED_ITEM}
       ) c ON TRUE
       WHERE o."paidAt" >= ${yesterday} AND o."paidAt" < ${tomorrow}
-        AND o."status" NOT IN ('PENDING_PAYMENT', 'CANCELLED', 'FAILED', 'REFUNDED')
+        AND ${PAID_ORDER}
       GROUP BY 1
     `;
 

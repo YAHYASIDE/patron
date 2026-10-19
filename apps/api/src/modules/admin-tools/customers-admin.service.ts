@@ -26,7 +26,7 @@ export class CustomersAdminService {
     });
     if (!user) throw new NotFoundException('Customer not found');
 
-    const [orders, totalOrders, sold] = await Promise.all([
+    const [orders, totalOrders, sold, wallets, ledger] = await Promise.all([
       this.prisma.order.findMany({
         where: { userId: id },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -40,6 +40,17 @@ export class CustomersAdminService {
         _sum: { totalBase: true },
         _max: { createdAt: true },
       }),
+      // the customer's balances, and the ledger behind them (newest first)
+      this.prisma.wallet.findMany({ where: { userId: id }, select: { currencyCode: true, balance: true, updatedAt: true } }),
+      this.prisma.walletTransaction.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: {
+          id: true, type: true, amount: true, balanceAfter: true, currency: true, description: true,
+          referenceType: true, referenceId: true, createdAt: true, createdById: true,
+        },
+      }),
     ]);
 
     return {
@@ -51,7 +62,19 @@ export class CustomersAdminService {
         lastOrderAt: sold._max.createdAt ?? null,
       },
       orders,
+      wallets,
+      ledger: await this.withStaffNames(ledger),
     };
+  }
+
+  /** Who made each manual adjustment, by name (the ledger keeps only the id). */
+  private async withStaffNames<T extends { createdById: string | null }>(rows: T[]) {
+    const ids = [...new Set(rows.map((r) => r.createdById).filter((v): v is string => !!v))];
+    const staff = ids.length
+      ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })
+      : [];
+    const name = new Map(staff.map((u) => [u.id, u.fullName]));
+    return rows.map(({ createdById, ...r }) => ({ ...r, by: createdById ? (name.get(createdById) ?? null) : null }));
   }
 
   async update(id: string, dto: UpdateCustomerDto, actorId: string) {

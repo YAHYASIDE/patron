@@ -530,12 +530,31 @@ describe('OrdersService', () => {
         ...makeOrder(),
         user: { id: 'u1', email: 'a@b.c', fullName: 'A', phone: null },
         payments: [{ id: 'p1', gateway: 'MANUAL', status: 'AUTHORIZED', rawResponse: { transfer: { reference: 'TX1' }, secret: 'x' } }],
+        refunds: [],
       });
       const res: any = await service.findOneAdmin('o1');
       expect(res.user.email).toBe('a@b.c');
       expect(res.payments[0]).toEqual(expect.objectContaining({ transfer: { reference: 'TX1' }, review: null }));
       expect(res.payments[0].rawResponse).toBeUndefined();
       expect(JSON.stringify(res)).not.toContain('secret');
+      // not paid yet: nothing to refund
+      expect(res.refundable).toBe('0');
+    });
+
+    it('says how much can still be refunded, after refunds that were not rejected', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        ...makeOrder(),
+        total: new Prisma.Decimal('40'),
+        payments: [{ id: 'p1', gateway: 'MANUAL', status: 'PARTIALLY_REFUNDED', rawResponse: null }],
+        refunds: [
+          { id: 'r1', amount: new Prisma.Decimal('10'), status: 'PROCESSED' },
+          { id: 'r2', amount: new Prisma.Decimal('5'), status: 'REQUESTED' },
+          { id: 'r3', amount: new Prisma.Decimal('30'), status: 'REJECTED' },
+        ],
+      });
+      const res: any = await service.findOneAdmin('o1');
+      expect(res.refundable).toBe('25');
+      expect(res.refundGateway).toBe('MANUAL');
     });
 
     it('throws NotFound for an unknown order', async () => {

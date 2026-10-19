@@ -68,11 +68,11 @@ describe('ProductsService', () => {
       expect(pricing.assertSupported).toHaveBeenCalledWith('EUR');
       const where = prisma.product.findMany.mock.calls[0][0].where;
       expect(where).toMatchObject({ deletedAt: null, isActive: true, categoryId: 'c1', gameId: 'g2', type: 'GIFT_CARD', isFeatured: true });
-      expect(where.OR).toEqual([
+      expect(where.AND).toEqual([{ OR: [
         { nameEn: { contains: 'card', mode: 'insensitive' } },
         { nameAr: { contains: 'card' } },
         { sku: { contains: 'card', mode: 'insensitive' } },
-      ]);
+      ] }]);
     });
 
     it('strips cost, prices the page and reports stock', async () => {
@@ -203,11 +203,19 @@ describe('ProductsService', () => {
       const where = prisma.product.findMany.mock.calls[0][0].where;
       expect(where.isActive).toBe(false);
       expect(where.gameId).toBe('g1');
-      expect(where.OR).toEqual([
+      expect(where.AND).toEqual([{ OR: [
         { nameEn: { contains: 'sku', mode: 'insensitive' } },
         { nameAr: { contains: 'sku' } }, // the owner searches in Arabic
         { sku: { contains: 'sku', mode: 'insensitive' } },
-      ]);
+      ] }]);
+    });
+
+    it('matches every word on its own, in any order ("ببجي 60" finds "ببجي موبايل 60 شدة")', async () => {
+      await service.findAllAdmin(query({ search: '  ببجي   60 ' }));
+      const where = prisma.product.findMany.mock.calls[0][0].where;
+      expect(where.AND).toHaveLength(2);
+      expect(where.AND[0].OR[1]).toEqual({ nameAr: { contains: 'ببجي' } });
+      expect(where.AND[1].OR[1]).toEqual({ nameAr: { contains: '60' } });
     });
   });
 

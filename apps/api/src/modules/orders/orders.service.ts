@@ -255,16 +255,31 @@ export class OrdersService {
         payments: {
           orderBy: { createdAt: 'desc' },
           select: {
-            id: true, gateway: true, status: true, amount: true, currency: true,
-            failureReason: true, rawResponse: true, createdAt: true, updatedAt: true,
+            id: true, gateway: true, status: true, amount: true, currency: true, refundedAmount: true,
+            failureCode: true, failureReason: true, rawResponse: true, createdAt: true, updatedAt: true,
+          },
+        },
+        refunds: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, amount: true, currency: true, reason: true, status: true, toWallet: true, gatewayRef: true,
+            createdAt: true, processedAt: true,
+            requestedBy: { select: { fullName: true } }, processedBy: { select: { fullName: true } },
           },
         },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     const presented = this.present(order, false);
+    // what can still be refunded: the order total less every refund not rejected
+    const settled = order.payments.find((p) => ['CAPTURED', 'PARTIALLY_REFUNDED'].includes(p.status));
+    const committed = order.refunds
+      .filter((r) => r.status !== 'REJECTED')
+      .reduce((acc, r) => acc.plus(r.amount), new Prisma.Decimal(0));
     return {
       ...presented,
+      refundable: settled ? Prisma.Decimal.max(order.total.minus(committed), 0).toString() : '0',
+      refundGateway: settled?.gateway ?? null,
       // only the transfer report and review, never a gateway's raw payload
       payments: order.payments.map(({ rawResponse, ...p }) => {
         const raw = (rawResponse ?? {}) as { transfer?: unknown; review?: unknown };

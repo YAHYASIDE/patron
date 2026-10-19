@@ -21,7 +21,7 @@ const raw = (rows: Rows) =>
     const sql = strings.join('?');
     const start = values.find((v): v is Date => v instanceof Date);
     const isToday = start?.getTime() === TODAY.getTime();
-    if (sql.includes('"failedValue"')) return Promise.resolve(rows.losses ?? []);
+    if (sql.includes('"owedValue"')) return Promise.resolve(rows.losses ?? []);
     if (sql.includes('"belowUnits"')) return Promise.resolve(rows.products ?? []);
     if (sql.includes('"payments"')) return Promise.resolve((isToday ? rows.todayMethods : rows.methods) ?? []);
     if (sql.includes('LIMIT 10')) return Promise.resolve(rows.customers ?? []);
@@ -70,7 +70,7 @@ describe('ReportSummaryService', () => {
     expect(r.series[0]).toEqual({ date: '2026-10-16', revenue: '0.00', cost: '0.00', profit: '0.00', orders: 0 });
     expect(r.series[1]).toEqual({ date: '2026-10-17', revenue: '10.00', cost: '8.50', profit: '1.50', orders: 2 });
     expect(r.series[3].profit).toBe('-0.75');
-    expect(r.today).toEqual({ revenue: '5.25', cost: '6.00', profit: '-0.75', orders: 1, cashByMethod: [] });
+    expect(r.today).toEqual({ revenue: '5.25', cost: '6.00', profit: '-0.75', orders: 1, cashByMethod: [], walletUsed: { amount: '0.00', orders: 0 } });
   });
 
   it('names the payment apps, groups transfers by app and gives each its share and logo', async () => {
@@ -84,7 +84,10 @@ describe('ReportSummaryService', () => {
         { key: 'm:', gateway: 'MANUAL', name: null, orders: 1, revenue: '2.5' },
         { key: 'other', gateway: null, name: null, orders: 0, revenue: '0' },
       ],
-      todayMethods: [{ key: 'm:klic', gateway: 'MANUAL', name: 'Klic', orders: 2, revenue: '7.1' }],
+      todayMethods: [
+        { key: 'm:klic', gateway: 'MANUAL', name: 'Klic', orders: 2, revenue: '7.1' },
+        { key: 'wallet', gateway: 'WALLET', name: null, orders: 3, revenue: '9' },
+      ],
     });
 
     const r = await service.summary(query(), NOW);
@@ -98,9 +101,11 @@ describe('ReportSummaryService', () => {
       { method: TRANSFER_LABEL, gateway: 'MANUAL', logo: null, orders: 1, revenue: '2.50', share: 2.5 },
       { method: OTHER_LABEL, gateway: 'OTHER', logo: null, orders: 0, revenue: '0.00', share: 0 },
     ]);
+    // the wallet spends a balance received earlier: it is not cash that came in today
     expect(r.today.cashByMethod).toEqual([
       { method: 'Klic', gateway: 'MANUAL', logo: null, amount: '7.10', orders: 2 },
     ]);
+    expect(r.today.walletUsed).toEqual({ amount: '9.00', orders: 3 });
   });
 
   it('ranks best sellers by units and lists sales below cost, largest loss first', async () => {
@@ -110,7 +115,7 @@ describe('ReportSummaryService', () => {
         { productId: 'b', sku: 'B', nameAr: 'ب', units: 5, revenue: '10', profit: '-1.5', belowUnits: 2, belowLoss: '1.5' },
         { productId: 'c', sku: 'C', nameAr: 'ج', units: 5, revenue: '20', profit: '1', belowUnits: 1, belowLoss: '0.25' },
       ],
-      losses: [{ refunds: '4', refundCount: 2, failedCount: 1, failedValue: '2.5' }],
+      losses: [{ refunds: '4', refundCount: 2, owedCount: 1, owedValue: '2.5' }],
     });
 
     const r = await service.summary(query(), NOW);
@@ -125,8 +130,9 @@ describe('ReportSummaryService', () => {
         { productId: 'c', sku: 'C', nameAr: 'ج', units: 1, loss: '0.25' },
       ],
       belowCostTotal: '1.75',
-      failedOrCancelled: { count: 1, value: '2.50' },
-      total: '8.25',
+      owed: { count: 1, value: '2.50' },
+      // refunds are already off the sales and owed money is not lost: only sales under cost are
+      total: '1.75',
     });
   });
 
@@ -155,8 +161,8 @@ describe('ReportSummaryService', () => {
     expect(r.totals).toEqual({
       revenue: '0.00', cost: '0.00', profit: '0.00', marginPercent: 0, orders: 0, itemsDelivered: 0, averageOrder: '0.00',
     });
-    expect(r.today).toEqual({ revenue: '0.00', cost: '0.00', profit: '0.00', orders: 0, cashByMethod: [] });
-    expect(r.losses).toMatchObject({ refunds: '0.00', belowCost: [], failedOrCancelled: { count: 0, value: '0.00' }, total: '0.00' });
+    expect(r.today).toEqual({ revenue: '0.00', cost: '0.00', profit: '0.00', orders: 0, cashByMethod: [], walletUsed: { amount: '0.00', orders: 0 } });
+    expect(r.losses).toMatchObject({ refunds: '0.00', belowCost: [], owed: { count: 0, value: '0.00' }, total: '0.00' });
     expect(r).toMatchObject({ byMethod: [], topCustomers: [], topProducts: [], byCountry: [] });
   });
 
