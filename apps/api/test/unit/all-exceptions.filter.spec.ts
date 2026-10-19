@@ -69,6 +69,28 @@ describe('AllExceptionsFilter', () => {
     expect(bodyOf(res)).toMatchObject({ error: 'Validation', message: ['a', 'b'] });
   });
 
+  it('keeps the details a deliberate 4xx carries, so the client can act on them', () => {
+    const { host, res } = makeHost();
+    filter.catch(
+      new BadRequestException({ message: 'Invalid format for Player ID', error: 'INPUT_INVALID', productId: 'p1', fieldLabelAr: 'معرّف اللاعب' }),
+      host,
+    );
+    expect(bodyOf(res)).toMatchObject({
+      statusCode: 400, error: 'INPUT_INVALID', message: 'Invalid format for Player ID', productId: 'p1', fieldLabelAr: 'معرّف اللاعب',
+    });
+  });
+
+  it('never echoes the details of a 5xx, and details cannot replace the envelope', () => {
+    const { host, res } = makeHost();
+    filter.catch(new HttpException({ message: 'boom', internal: 'secret' }, HttpStatus.INTERNAL_SERVER_ERROR), host);
+    expect(bodyOf(res)).not.toHaveProperty('internal');
+
+    const second = makeHost();
+    filter.catch(new BadRequestException({ message: 'x', error: 'E', path: '/forged', correlationId: 'forged' }), second.host);
+    expect(bodyOf(second.res).path).toBe('/orders/1');
+    expect(bodyOf(second.res).correlationId).not.toBe('forged');
+  });
+
   it('falls back to the exception message/name when the object payload omits them', () => {
     const { host, res } = makeHost();
     // An object response with neither message nor error.

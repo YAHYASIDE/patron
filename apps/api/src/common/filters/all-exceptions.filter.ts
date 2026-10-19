@@ -8,6 +8,7 @@ import { RequestContextStore } from '../context/request-context';
 import { reportServerError } from './server-error-sink';
 
 interface ErrorBody {
+  [detail: string]: unknown;
   statusCode: number;
   error: string;
   message: string | string[];
@@ -42,6 +43,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let message: string | string[] = 'Internal server error';
     let error = 'Internal Server Error';
+    // what the code attached on purpose (which cart line, which field, the old and new rate…)
+    let details: Record<string, unknown> = {};
 
     /**
      * Prisma errors carry the status in their code, not in an HttpException.
@@ -77,13 +80,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = payload;
         error = exception.name.replace(/Exception$/, '');
       } else {
-        const body = payload as { message?: string | string[]; error?: string };
+        const body = payload as { message?: string | string[]; error?: string; statusCode?: number };
         message = body.message ?? exception.message;
         error = body.error ?? exception.name.replace(/Exception$/, '');
+        // only for errors raised on purpose: an unexpected 5xx stays generic
+        if (status < 500) {
+          const reserved = new Set(['message', 'error', 'statusCode']);
+          details = Object.fromEntries(Object.entries(body).filter(([k]) => !reserved.has(k)));
+        }
       }
     }
 
     const body: ErrorBody = {
+      ...details,
       statusCode: status,
       error,
       message,
