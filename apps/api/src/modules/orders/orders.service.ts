@@ -218,7 +218,7 @@ export class OrdersService {
       where: { id },
       include: {
         items: { include: { inputs: true, results: true, product: { select: { metadata: true } } } },
-        payments: { select: { id: true, gateway: true, status: true, amount: true, failureReason: true, createdAt: true } },
+        payments: { select: { id: true, gateway: true, status: true, amount: true, refundedAmount: true, failureReason: true, createdAt: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
