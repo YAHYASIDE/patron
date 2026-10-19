@@ -23,6 +23,7 @@ describe('csv', () => {
 
 describe('DataExportService', () => {
   let prisma: any;
+  let backups: any;
   let service: DataExportService;
 
   beforeEach(() => {
@@ -35,9 +36,14 @@ describe('DataExportService', () => {
       game: { findMany: jest.fn().mockResolvedValue([]) },
       banner: { findMany: jest.fn().mockResolvedValue([]) },
       coupon: { findMany: jest.fn().mockResolvedValue([]) },
-      systemSetting: { findMany: jest.fn().mockResolvedValue([]) },
+      systemSetting: {
+        findMany: jest.fn().mockResolvedValue([]),
+        upsert: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
     };
-    service = new DataExportService(prisma);
+    backups = { export: jest.fn() };
+    service = new DataExportService(prisma, backups);
   });
 
   describe('ordersCsv', () => {
@@ -118,41 +124,23 @@ describe('DataExportService', () => {
   });
 
   describe('backup', () => {
-    it('never selects secrets and drops secret-looking settings and sensitive input values', async () => {
-      prisma.user.findMany.mockResolvedValue([{ id: 'u1', fullName: 'A', roles: [{ role: { name: 'customer' } }] }]);
-      prisma.order.findMany.mockResolvedValue([
-        {
-          id: 'o1',
-          items: [{ id: 'i1', inputs: [
-            { fieldKey: 'player', fieldLabel: 'Player', value: '123', isSensitive: false },
-            { fieldKey: 'password', fieldLabel: 'Password', value: 'enc:xyz', isSensitive: true },
-          ] }],
-          payments: [{ id: 'p1', gateway: 'MANUAL' }],
-        },
-      ]);
-      prisma.systemSetting.findMany.mockResolvedValue([
-        { key: 'platform.name', value: 'Patron' },
-        { key: 'payments.stripe_secret', value: 'sk' },
-        { key: 'mail.api_key', value: 'k' },
-      ]);
+    it('hands out the full backup and remembers when it was downloaded', async () => {
+      const body = { version: 2, exportedAt: '2026-10-20T08:15:30.000Z', counts: {}, tables: {} };
+      backups.export.mockResolvedValue(body);
 
-      const { filename, body } = await service.backup();
-      expect(filename).toMatch(/^patron-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/);
-      expect(body.version).toBe(1);
-      expect(body.users).toEqual([{ id: 'u1', fullName: 'A', roles: ['customer'] }]);
-      expect(body.orders[0].items[0].inputs.map((i: any) => i.value)).toEqual(['123', null]);
-      expect(body.settings.map((s: any) => s.key)).toEqual(['platform.name']);
-      expect(body.counts).toMatchObject({ users: 1, orders: 1, settings: 1, products: 0 });
+      const res = await service.backup();
 
-      const userSelect = prisma.user.findMany.mock.calls[0][0].select;
-      for (const secret of ['passwordHash', 'twoFaSecretEnc', 'refreshTokens', 'verifications', 'lastLoginIp']) {
-        expect(userSelect).not.toHaveProperty(secret);
-      }
-      const orderSelect = prisma.order.findMany.mock.calls[0][0].select;
-      expect(orderSelect.items.select).not.toHaveProperty('results');
-      expect(orderSelect.items.select).not.toHaveProperty('assignedCodes');
-      expect(orderSelect.payments.select).not.toHaveProperty('rawResponse');
-      expect(prisma.product.findMany.mock.calls[0][0].select).not.toHaveProperty('codes');
+      expect(res).toEqual({ filename: 'patron-backup-2026-10-20T08-15-30.json', body });
+      expect(prisma.systemSetting.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { key: 'backup.last_downloaded_at' },
+        update: { value: '2026-10-20T08:15:30.000Z' },
+      }));
+    });
+
+    it('says when the last backup was downloaded, or null', async () => {
+      prisma.systemSetting.findUnique.mockResolvedValueOnce({ value: '2026-10-19T00:00:00.000Z' }).mockResolvedValueOnce(null);
+      await expect(service.lastBackupAt()).resolves.toBe('2026-10-19T00:00:00.000Z');
+      await expect(service.lastBackupAt()).resolves.toBeNull();
     });
   });
 });
