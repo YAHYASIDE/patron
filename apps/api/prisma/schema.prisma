@@ -429,16 +429,18 @@ model ProductCode {
 }
 
 model Banner {
-  id        String    @id @default(uuid()) @db.Uuid
-  titleAr   String
-  titleEn   String
-  imageUrl  String
-  linkType  String? // category | game | product | url
-  linkValue String?
-  sortOrder Int       @default(0)
-  isActive  Boolean   @default(true)
-  startsAt  DateTime?
-  endsAt    DateTime?
+  id         String    @id @default(uuid()) @db.Uuid
+  titleAr    String
+  titleEn    String?
+  subtitleAr String?
+  imageUrl   String?
+  tone       String    @default("teal") // teal | gold | ink | rose (text-only banners)
+  linkType   String? // product | offers | url
+  linkValue  String?
+  sortOrder  Int       @default(0)
+  isActive   Boolean   @default(true)
+  startsAt   DateTime?
+  endsAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
