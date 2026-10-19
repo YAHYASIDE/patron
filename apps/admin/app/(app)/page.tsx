@@ -5,6 +5,7 @@ import { useFetch } from '@/lib/hooks';
 import { num, money, moneyIn, date, statusChip } from '@/lib/format';
 import Notice from '@/components/Notice';
 import LearnCard from '@/components/LearnCard';
+import AttentionPanel from '@/components/AttentionPanel';
 
 type Day = { revenue: string | number; cost: string | number; profit: string | number; orders: number };
 type Overview = {
@@ -165,6 +166,9 @@ export default function DashboardPage() {
           <span className="ms-auto font-bold underline">حدّثها ←</span>
         </Link>
       )}
+
+      {/* failed or late deliveries, waiting transfers, double payments, an old backup */}
+      <AttentionPanel />
 
       {/* what needs the owner now */}
       {!ov.error && (

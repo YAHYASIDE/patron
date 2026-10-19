@@ -9,11 +9,14 @@ export default function ExportButton({
   filename,
   label,
   primary,
+  onDone,
 }: {
   path: string;
   filename: string;
   label: string;
   primary?: boolean;
+  /** Called after a successful download (e.g. to refresh "last backup"). */
+  onDone?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +26,7 @@ export default function ExportButton({
     setError(null);
     try {
       await api.download(path, filename);
+      onDone?.();
     } catch (e) {
       setError(
         e instanceof ApiError ? (e.message === NOT_READY ? 'غير متاح بعد' : e.message) : 'تعذّر التنزيل.',
