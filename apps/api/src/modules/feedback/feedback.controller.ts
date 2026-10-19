@@ -21,7 +21,9 @@ export class EventsController {
 
   /** The customer behind an event, when the request carries a valid token; never an error. */
   private async userOf(authorization?: string): Promise<string | null> {
-    const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+    // plain string checks, not a regex: the header is attacker-controlled
+    if (!authorization || authorization.length > 4096 || authorization.slice(0, 7).toLowerCase() !== 'bearer ') return null;
+    const token = authorization.slice(7).trim();
     if (!token) return null;
     try {
       const payload = await this.jwt.verifyAsync<{ sub: string; type: string }>(token, {

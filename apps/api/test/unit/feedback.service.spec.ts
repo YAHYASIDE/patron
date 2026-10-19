@@ -161,11 +161,14 @@ describe('EventsController', () => {
   it('records anonymously without a token, with a bad one, or with another token type', async () => {
     await ctrl.report(dto);
     await ctrl.report(dto, 'Basic abc');
+    await ctrl.report(dto, 'Bearer    ');
+    await ctrl.report(dto, `Bearer ${'\t'.repeat(5000)}x`);
     jwt.verifyAsync.mockRejectedValueOnce(new Error('expired'));
     await ctrl.report(dto, 'Bearer old');
     jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u1', type: 'refresh' });
     await ctrl.report(dto, 'Bearer refresh');
-    expect(feedback.record.mock.calls.map((c: unknown[]) => c[1])).toEqual([null, null, null, null]);
+    expect(feedback.record.mock.calls.map((c: unknown[]) => c[1])).toEqual([null, null, null, null, null, null]);
+    expect(jwt.verifyAsync).toHaveBeenCalledTimes(2);
   });
 });
 
