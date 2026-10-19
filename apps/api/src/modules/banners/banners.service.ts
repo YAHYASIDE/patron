@@ -5,6 +5,8 @@ import { BannerDto } from './banners.dto';
 
 const PUBLIC_FIELDS = {
   id: true, titleAr: true, subtitleAr: true, imageUrl: true, tone: true, linkType: true, linkValue: true,
+  // the store counts down to the end of a dated offer
+  endsAt: true,
 } as const;
 
 /** The offers the owner pins to the top of the store's home page. */
