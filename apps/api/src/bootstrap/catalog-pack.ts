@@ -33,6 +33,7 @@ export const CATALOG_PACK_V2_KEY = 'catalog.pack.v2';
 export const CATALOG_PACK_V3_KEY = 'catalog.pack.v3';
 export const CATALOG_PACK_V4_KEY = 'catalog.pack.v4';
 export const CATALOG_PACK_V5_KEY = 'catalog.pack.v5';
+export const CATALOG_PACK_V6_KEY = 'catalog.pack.v6';
 
 type Input = {
   key: string;
@@ -719,12 +720,38 @@ async function applyV5(prisma: Db) {
   return done;
 }
 
+// ───────────────────────── pack v6 ─────────────────────────
+
+/**
+ * Products the October audit found cannot be delivered as sold (the research
+ * doc: a US card that does not work on EU/MENA servers or Mauritanian
+ * accounts, a subscription that only comes by logging into the customer's
+ * account, a service not offered in Mauritania), plus a stray Free Fire item
+ * that sat on the PUBG page at eleven times its price. The owner asked to deal
+ * with them: they are hidden once, not deleted — the owner can show any of them
+ * again from the dashboard, and the marker keeps this pack from hiding it twice.
+ */
+export const V6_HIDE = [
+  'FF-DIAMONDS-100',
+  'GC-RIOT-10', 'GC-RIOT-25', 'GC-RIOT-50',
+  'GC-SPOTIFY-US-10', 'GC-SPOTIFY-US-30',
+  'SUB-SPOTIFY-1M', 'SUB-SPOTIFY-3M', 'SUB-SPOTIFY-12M',
+  'SUB-CHATGPT-1M', 'SUB-CLAUDE-PRO-1M', 'SUB-CANVA-12M',
+  'SUB-YTPREMIUM-1M', 'SUB-DISNEY-1M', 'SUB-APPLEMUSIC-1M', 'SUB-NFLX-1M',
+];
+
+async function applyV6(prisma: Db) {
+  const res = await prisma.product.updateMany({ where: { sku: { in: V6_HIDE }, isActive: true }, data: { isActive: false } });
+  return { hidden: res.count };
+}
+
 const PACKS: Array<{ key: string; description: string; apply: (prisma: Db) => Promise<Record<string, number>> }> = [
   { key: CATALOG_PACK_KEY, description: 'Starter catalog pack applied (insert-only, once).', apply: applyV1 },
   { key: CATALOG_PACK_V2_KEY, description: 'Catalog pack v2: more brands, wallets/crypto sections, product art (once).', apply: applyV2 },
   { key: CATALOG_PACK_V3_KEY, description: 'Catalog pack v3: Mauritanian mobile airtime priced in MRU (once).', apply: applyV3 },
   { key: CATALOG_PACK_V4_KEY, description: 'Catalog pack v4: Claude Pro (once).', apply: applyV4 },
   { key: CATALOG_PACK_V5_KEY, description: 'Catalog pack v5: researched packages, prices, inputs, guides, crypto top-ups (once).', apply: applyV5 },
+  { key: CATALOG_PACK_V6_KEY, description: 'Catalog pack v6: hide products that cannot be delivered as sold (once; the owner can show them again).', apply: applyV6 },
 ];
 
 /** Apply every pack not yet recorded, in order. */
