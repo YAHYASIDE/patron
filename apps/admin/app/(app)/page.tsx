@@ -1,11 +1,14 @@
 'use client';
 
+import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
+import { reportSummaryPath, type ReportSummary } from '@/lib/api';
 import { num, money, moneyIn, date, statusChip } from '@/lib/format';
 import Notice from '@/components/Notice';
 import LearnCard from '@/components/LearnCard';
 import AttentionPanel from '@/components/AttentionPanel';
+import SalesChart from '@/components/charts/SalesChart';
 
 type Day = { revenue: string | number; cost: string | number; profit: string | number; orders: number };
 type Overview = {
@@ -40,6 +43,23 @@ const LOW_STOCK = 3;
 const TARGET_MARGIN = 5;
 
 const n = (v: string | number | null | undefined) => parseFloat(String(v ?? 0)) || 0;
+
+const DAY_MS = 86_400_000;
+// UTC days, like the API: the shop's day is Nouakchott's, which is UTC
+const ymd = (t: number) => new Date(t).toISOString().slice(0, 10);
+const shortDay = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('ar-EG-u-nu-latn', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+
+/** The last 14 days, today included (a bare `to` date counts its whole day). */
+function last14Days(): { from: string; to: string } {
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return { from: ymd(today - 13 * DAY_MS), to: ymd(today) };
+}
 
 /** Today against yesterday: "+12%" in green, "−8%" in red, or a plain word when yesterday was zero. */
 function Delta({ today, yesterday }: { today: number; yesterday: number }) {
@@ -80,6 +100,44 @@ function CompareCard({
       <div className="mt-1 text-[11.5px] text-muted">
         أمس: <span className="tnum font-semibold">{loading ? '…' : fmt(yesterday)}</span>
       </div>
+    </div>
+  );
+}
+
+/** One figure for the last 14 days; amounts read left to right. */
+function KpiCard({
+  label,
+  value,
+  sub,
+  tone,
+  loading,
+}: {
+  label: string;
+  value: string;
+  sub: ReactNode;
+  tone?: 'ok' | 'bad';
+  loading: boolean;
+}) {
+  return (
+    <div className="surface min-w-0 rounded-2xl p-4 shadow-card">
+      <div className="text-[13px] font-semibold text-muted">{label}</div>
+      {loading ? (
+        <>
+          <div aria-hidden className="surface-2 mt-2.5 h-7 w-24 max-w-full animate-pulse rounded-lg" />
+          <div aria-hidden className="surface-2 mt-2 h-3 w-16 max-w-full animate-pulse rounded" />
+        </>
+      ) : (
+        <>
+          <div
+            className={`mt-2 text-xl font-extrabold leading-tight tnum [overflow-wrap:anywhere] sm:text-2xl ${
+              tone === 'ok' ? 'text-ok' : tone === 'bad' ? 'text-bad' : ''
+            }`}
+          >
+            <span dir="ltr">{value}</span>
+          </div>
+          <div className="mt-1 text-[11.5px] text-muted">{sub}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -126,11 +184,26 @@ function TodoCard({
 export default function DashboardPage() {
   const ov = useFetch<Overview>(`/admin/insights/overview?lowStock=${LOW_STOCK}&margin=${TARGET_MARGIN}`);
   const orders = useFetch<Paginated<OrderRow>>('/admin/orders?limit=6');
+  const span = last14Days();
+  const trend = useFetch<ReportSummary>(reportSummaryPath(span.from, span.to));
 
   const d = ov.data;
   const loading = ov.loading && !d;
   const t = d?.today;
   const y = d?.yesterday;
+
+  const tt = trend.data?.totals;
+  const trendLoading = trend.loading && !trend.data;
+  const points = useMemo(
+    () =>
+      (trend.data?.series ?? []).map((p) => ({
+        date: p.date,
+        revenue: n(p.revenue),
+        profit: n(p.profit),
+        orders: p.orders,
+      })),
+    [trend.data],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -143,6 +216,7 @@ export default function DashboardPage() {
           onClick={() => {
             ov.reload();
             orders.reload();
+            trend.reload();
           }}
           className="rounded-xl border border-[rgb(var(--line))] px-3.5 py-2 text-sm font-semibold text-muted transition hover:text-[rgb(var(--text))]"
         >
@@ -227,6 +301,72 @@ export default function DashboardPage() {
           <p className="text-xs text-muted">بالدولار (العملة الأساسية)، من منتصف الليل.</p>
         </section>
       )}
+
+      {/* the last 14 days, today included: net sales, profit, orders and the day-by-day trend */}
+      <section className="flex flex-col gap-3" aria-busy={trend.loading}>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-bold">آخر 14 يومًا</h2>
+          <Link href="/reports" className="text-sm font-semibold text-teal hover:underline">
+            التقارير ←
+          </Link>
+        </div>
+        {trend.error ? (
+          <Notice text={trend.error} />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KpiCard
+                label="صافي المبيعات"
+                value={money(tt?.revenue)}
+                sub="بعد الاسترجاع"
+                loading={trendLoading}
+              />
+              <KpiCard
+                label="الربح"
+                value={money(tt?.profit)}
+                tone={n(tt?.profit) < 0 ? 'bad' : n(tt?.profit) > 0 ? 'ok' : undefined}
+                sub={
+                  <>
+                    هامش الربح{' '}
+                    <span dir="ltr" className="tnum font-semibold">
+                      {num(tt?.marginPercent, 1)}%
+                    </span>
+                  </>
+                }
+                loading={trendLoading}
+              />
+              <KpiCard label="عدد الطلبات" value={num(tt?.orders)} sub="طلب مدفوع" loading={trendLoading} />
+              <KpiCard
+                label="متوسط الطلب"
+                value={money(tt?.averageOrder)}
+                sub="لكل طلب مدفوع"
+                loading={trendLoading}
+              />
+            </div>
+
+            <div className="surface min-w-0 rounded-2xl p-4 shadow-card sm:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h3 className="text-[15px] font-bold">صافي المبيعات والربح يومًا بيوم</h3>
+                <span className="text-xs text-muted">
+                  {shortDay(span.from)} – {shortDay(span.to)}
+                </span>
+              </div>
+              {trendLoading ? (
+                <div aria-hidden className="surface-2 mt-3 h-[272px] animate-pulse rounded-xl" />
+              ) : (tt?.orders ?? 0) === 0 ? (
+                <p className="surface-2 mt-3 rounded-xl px-3.5 py-3 text-sm leading-6 text-muted">
+                  لا مبيعات في آخر 14 يومًا.
+                </p>
+              ) : (
+                <div className="mt-3">
+                  <SalesChart points={points} />
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted">بالدولار، صافي بعد الاسترجاع والطلبات التي لم تُسلَّم.</p>
+          </>
+        )}
+      </section>
 
       {/* what visitors ran into: errors today, searches that found nothing this week */}
       <section className="flex flex-col gap-3">

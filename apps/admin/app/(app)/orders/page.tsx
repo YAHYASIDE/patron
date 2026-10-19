@@ -38,6 +38,10 @@ const FILTERS: { key: string; label: string }[] = [
   { key: 'PENDING_PAYMENT', label: 'بانتظار الدفع' },
   { key: 'PROCESSING', label: 'قيد التنفيذ' },
   { key: 'COMPLETED', label: 'مكتمل' },
+  { key: 'FAILED', label: 'فشل' },
+  { key: 'PARTIALLY_COMPLETED', label: 'مكتمل جزئيًا' },
+  { key: 'REFUNDED', label: 'مُسترجع' },
+  { key: 'CANCELLED', label: 'ملغي' },
 ];
 
 const GATEWAYS = ['MANUAL', 'WALLET', 'STRIPE'];
@@ -55,6 +59,11 @@ const select =
 export default function OrdersPage() {
   const router = useRouter();
   const [status, setStatus] = useState('');
+  // a link may open a tab directly (/orders?status=FAILED from the reports page)
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('status');
+    if (wanted && FILTERS.some((f) => f.key === wanted)) setStatus(wanted);
+  }, []);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<OrderRow[]>([]);
@@ -191,13 +200,14 @@ export default function OrdersPage() {
         className="surface hairline rounded-xl border px-4 py-3 text-[15px] outline-none focus:border-teal"
       />
 
-      <div className="flex flex-wrap gap-2">
+      {/* phones: the tabs scroll sideways instead of wrapping into many rows */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setStatus(f.key)}
             className={
-              'rounded-full px-3.5 py-1.5 text-xs font-bold transition ' +
+              'inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition ' +
               (status === f.key ? 'bg-teal text-white' : 'surface-2 text-muted hover:text-[rgb(var(--text))]')
             }
           >
@@ -231,11 +241,27 @@ export default function OrdersPage() {
         </label>
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-xs font-semibold text-muted">من يوم</span>
-          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className={select} />
+          <input
+            type="date"
+            lang="ar"
+            dir="ltr"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+            className={select}
+          />
         </label>
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-xs font-semibold text-muted">إلى يوم</span>
-          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={select} />
+          <input
+            type="date"
+            lang="ar"
+            dir="ltr"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            className={select}
+          />
         </label>
       </div>
       {filtered && (
@@ -256,7 +282,60 @@ export default function OrdersPage() {
         <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
       )}
 
-      <div className="surface overflow-hidden rounded-2xl shadow-card">
+      {/* phones: one card per order, so the total and date stay visible without scrolling */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {first && loading && (
+          <div className="surface rounded-2xl px-5 py-8 text-center text-sm text-muted shadow-card">جارٍ التحميل…</div>
+        )}
+        {!loading && rows.length === 0 && !error && (
+          <div className="surface rounded-2xl px-5 py-8 text-center text-sm text-muted shadow-card">
+            لا توجد طلبات هنا.
+          </div>
+        )}
+        {rows.map((o) => {
+          const chip = statusChip(o.status);
+          const awaitingReview = o.payments?.some((p) => p.gateway === 'MANUAL' && p.status === 'AUTHORIZED');
+          return (
+            <Link
+              key={o.id}
+              href={`/orders/${o.id}`}
+              className="surface flex min-h-11 flex-col gap-2 rounded-2xl p-4 text-sm shadow-card transition hover:opacity-80"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="whitespace-nowrap font-bold" dir="ltr">
+                  {o.orderNumber}
+                </span>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}>
+                    {chip.label}
+                  </span>
+                  {awaitingReview && (
+                    <span className="whitespace-nowrap rounded-full bg-warn/12 px-2 py-0.5 text-[11px] font-bold text-warn">
+                      تحويل للتأكيد
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-end justify-between gap-2">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate font-semibold">
+                    {(o.country ?? o.user?.country) && <span>{flagOf(o.country ?? o.user?.country)} </span>}
+                    {o.user?.fullName ?? '—'}
+                  </span>
+                  <span className="truncate text-xs text-muted" dir="ltr">
+                    {o.user?.phone ?? o.user?.email}
+                  </span>
+                </div>
+                <span className="whitespace-nowrap tnum font-bold">{moneyIn(o.total, o.currency)}</span>
+              </div>
+              <span className="text-xs text-muted">{dateTime(o.createdAt)}</span>
+              {o.adminNote && <span className="truncate text-xs text-gold-deep">ملاحظة: {o.adminNote}</span>}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="surface hidden overflow-hidden rounded-2xl shadow-card md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -301,7 +380,7 @@ export default function OrdersPage() {
                     onClick={() => router.push(`/orders/${o.id}`)}
                     className="cursor-pointer border-t hairline transition hover:bg-[rgb(var(--line))]/30"
                   >
-                    <td className="px-5 py-3 font-semibold">
+                    <td className="whitespace-nowrap px-5 py-3 font-semibold">
                       <Link
                         href={`/orders/${o.id}`}
                         onClick={(e) => e.stopPropagation()}
