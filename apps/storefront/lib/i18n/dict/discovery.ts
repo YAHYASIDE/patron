@@ -9,7 +9,7 @@ const dict: Dict = {
   fr: {
     // Splash, InstallPrompt
     'بطاقات وشحن رقمي فوري': 'Cartes et recharges numériques instantanées',
-    'ثبّت تطبيق باترون': "Installez l'application Patron",
+    'ثبّت تطبيق patron': "Installez l'application patron",
     'افتح المتجر من شاشتك الرئيسية بلمسة، حتى مع اتصال ضعيف.':
       "Ouvrez la boutique depuis votre écran d'accueil en un geste, même avec une connexion faible.",
     'اضغط زر المشاركة': 'Touchez le bouton Partager',
@@ -41,7 +41,7 @@ const dict: Dict = {
     'واتساب': 'WhatsApp',
     'نسخ الرابط': 'Copier le lien',
     'نُسخ الرابط': 'Lien copié',
-    '{title} على باترون': '{title} sur Patron',
+    '{title} على patron': '{title} sur patron',
     'عادة خلال {n} دقيقة': 'Généralement en {n} min',
     'عادة خلال {n} ساعة': 'Généralement en {n} h',
     'بياناتك المحفوظة': 'Vos informations enregistrées',
@@ -70,7 +70,7 @@ const dict: Dict = {
   en: {
     // Splash, InstallPrompt
     'بطاقات وشحن رقمي فوري': 'Instant digital cards and top-ups',
-    'ثبّت تطبيق باترون': 'Install the Patron app',
+    'ثبّت تطبيق patron': 'Install the patron app',
     'افتح المتجر من شاشتك الرئيسية بلمسة، حتى مع اتصال ضعيف.':
       'Open the shop from your home screen in one tap, even on a weak connection.',
     'اضغط زر المشاركة': 'Tap the Share button',
@@ -102,7 +102,7 @@ const dict: Dict = {
     'واتساب': 'WhatsApp',
     'نسخ الرابط': 'Copy link',
     'نُسخ الرابط': 'Link copied',
-    '{title} على باترون': '{title} on Patron',
+    '{title} على patron': '{title} on patron',
     'عادة خلال {n} دقيقة': 'Usually within {n} min',
     'عادة خلال {n} ساعة': 'Usually within {n} h',
     'بياناتك المحفوظة': 'Your saved details',

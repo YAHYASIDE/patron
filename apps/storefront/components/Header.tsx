@@ -108,8 +108,8 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-page items-center gap-2 px-4 min-[360px]:gap-3">
         <Link href="/" className="flex flex-none items-center gap-2 min-[360px]:gap-2.5">
           <BrandMark id="hdr" className="h-8 w-8 min-[360px]:h-9 min-[360px]:w-9" />
-          <span className="text-lg font-extrabold">
-            {t('باترون')}
+          <span dir="ltr" className="text-lg font-extrabold">
+            patron
             <span className="text-gold">.</span>
           </span>
         </Link>

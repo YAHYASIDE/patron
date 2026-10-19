@@ -83,8 +83,8 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
       <article className="receipt surface mx-auto max-w-[720px] rounded-2xl p-5 shadow-card sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[rgb(var(--line))] pb-5">
           <div>
-            <div className="text-xl font-extrabold">
-              {t('باترون')}
+            <div dir="ltr" className="text-xl font-extrabold">
+              patron
               <span className="text-gold">.</span>
             </div>
             <div className="text-sm text-muted">{t('إيصال طلب')}</div>
@@ -163,7 +163,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
           ))}
         </dl>
 
-        <p className="mt-6 text-center text-xs text-muted">{t('شكرًا لشرائك من باترون.')}</p>
+        <p className="mt-6 text-center text-xs text-muted">{t('شكرًا لشرائك من patron.')}</p>
       </article>
     </div>
   );

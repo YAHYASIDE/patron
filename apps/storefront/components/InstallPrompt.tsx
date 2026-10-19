@@ -93,13 +93,13 @@ export default function InstallPrompt() {
     // phones: beside the WhatsApp button, not under it; wider screens: the other bottom corner
     <div
       role="dialog"
-      aria-label={t('ثبّت تطبيق باترون')}
+      aria-label={t('ثبّت تطبيق patron')}
       className="surface fixed bottom-5 start-4 end-[5.25rem] z-40 rounded-2xl p-3 shadow-float sm:end-auto sm:w-[22rem] lg:bottom-6 lg:start-6"
     >
       <div className="flex items-start gap-3">
         <BrandMark size={40} id="install" className="flex-none" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-extrabold">{t('ثبّت تطبيق باترون')}</div>
+          <div className="text-sm font-extrabold">{t('ثبّت تطبيق patron')}</div>
           {mode === 'android' ? (
             <p className="mt-0.5 text-xs leading-relaxed text-muted">
               {t('افتح المتجر من شاشتك الرئيسية بلمسة، حتى مع اتصال ضعيف.')}

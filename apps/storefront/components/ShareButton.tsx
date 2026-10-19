@@ -29,7 +29,7 @@ export default function ShareButton({ title, path }: { title: string; path: stri
   }, [open]);
 
   const url = () => `${window.location.origin}${path}`;
-  const text = () => tNow('{title} على باترون', { title });
+  const text = () => tNow('{title} على patron', { title });
 
   async function onShare() {
     if (typeof navigator.share === 'function') {

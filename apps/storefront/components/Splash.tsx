@@ -69,8 +69,8 @@ export default function Splash() {
         <div className="splash-mark">
           <BrandMark id="splash" />
         </div>
-        <div className="splash-word">
-          {t('باترون')}
+        <div dir="ltr" className="splash-word">
+          patron
           <b>.</b>
         </div>
         <div className="splash-tag">{t('بطاقات وشحن رقمي فوري')}</div>

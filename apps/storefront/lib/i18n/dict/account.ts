@@ -17,7 +17,7 @@ const dict: Dict = {
     // login: screens
     'تخطَّ الآن وتصفّح المتجر': "Passer pour l'instant et parcourir la boutique",
     'تخطَّ الآن': "Passer pour l'instant",
-    'أهلًا بك في باترون': 'Bienvenue sur Patron',
+    'أهلًا بك في patron': 'Bienvenue sur patron',
     'ادخل برقم واتساب واسمك، بلا كلمة مرور.':
       'Connectez-vous avec votre numéro WhatsApp et votre nom, sans mot de passe.',
     'الاسم الكامل': 'Nom complet',
@@ -93,7 +93,7 @@ const dict: Dict = {
     // login: screens
     'تخطَّ الآن وتصفّح المتجر': 'Skip for now and browse the shop',
     'تخطَّ الآن': 'Skip for now',
-    'أهلًا بك في باترون': 'Welcome to Patron',
+    'أهلًا بك في patron': 'Welcome to patron',
     'ادخل برقم واتساب واسمك، بلا كلمة مرور.':
       'Sign in with your WhatsApp number and name, no password needed.',
     'الاسم الكامل': 'Full name',

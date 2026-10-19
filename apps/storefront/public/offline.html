@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0d6d64">
-<title>باترون — لا يوجد اتصال</title>
+<title>patron — لا يوجد اتصال</title>
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 <style>
   /* served by public/sw.js when there is no network: everything is inline */
@@ -37,9 +37,9 @@
 <script>
   (function () {
     var T = {
-      ar: { title: 'باترون — لا يوجد اتصال', h: 'لا يوجد اتصال بالإنترنت', p: 'تحقّق من الشبكة أو البيانات ثم أعد المحاولة. طلباتك ومشترياتك محفوظة في حسابك.', b: 'إعادة المحاولة', hint: 'سنعيد فتح الصفحة تلقائيًا عند عودة الاتصال.' },
-      fr: { title: 'Patron — Hors ligne', h: 'Pas de connexion Internet', p: 'Vérifiez votre réseau ou vos données mobiles, puis réessayez. Vos commandes et achats restent sur votre compte.', b: 'Réessayer', hint: 'La page se rouvrira dès que la connexion revient.' },
-      en: { title: 'Patron — Offline', h: 'No internet connection', p: 'Check your network or mobile data, then try again. Your orders and purchases are safe in your account.', b: 'Try again', hint: 'We will reopen the page as soon as you are back online.' }
+      ar: { title: 'patron — لا يوجد اتصال', h: 'لا يوجد اتصال بالإنترنت', p: 'تحقّق من الشبكة أو البيانات ثم أعد المحاولة. طلباتك ومشترياتك محفوظة في حسابك.', b: 'إعادة المحاولة', hint: 'سنعيد فتح الصفحة تلقائيًا عند عودة الاتصال.' },
+      fr: { title: 'patron — Hors ligne', h: 'Pas de connexion Internet', p: 'Vérifiez votre réseau ou vos données mobiles, puis réessayez. Vos commandes et achats restent sur votre compte.', b: 'Réessayer', hint: 'La page se rouvrira dès que la connexion revient.' },
+      en: { title: 'patron — Offline', h: 'No internet connection', p: 'Check your network or mobile data, then try again. Your orders and purchases are safe in your account.', b: 'Try again', hint: 'We will reopen the page as soon as you are back online.' }
     };
     var m = document.cookie.match(/(?:^|;\s*)patron_lang=(ar|fr|en)/);
     var lang = m ? m[1] : 'ar';

@@ -4,8 +4,7 @@ import type { Dict } from '.';
 const dict: Dict = {
   fr: {
     // app/layout.tsx
-    'باترون — بطاقات وشحن رقمي فوري': 'Patron — Cartes et recharges numériques instantanées',
-    'باترون': 'Patron',
+    'patron — بطاقات وشحن رقمي فوري': 'patron — Cartes et recharges numériques instantanées',
     'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.':
       'Achetez des recharges de jeux, des cartes cadeaux et des abonnements en ligne, livrés instantanément. Prix clairs et paiement sécurisé.',
 
@@ -110,8 +109,7 @@ const dict: Dict = {
   },
   en: {
     // app/layout.tsx
-    'باترون — بطاقات وشحن رقمي فوري': 'Patron — Instant gift cards and digital top-ups',
-    'باترون': 'Patron',
+    'patron — بطاقات وشحن رقمي فوري': 'patron — Instant gift cards and digital top-ups',
     'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.':
       'Buy game top-ups, gift cards and subscriptions online and get them instantly. Clear prices and secure payment.',
 

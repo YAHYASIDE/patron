@@ -1,5 +1,5 @@
 /**
- * The Patron mark: a bold P on a teal tile with the gold dot of "باترون.".
+ * The Patron mark: a bold P on a teal tile with the gold dot of "patron.".
  * Vector, so it is sharp from the header to a 4K splash. The same drawing is
  * the app icon (public/icons/icon.svg).
  */

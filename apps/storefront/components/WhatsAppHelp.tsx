@@ -47,7 +47,7 @@ export default function WhatsAppHelp({
     name ? `أنا ${name}` : null,
     phone ? `رقمي: ${phone}` : null,
     need === 'verify' ? 'حالة حسابي: غير موثّق' : 'حالة حسابي: مسجّل، أحتاج رمز الدخول',
-    need === 'verify' ? 'أريد توثيق حسابي في متجر باترون.' : 'أريد رمز الدخول إلى حسابي في متجر باترون.',
+    need === 'verify' ? 'أريد توثيق حسابي في متجر patron.' : 'أريد رمز الدخول إلى حسابي في متجر patron.',
   ].filter(Boolean);
   const href = `https://wa.me/${number.replace(/\D/g, '')}?text=${encodeURIComponent(lines.join('\n'))}`;
 

@@ -38,8 +38,8 @@ export default function Footer() {
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-teal-soft to-teal text-[13px] font-extrabold text-teal-ink">
               P
             </span>
-            <span className="font-bold text-[rgb(var(--text))]">
-              {t('باترون')}<span className="text-gold">.</span>
+            <span dir="ltr" className="font-bold text-[rgb(var(--text))]">
+              patron<span className="text-gold">.</span>
             </span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">

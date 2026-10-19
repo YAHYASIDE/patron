@@ -3,7 +3,7 @@ import type { Dict } from '.';
 const dict: Dict = {
   fr: {
     // help
-    'كيف أشتري؟ | باترون': 'Comment acheter ? | Patron',
+    'كيف أشتري؟ | patron': 'Comment acheter ? | patron',
     'كيف أشتري؟': 'Comment acheter ?',
     'خمس خطوات بسيطة من الاختيار إلى الاستلام.': 'Cinq étapes simples, du choix à la réception.',
     'اختر المنتج': 'Choisissez le produit',
@@ -41,7 +41,7 @@ const dict: Dict = {
     'الشروط وسياسة الاسترجاع': 'Conditions et politique de remboursement',
 
     // terms
-    'الشروط وسياسة الاسترجاع | باترون': 'Conditions et politique de remboursement | Patron',
+    'الشروط وسياسة الاسترجاع | patron': 'Conditions et politique de remboursement | patron',
     'باستخدامك المتجر وشرائك منه فأنت توافق على ما يلي.':
       'En utilisant la boutique et en y effectuant des achats, vous acceptez les conditions suivantes.',
     'المنتجات': 'Produits',
@@ -74,7 +74,7 @@ const dict: Dict = {
   },
   en: {
     // help
-    'كيف أشتري؟ | باترون': 'How to buy | Patron',
+    'كيف أشتري؟ | patron': 'How to buy | patron',
     'كيف أشتري؟': 'How do I buy?',
     'خمس خطوات بسيطة من الاختيار إلى الاستلام.': 'Five simple steps, from choosing to receiving.',
     'اختر المنتج': 'Choose the product',
@@ -112,7 +112,7 @@ const dict: Dict = {
     'الشروط وسياسة الاسترجاع': 'Terms & refund policy',
 
     // terms
-    'الشروط وسياسة الاسترجاع | باترون': 'Terms & refund policy | Patron',
+    'الشروط وسياسة الاسترجاع | patron': 'Terms & refund policy | patron',
     'باستخدامك المتجر وشرائك منه فأنت توافق على ما يلي.':
       'By using the shop and buying from it, you agree to the following.',
     'المنتجات': 'Products',

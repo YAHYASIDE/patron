@@ -31,7 +31,7 @@ export default function WhatsAppFab() {
   const lines = [
     'مرحبًا،',
     me ? `أنا ${me.fullName}${me.phone ? ` (${me.phone})` : ''}` : null,
-    order ? `عندي سؤال عن طلبي: ${window.location.origin}/orders/${order[1]}` : 'أحتاج مساعدة في متجر باترون.',
+    order ? `عندي سؤال عن طلبي: ${window.location.origin}/orders/${order[1]}` : 'أحتاج مساعدة في متجر patron.',
   ].filter(Boolean);
   const href = `https://wa.me/${number.replace(/\D/g, '')}?text=${encodeURIComponent(lines.join('\n'))}`;
 

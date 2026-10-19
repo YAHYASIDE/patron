@@ -3,7 +3,7 @@ import { serverLang } from '@/lib/i18n/server';
 
 export async function generateMetadata() {
   const lang = await serverLang();
-  return { title: translate(lang, 'الشروط وسياسة الاسترجاع | باترون') };
+  return { title: translate(lang, 'الشروط وسياسة الاسترجاع | patron') };
 }
 
 const SECTIONS = [

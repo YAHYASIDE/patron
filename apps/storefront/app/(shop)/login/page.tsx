@@ -121,7 +121,7 @@ function LoginInner() {
       <div className="mx-auto max-w-[440px]">
         {step === 'details' ? (
           <>
-            <h1 className="text-2xl font-extrabold">{t('أهلًا بك في باترون')}</h1>
+            <h1 className="text-2xl font-extrabold">{t('أهلًا بك في patron')}</h1>
             <p className="mt-1.5 text-sm text-muted">{t('ادخل برقم واتساب واسمك، بلا كلمة مرور.')}</p>
 
             <form

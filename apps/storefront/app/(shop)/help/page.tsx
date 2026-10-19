@@ -4,7 +4,7 @@ import { serverLang } from '@/lib/i18n/server';
 
 export async function generateMetadata() {
   const lang = await serverLang();
-  return { title: translate(lang, 'كيف أشتري؟ | باترون') };
+  return { title: translate(lang, 'كيف أشتري؟ | patron') };
 }
 
 const STEPS = [

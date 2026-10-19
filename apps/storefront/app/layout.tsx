@@ -20,14 +20,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const lang = await serverLang();
   return {
     title: {
-      default: translate(lang, 'باترون — بطاقات وشحن رقمي فوري'),
-      template: `%s · ${translate(lang, 'باترون')}`,
+      default: translate(lang, 'patron — بطاقات وشحن رقمي فوري'),
+      template: '%s · patron',
     },
     description: translate(
       lang,
       'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.',
     ),
-    applicationName: translate(lang, 'باترون'),
+    applicationName: 'patron',
     // installable app (public/manifest.webmanifest, icons from public/icons/*.svg)
     manifest: '/manifest.webmanifest',
     icons: {
@@ -38,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
       apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
     },
-    appleWebApp: { capable: true, title: translate(lang, 'باترون'), statusBarStyle: 'default' },
+    appleWebApp: { capable: true, title: 'patron', statusBarStyle: 'default' },
     formatDetection: { telephone: false },
   };
 }

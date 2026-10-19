@@ -125,7 +125,7 @@ const dict: Dict = {
     'المنتج': 'Produit',
     'المبلغ': 'Montant',
     'سعر الوحدة: {amount}': 'Prix unitaire : {amount}',
-    'شكرًا لشرائك من باترون.': 'Merci pour votre achat chez Patron.',
+    'شكرًا لشرائك من patron.': 'Merci pour votre achat chez patron.',
     // cart price changes (#10)
     'تغيّر سعر منتج في سلّتك منذ أضفته، وحدّثناه إلى السعر الحالي.':
       "Le prix d'un article de votre panier a changé depuis son ajout ; nous l'avons mis à jour.",
@@ -267,7 +267,7 @@ const dict: Dict = {
     'المنتج': 'Product',
     'المبلغ': 'Amount',
     'سعر الوحدة: {amount}': 'Unit price: {amount}',
-    'شكرًا لشرائك من باترون.': 'Thank you for shopping at Patron.',
+    'شكرًا لشرائك من patron.': 'Thank you for shopping at patron.',
     // cart price changes (#10)
     'تغيّر سعر منتج في سلّتك منذ أضفته، وحدّثناه إلى السعر الحالي.':
       'The price of an item in your cart changed since you added it; we updated it.',
