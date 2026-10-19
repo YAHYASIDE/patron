@@ -349,6 +349,19 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
   until `STRIPE_SECRET_KEY` (+ `STRIPE_WEBHOOK_SECRET`, endpoint
   `/api/v1/webhooks/payments/stripe`) are set in Render — not in render.yaml.
   Stripe is not reachable from the dev container ("fetch failed" is expected).
+- **Catalog pack v5 (researched catalogue):** `catalog-pack.ts` applyV5 + guides
+  in `catalog-guides.ts` (from docs/catalog-research-2026-10.md). Changes a
+  price/name/visibility only while the row still holds the earlier pack value
+  (`PACKED` map), so owner edits win; guides fill `metadata.guide`
+  ({before, after, warning} × ar/fr/en) where absent; input `helpAr/Fr/En` and
+  select `options` live in `game.inputSchema` (quotes reject a value outside
+  `options`). Crypto top-ups: games `usdt-binance` / `kast` / `redotpay`
+  (network choice + UID/address regex), MRU overrides from the local USDT rate.
+  New SKUs need art: `node apps/storefront/scripts/generate-product-art.mjs`
+  (it parses the pack file, including `usdtPacks(...)`). Products whose only
+  delivery route breaks the provider's terms (YouTube Premium, ChatGPT Plus,
+  Claude Pro, Canva, account "1 month" streaming, Riot NA, Spotify US) await the
+  owner's decision — see the research doc.
 - **Store languages (ar/fr/en):** Arabic is the source text and the dictionary
   key (`lib/i18n/dict/*.ts`, fr + en per area). Cookie `patron_lang` → root
   layout sets `<html lang dir>` and `LangProvider`; `setLang` reloads. In render
