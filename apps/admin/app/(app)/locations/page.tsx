@@ -56,8 +56,8 @@ export default function LocationsPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold">مواقع الزبائن</h1>
         <p className="mt-1 text-sm text-muted">
-          {data ? `${num(total)} زبون في ${num(known)} دولة` : 'حسب الدولة والمدينة'}، كما كتبها الزبون في
-          حسابه.
+          {data ? `${num(total)} زبون في ${num(known)} دولة` : 'حسب الدولة والمدينة'}. الدولة من رمز رقم واتساب ما لم
+          يخترها الزبون بنفسه، والمدينة كما كتبها في حسابه.
         </p>
       </div>
 
