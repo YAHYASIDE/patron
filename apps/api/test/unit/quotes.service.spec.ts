@@ -196,9 +196,36 @@ describe('QuotesService', () => {
       expect(data.items.create[0].plannedProviderId).toBe('prov1');
     });
 
-    it('rejects an unavailable product', async () => {
+    it('rejects an unavailable product, naming it so the store can drop it from the cart', async () => {
       prisma.product.findFirst.mockResolvedValue(null);
       await expect(service.create('u1', dto())).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.create('u1', dto())).rejects.toMatchObject({
+        response: { error: 'PRODUCT_UNAVAILABLE', productId: 'p1', productNameAr: null },
+      });
+    });
+
+    it('names the product and the reason for every item problem', async () => {
+      prisma.product.findFirst.mockResolvedValue(makeProduct({ maxPerOrder: 1, nameAr: 'ببجي 60' }));
+      await expect(service.create('u1', dto())).rejects.toMatchObject({
+        response: { error: 'MAX_PER_ORDER', max: 1, productId: 'p1', productNameAr: 'ببجي 60' },
+      });
+
+      prisma.product.findFirst.mockResolvedValue(makeProduct({ delivery: DeliveryMode.MANUAL, stockQty: 1, nameAr: 'ببجي 60' }));
+      await expect(service.create('u1', dto())).rejects.toMatchObject({
+        response: { error: 'OUT_OF_STOCK', available: 1, productId: 'p1', productNameAr: 'ببجي 60' },
+      });
+
+      prisma.product.findFirst.mockResolvedValue(
+        makeProduct({ nameAr: 'ببجي 60', game: { inputSchema: [{ key: 'player', labelEn: 'Player', labelAr: 'معرّف اللاعب', required: true }] } }),
+      );
+      await expect(service.create('u1', dto({ items: [{ productId: 'p1', quantity: 1, inputs: [] }] }))).rejects.toMatchObject({
+        response: { error: 'INPUT_MISSING', field: 'player', fieldLabelAr: 'معرّف اللاعب', productId: 'p1', productNameAr: 'ببجي 60' },
+      });
+    });
+
+    it('lets errors that are not about the item through untouched', async () => {
+      prisma.product.findFirst.mockRejectedValue(new Error('db down'));
+      await expect(service.create('u1', dto())).rejects.toThrow('db down');
     });
 
     it('rejects a quantity above maxPerOrder', async () => {

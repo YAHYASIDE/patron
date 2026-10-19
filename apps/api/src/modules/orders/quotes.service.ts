@@ -163,7 +163,29 @@ export class QuotesService {
 
   // ─────────────── internals ───────────────
 
+  /**
+   * Price one cart line. Any problem with it names the product and a reason
+   * code, so the store can fix the cart (drop an unavailable item, lower a
+   * quantity, send the customer back to a missing field) and still complete
+   * the rest of the order instead of failing as a whole.
+   */
   private async priceItem(item: CreateQuoteItemDto, currency: string) {
+    try {
+      return await this.priceItemOrThrow(item, currency);
+    } catch (err) {
+      if (!(err instanceof BadRequestException)) throw err;
+      const body = err.getResponse();
+      const fields = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : { message: body };
+      throw new BadRequestException({
+        error: 'ITEM_PROBLEM',
+        ...fields,
+        productId: item.productId,
+        productNameAr: (fields.productNameAr as string | undefined) ?? null,
+      });
+    }
+  }
+
+  private async priceItemOrThrow(item: CreateQuoteItemDto, currency: string) {
     const product = await this.prisma.product.findFirst({
       where: { id: item.productId, deletedAt: null, isActive: true },
       include: {
@@ -175,15 +197,32 @@ export class QuotesService {
         },
       },
     });
-    if (!product) throw new BadRequestException(`Product ${item.productId} is unavailable`);
+    if (!product) {
+      throw new BadRequestException({ message: `Product ${item.productId} is unavailable`, error: 'PRODUCT_UNAVAILABLE' });
+    }
+    const named = { productNameAr: product.nameAr };
     if (item.quantity > product.maxPerOrder) {
-      throw new BadRequestException(`${product.nameEn}: maximum ${product.maxPerOrder} per order`);
+      throw new BadRequestException({
+        message: `${product.nameEn}: maximum ${product.maxPerOrder} per order`,
+        error: 'MAX_PER_ORDER', max: product.maxPerOrder, ...named,
+      });
     }
 
-    await this.assertAvailable(product.id, product.delivery, product.stockQty, item.quantity);
+    try {
+      await this.assertAvailable(product.id, product.delivery, product.stockQty, item.quantity);
+    } catch (err) {
+      if (err instanceof BadRequestException) throw new BadRequestException({ ...(err.getResponse() as object), ...named });
+      throw err;
+    }
 
     const price = await this.pricing.priceProduct(product.id, currency);
-    const inputs = this.validateInputs(product.game?.inputSchema as unknown as GameInputField[] | null, item.inputs);
+    let inputs: ReturnType<QuotesService['validateInputs']>;
+    try {
+      inputs = this.validateInputs(product.game?.inputSchema as unknown as GameInputField[] | null, item.inputs);
+    } catch (err) {
+      if (err instanceof BadRequestException) throw new BadRequestException({ ...(err.getResponse() as object), ...named });
+      throw err;
+    }
 
     // Prefer the live provider cost over the catalog's reference cost —
     // provider pricing drifts and margin should reflect what we will pay.
@@ -212,17 +251,23 @@ export class QuotesService {
   private async assertAvailable(productId: string, delivery: DeliveryMode, stockQty: number | null, qty: number) {
     if (delivery === DeliveryMode.CODE_POOL) {
       const available = await this.prisma.productCode.count({ where: { productId, isUsed: false } });
-      if (available < qty) throw new BadRequestException('Not enough stock for this product');
+      if (available < qty) {
+        throw new BadRequestException({ message: 'Not enough stock for this product', error: 'OUT_OF_STOCK', available });
+      }
       return;
     }
     if (delivery === DeliveryMode.AUTO_PROVIDER) {
       const providers = await this.prisma.productProvider.count({
         where: { productId, isActive: true, provider: { isActive: true, isHealthy: true } },
       });
-      if (providers === 0) throw new BadRequestException('This product is temporarily unavailable');
+      if (providers === 0) {
+        throw new BadRequestException({ message: 'This product is temporarily unavailable', error: 'PRODUCT_UNAVAILABLE' });
+      }
       return;
     }
-    if (stockQty !== null && stockQty < qty) throw new BadRequestException('Not enough stock for this product');
+    if (stockQty !== null && stockQty < qty) {
+      throw new BadRequestException({ message: 'Not enough stock for this product', error: 'OUT_OF_STOCK', available: stockQty });
+    }
   }
 
   private validateInputs(schema: GameInputField[] | null, provided?: Array<{ key: string; value: string }>) {
@@ -232,13 +277,19 @@ export class QuotesService {
     return schema.map((field) => {
       const value = byKey.get(field.key);
       if (field.required && !value?.trim()) {
-        throw new BadRequestException(`Missing required field: ${field.labelEn}`);
+        throw new BadRequestException({
+          message: `Missing required field: ${field.labelEn}`, error: 'INPUT_MISSING', field: field.key, fieldLabelAr: field.labelAr,
+        });
       }
       if (value && field.regex && !new RegExp(field.regex).test(value)) {
-        throw new BadRequestException(`Invalid format for ${field.labelEn}`);
+        throw new BadRequestException({
+          message: `Invalid format for ${field.labelEn}`, error: 'INPUT_INVALID', field: field.key, fieldLabelAr: field.labelAr,
+        });
       }
       if (value && field.options?.length && !field.options.some((o) => o.value === value)) {
-        throw new BadRequestException(`Choose one of the options for ${field.labelEn}`);
+        throw new BadRequestException({
+          message: `Choose one of the options for ${field.labelEn}`, error: 'INPUT_INVALID', field: field.key, fieldLabelAr: field.labelAr,
+        });
       }
       return {
         fieldKey: field.key,
