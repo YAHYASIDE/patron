@@ -235,6 +235,12 @@ describe('ProductsService', () => {
       expect(data.prices).toEqual({ create: [{ currencyCode: 'EUR', sellPrice: 9 }] });
     });
 
+    it('rejects two fixed prices for the same currency', async () => {
+      const prices = [{ currencyCode: 'EUR', sellPrice: 9 }, { currencyCode: 'EUR', sellPrice: 8 }];
+      await expect(service.create({ ...dto(), prices }, 'admin1')).rejects.toThrow('same currency');
+      expect(prisma.product.create).not.toHaveBeenCalled();
+    });
+
     it('rejects a product that would sell below cost', async () => {
       await expect(service.create({ ...dto(), sellPrice: 3, costPrice: 4 }, 'admin1')).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.product.create).not.toHaveBeenCalled();
@@ -296,6 +302,25 @@ describe('ProductsService', () => {
       expect(pricing.assertSupported).toHaveBeenCalledWith('EUR');
       expect(prisma.productPrice.deleteMany).toHaveBeenCalledWith({ where: { productId: 'p1' } });
       expect(prisma.productPrice.createMany).toHaveBeenCalledWith({ data: [{ currencyCode: 'EUR', sellPrice: 8, productId: 'p1' }] });
+    });
+
+    it('an empty list clears every fixed price, so each currency goes back to automatic', async () => {
+      await service.update('p1', { categoryId: 'c1', prices: [] } as any, 'admin1');
+      expect(prisma.productPrice.deleteMany).toHaveBeenCalledWith({ where: { productId: 'p1' } });
+      expect(prisma.productPrice.createMany).toHaveBeenCalledWith({ data: [] });
+    });
+
+    it('a currency left out of the list loses its fixed price; the others are rewritten', async () => {
+      await service.update('p1', { categoryId: 'c1', prices: [{ currencyCode: 'XOF', sellPrice: 1500 }] } as any, 'admin1');
+      expect(prisma.productPrice.deleteMany).toHaveBeenCalledWith({ where: { productId: 'p1' } });
+      expect(prisma.productPrice.createMany).toHaveBeenCalledWith({ data: [{ currencyCode: 'XOF', sellPrice: 1500, productId: 'p1' }] });
+    });
+
+    it('rejects two fixed prices for the same currency before touching the database', async () => {
+      const prices = [{ currencyCode: 'MRU', sellPrice: 100 }, { currencyCode: 'MRU', sellPrice: 120 }];
+      await expect(service.update('p1', { categoryId: 'c1', prices } as any, 'admin1')).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.productPrice.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.product.update).not.toHaveBeenCalled();
     });
 
     it('leaves prices untouched when the dto omits them', async () => {

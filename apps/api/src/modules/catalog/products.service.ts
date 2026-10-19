@@ -174,6 +174,7 @@ export class ProductsService {
   async create(dto: CreateProductDto, actorId: string) {
     await this.assertValidRelations(dto);
     this.assertNotAtLoss(dto);
+    this.assertOnePricePerCurrency(dto.prices);
     for (const p of dto.prices ?? []) await this.pricing.assertSupported(p.currencyCode);
 
     const { prices, ...scalars } = dto;
@@ -196,9 +197,12 @@ export class ProductsService {
     if (!before) throw new NotFoundException('Product not found');
     await this.assertValidRelations(dto);
     this.assertNotAtLoss(dto);
+    this.assertOnePricePerCurrency(dto.prices);
 
     const { prices, ...scalars } = dto;
 
+    // `prices` replaces every fixed price: a currency left out (or []) goes back
+    // to automatic. Omitting the field keeps the fixed prices as they are.
     const after = await this.prisma.$transaction(async (tx) => {
       if (prices) {
         for (const p of prices) await this.pricing.assertSupported(p.currencyCode);
@@ -293,6 +297,14 @@ export class ProductsService {
     const effective = dto.sellPrice * (1 - (dto.discountPercent ?? 0) / 100);
     if (effective < dto.costPrice) {
       throw new BadRequestException('discountPercent brings the price below costPrice — this product would sell at a loss');
+    }
+  }
+
+  /** Two fixed prices for one currency would hit the unique index as a 500. */
+  private assertOnePricePerCurrency(prices?: Array<{ currencyCode: string }>) {
+    const codes = (prices ?? []).map((p) => p.currencyCode);
+    if (new Set(codes).size !== codes.length) {
+      throw new BadRequestException('prices lists the same currency more than once');
     }
   }
 

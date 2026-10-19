@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsObject, IsOptional,
-  IsString, IsUUID, Length, Matches, Max, Min,
+  IsPositive, IsString, IsUUID, Length, Matches, Max, Min, ValidateNested,
 } from 'class-validator';
 import { DeliveryMode, ProductType } from '@prisma/client';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
@@ -52,9 +52,10 @@ export class UpdateGameDto extends CreateGameDto {}
 
 // ── Products ──
 
+/** A fixed price in one currency, used instead of converting sellPrice. 0 would give the product away. */
 export class ProductPriceDto {
   @IsString() @Length(3, 3) currencyCode!: string;
-  @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) sellPrice!: number;
+  @IsNumber({ maxDecimalPlaces: 4 }) @IsPositive() sellPrice!: number;
 }
 
 export class CreateProductDto {
@@ -70,7 +71,13 @@ export class CreateProductDto {
   @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) costPrice!: number;
   @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) sellPrice!: number;
 
-  @IsOptional() @IsArray() @Type(() => ProductPriceDto) prices?: ProductPriceDto[];
+  /**
+   * Fixed prices per currency. On update the list replaces them all: a currency
+   * left out goes back to automatic (converted from sellPrice), [] clears every one.
+   * Validated item by item; without it a stray field reached Prisma as a 500.
+   */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => ProductPriceDto)
+  prices?: ProductPriceDto[];
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsInt() @Min(0) stockQty?: number;
