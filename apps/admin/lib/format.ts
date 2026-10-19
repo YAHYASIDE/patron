@@ -16,13 +16,14 @@ export function money(n: number | string | null | undefined, symbol = '$'): stri
   return `${num(n, 2)} ${symbol}`;
 }
 
-const SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', MRU: 'أوقية' };
+const SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', MRU: 'أوقية', XOF: 'FCFA', DZD: 'د.ج' };
+const WHOLE = new Set(['MRU', 'XOF', 'DZD']);
 
 /** An amount in its own currency (orders and payments carry the customer's currency). */
 export function moneyIn(n: number | string | null | undefined, currency: string): string {
   const v = typeof n === 'string' ? parseFloat(n) : n ?? 0;
-  // ouguiya amounts are whole (MRU rounds to 1): no ",00"
-  const digits = currency === 'MRU' && Number.isInteger(v) ? 0 : 2;
+  // ouguiya, franc and dinar amounts are whole: no ",00"
+  const digits = WHOLE.has(currency) && Number.isInteger(v) ? 0 : 2;
   return `${num(v, digits)} ${SYMBOLS[currency] ?? currency}`;
 }
 

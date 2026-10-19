@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { moneyIn, dateTime, statusChip, paymentChip, GATEWAY_LABEL } from '@/lib/format';
+import Receipt from '@/components/Receipt';
 
 type Transfer = {
   method: string;
-  reference: string;
+  reference?: string;
   payerName?: string;
   payerPhone?: string;
+  hasProof?: boolean;
   submittedAt: string;
 };
 type Review = { decision: 'approved' | 'rejected'; at: string; reason?: string };
@@ -83,7 +85,7 @@ function friendly(err: unknown): string {
   if (!(err instanceof ApiError)) return 'تعذّر الاتصال بالخادم.';
   const m = err.message;
   if (/already been reviewed/i.test(m)) return 'هذه الدفعة رُوجعت مسبقًا.';
-  if (/submitted its reference/i.test(m)) return 'لم يرسل الزبون رقم العملية بعد.';
+  if (/submitted its reference/i.test(m)) return 'لم يرسل الزبون تحويله بعد.';
   if (/Illegal order transition PENDING_PAYMENT|CANCELLED/i.test(m))
     return 'الطلب أُلغي، لا يمكن تأكيد دفعه.';
   if (/already delivered/i.test(m)) return 'هذا المنتج سُلّم مسبقًا.';
@@ -220,17 +222,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     {p.transfer && (
                       <dl className="surface-2 flex flex-col gap-1.5 rounded-xl px-3.5 py-3 text-sm">
                         <Line k="الطريقة" v={p.transfer.method} />
-                        <Line k="رقم العملية" v={p.transfer.reference} mono />
+                        {p.transfer.payerPhone && <Line k="حوّل من" v={p.transfer.payerPhone} mono />}
+                        {p.transfer.reference && <Line k="رقم العملية" v={p.transfer.reference} mono />}
                         {p.transfer.payerName && <Line k="باسم" v={p.transfer.payerName} />}
-                        {p.transfer.payerPhone && <Line k="من رقم" v={p.transfer.payerPhone} mono />}
                         <Line k="أُرسل" v={dateTime(p.transfer.submittedAt)} />
                       </dl>
                     )}
+                    {p.transfer?.hasProof && <Receipt paymentId={p.id} />}
                     {p.status === 'AUTHORIZED' && p.gateway === 'MANUAL' && (
                       <>
                         <p className="text-xs text-muted">
-                          تحقّق من وصول <b className="tnum">{moneyIn(p.amount, p.currency)}</b> إلى حسابك برقم
-                          العملية أعلاه، ثم أكّد.
+                          تحقّق من وصول <b className="tnum">{moneyIn(p.amount, p.currency)}</b> إلى حسابك من الرقم
+                          أعلاه ومن صورة التحويل، ثم أكّد.
                         </p>
                         <div className="flex gap-2">
                           <button

@@ -24,7 +24,7 @@ type PendingTransfer = {
   amount: string;
   currency: string;
   updatedAt: string;
-  rawResponse: { transfer?: { method: string; reference: string } } | null;
+  rawResponse: { transfer?: { method: string; reference?: string; payerPhone?: string } } | null;
   order: { id: string; orderNumber: string; user: { fullName: string; email: string } };
 };
 
@@ -122,9 +122,9 @@ export default function OrdersPage() {
                     {t.order.user.fullName} · <span dir="ltr">{t.order.orderNumber}</span>
                   </span>
                   <span className="text-xs text-muted">
-                    {t.rawResponse?.transfer?.method} · رقم العملية{' '}
+                    {t.rawResponse?.transfer?.method} · من{' '}
                     <span className="font-mono" dir="ltr">
-                      {t.rawResponse?.transfer?.reference}
+                      {t.rawResponse?.transfer?.payerPhone ?? t.rawResponse?.transfer?.reference}
                     </span>{' '}
                     · {dateTime(t.updatedAt)}
                   </span>

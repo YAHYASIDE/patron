@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { api, ApiError } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { api, ApiError, uploadUrl } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { date } from '@/lib/format';
 
@@ -116,7 +116,11 @@ function Preview({ titleAr, subtitleAr, imageUrl, tone }: Pick<Form, 'titleAr' |
       {imageUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- owner-supplied link on any host */}
-          <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={imageUrl.startsWith('/uploads/') ? uploadUrl(imageUrl) : imageUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
           <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
         </>
       )}
@@ -192,6 +196,25 @@ function Editor({ initial, id, onDone }: { initial: Form; id: string | null; onD
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((x) => ({ ...x, [k]: v }));
+  const file = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // the owner has no image hosting: the picture is kept by the API
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    e.target.value = '';
+    if (!picked) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await api.upload<{ path: string }>('/admin/uploads/banner', picked);
+      set('imageUrl', res.path);
+    } catch {
+      setError('تعذّر رفع الصورة (JPG أو PNG، أقل من 4 ميغا).');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -199,7 +222,8 @@ function Editor({ initial, id, onDone }: { initial: Form; id: string | null; onD
     if (f.linkType === 'product' && !f.linkValue) return setError('اختر المنتج الذي يفتحه العرض.');
     if (f.linkType === 'url' && !/^(\/|https:\/\/)/.test(f.linkValue.trim()))
       return setError('الرابط يبدأ بـ / لصفحة في المتجر، أو بـ https://');
-    if (f.imageUrl.trim() && !/^https:\/\//.test(f.imageUrl.trim())) return setError('رابط الصورة يبدأ بـ https://');
+    if (f.imageUrl.trim() && !/^(https:\/\/|\/uploads\/)/.test(f.imageUrl.trim()))
+      return setError('رابط الصورة يبدأ بـ https://');
     if (f.from && f.to && f.to < f.from) return setError('تاريخ النهاية قبل تاريخ البداية.');
     setBusy(true);
     setError(null);
@@ -260,17 +284,33 @@ function Editor({ initial, id, onDone }: { initial: Form; id: string | null; onD
         </div>
       </div>
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-semibold">رابط صورة (اختياري)</span>
-        <input
-          value={f.imageUrl}
-          onChange={(e) => set('imageUrl', e.target.value)}
-          dir="ltr"
-          placeholder="https://…"
-          className={field}
-        />
-        <span className="text-xs text-muted">بدون صورة يظهر العرض بالون الذي اخترته.</span>
-      </label>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-semibold">صورة (اختياري)</span>
+        <div className="flex gap-2">
+          <input
+            value={f.imageUrl}
+            onChange={(e) => set('imageUrl', e.target.value)}
+            dir="ltr"
+            placeholder="https://…"
+            className={field}
+          />
+          <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} className="hidden" />
+          <button
+            type="button"
+            onClick={() => file.current?.click()}
+            disabled={uploading}
+            className="hairline flex-none rounded-xl border px-4 text-sm font-bold text-teal disabled:opacity-50"
+          >
+            {uploading ? 'جارٍ…' : 'ارفع صورة'}
+          </button>
+          {f.imageUrl && (
+            <button type="button" onClick={() => set('imageUrl', '')} className="flex-none px-2 text-sm font-bold text-bad">
+              إزالة
+            </button>
+          )}
+        </div>
+        <span className="text-xs text-muted">بدون صورة يظهر العرض باللون الذي اخترته.</span>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-semibold">عند الضغط عليه يفتح</span>

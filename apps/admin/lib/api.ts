@@ -103,13 +103,15 @@ async function fetchWaking(url: string, init: RequestInit, retryable: boolean): 
 async function raw<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = 'GET', body, auth = true, retry = true } = opts;
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // a file goes as multipart; the browser sets the boundary itself
+  const form = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !form) headers['Content-Type'] = 'application/json';
   const token = auth ? getAccess() : null;
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetchWaking(
     `${BASE}${path}`,
-    { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined },
+    { method, headers, body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined },
     method === 'GET',
   );
 
@@ -157,7 +159,26 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'PATCH', body }),
   put: <T>(path: string, body?: unknown) => raw<T>(path, { method: 'PUT', body }),
   del: <T>(path: string) => raw<T>(path, { method: 'DELETE' }),
+  /** Send one image as multipart field "file". */
+  upload: <T>(path: string, file: Blob) => {
+    const body = new FormData();
+    body.append('file', file, 'image');
+    return raw<T>(path, { method: 'POST', body });
+  },
+  /** An image only staff may see (e.g. a transfer receipt), as a local object URL. */
+  async imageUrl(path: string): Promise<string> {
+    const token = getAccess();
+    let res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (res.status === 401 && getRefresh() && (await tryRefresh())) {
+      res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${getAccess()}` } });
+    }
+    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'لا توجد صورة.' : `خطأ ${res.status}`);
+    return URL.createObjectURL(await res.blob());
+  },
 };
+
+/** Where the API serves public uploads (logos, banner pictures). */
+export const uploadUrl = (path: string) => `${BASE}${path}`;
 
 export async function login(email: string, password: string): Promise<Tokens> {
   const t = await raw<Tokens>('/auth/login', {
