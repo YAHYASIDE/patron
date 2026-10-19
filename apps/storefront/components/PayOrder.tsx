@@ -56,6 +56,24 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
     }
   }, [order.id]);
 
+  // back from the card page: ask the API to check with the card provider (never trust the URL)
+  const [cardNote, setCardNote] = useState<string | null>(null);
+  useEffect(() => {
+    const back = new URLSearchParams(window.location.search).get('card');
+    if (!back || latest?.gateway !== 'STRIPE') return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (back === 'cancelled') return setCardNote('لم يكتمل الدفع بالبطاقة. يمكنك المحاولة مجددًا.');
+    setCardNote('نتحقّق من الدفع بالبطاقة…');
+    shop
+      .confirmPayment(latest.id)
+      .then((r) => {
+        if (r.status === 'CAPTURED') return onChange();
+        setCardNote(r.status === 'FAILED' ? 'رُفض الدفع بالبطاقة. جرّب بطاقة أخرى أو التحويل.' : 'الدفع قيد المعالجة. حدّث الصفحة بعد قليل.');
+      })
+      .catch(() => setCardNote('تعذّر التحقّق من الدفع. حدّث الصفحة.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!methods) return;
     const pick = initial && methods.includes(initial) ? initial : methods.includes('MANUAL') ? 'MANUAL' : (methods[0] ?? '');
@@ -76,7 +94,11 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
       }
       onChange();
     } catch (err) {
-      setError(friendly(err, 'تعذّر إتمام الدفع.'));
+      setError(
+        gateway === 'STRIPE' && err instanceof ApiError && err.status === 400 && !err.code
+          ? 'تعذّر فتح صفحة الدفع بالبطاقة الآن. حاول بعد قليل أو ادفع بالتحويل.'
+          : friendly(err, 'تعذّر إتمام الدفع.'),
+      );
     } finally {
       setBusy(false);
     }
@@ -121,6 +143,10 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
         المبلغ: <b className="tnum text-[rgb(var(--text))]">{money(order.total, order.currency)}</b> · أكمل الدفع خلال {PAYMENT_WINDOW_MIN} دقيقة من إنشاء الطلب.
       </p>
 
+      {cardNote && (
+        <p className="mt-3 rounded-xl border border-teal/30 bg-teal/5 px-3.5 py-2.5 text-sm">{cardNote}</p>
+      )}
+
       {rejected && (
         <p className="mt-3 rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
           لم يُقبل التحويل السابق: {rejected}. يمكنك المحاولة مجددًا.
@@ -157,7 +183,13 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
                   }
                 >
                   <input type="radio" name="gateway" checked={gateway === m} onChange={() => setGateway(m)} className="accent-teal" />
-                  <span className="text-[15px] font-semibold">{gatewayLabel(m)}</span>
+                  <span className="flex-1 text-[15px] font-semibold">{gatewayLabel(m)}</span>
+                  {m === 'STRIPE' && (
+                    <span className="flex gap-1">
+                      <PayLogo logo="visa" name="Visa" size={28} />
+                      <PayLogo logo="mastercard" name="Mastercard" size={28} />
+                    </span>
+                  )}
                 </label>
               ))}
             </div>
@@ -166,7 +198,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
               disabled={busy || !gateway}
               className="btn-brand mt-4 w-full rounded-xl py-3 text-[15px] font-bold disabled:opacity-60"
             >
-              {busy ? 'جارٍ…' : gateway === 'MANUAL' ? 'عرض وسائل التحويل' : 'ادفع الآن'}
+              {busy ? 'جارٍ…' : gateway === 'MANUAL' ? 'عرض وسائل التحويل' : gateway === 'STRIPE' ? 'ادفع بالبطاقة' : 'ادفع الآن'}
             </button>
           </>
         )

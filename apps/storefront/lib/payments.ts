@@ -16,9 +16,10 @@ export function gatewayLabel(g: string) {
 export const PAYMENT_WINDOW_MIN = 30;
 
 /**
- * Methods worth offering for an amount: the wallet only when its balance covers
- * it, and no card payment yet (the API can take Stripe payments, but the shop
- * has no card form, so offering it would lead nowhere).
+ * Methods worth offering for an amount: the wallet only when its balance
+ * covers it. A card is offered in every country once the owner has connected a
+ * card account (the API lists STRIPE only then); the card is typed on Stripe's
+ * own page, never here.
  */
 export function useUsableMethods(amount: number | null, currency: string | null) {
   const [methods, setMethods] = useState<string[] | null>(null);
@@ -30,7 +31,7 @@ export function useUsableMethods(amount: number | null, currency: string | null)
       ([codes, wallets]) => {
         if (!alive) return;
         const balance = Number(wallets.find((w) => w.currencyCode === currency)?.balance ?? 0);
-        setMethods(codes.filter((c) => c !== 'STRIPE' && (c !== 'WALLET' || balance >= amount)));
+        setMethods(codes.filter((c) => c !== 'WALLET' || balance >= amount));
       },
     );
     return () => {
