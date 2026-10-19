@@ -301,6 +301,25 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
   (`/admin/reports/profit` + `/products`, base currency USD; send full ISO
   timestamps — `from=to=<date>` is a zero-width range). Store links in admin use
   `NEXT_PUBLIC_STORE_URL` (render.yaml + admin Dockerfile ARG).
+- **Home banners (offers):** `modules/banners` — public `GET /catalog/banners`
+  (active + inside `startsAt`/`endsAt`, max 10) and `/admin/banners` CRUD
+  (`banners.manage`). Migration `20261019030000_banner_text` made `imageUrl` /
+  `titleEn` optional and added `subtitleAr` + `tone` (teal|gold|ink|rose): the
+  owner has no image hosting, so text banners are the default. `linkType`
+  product (id/SKU → `/products/:ref`) | offers (`/products?offers=1`) | url
+  (`/path` or https). The admin form stores `endsAt` as the start of the day
+  after the chosen last day.
+- **Storefront extras:** `WhatsAppFab` (every page but /login, sits above the
+  buy bar on brand/product pages), `/help` + `/terms` (open without sign-in via
+  `AuthGate` OPEN list), `OrderTimeline` (MANUAL + AUTHORIZED = "we're checking
+  your transfer"), `lib/reorder.ts` ("اطلب مجددًا": today's prices, same
+  inputs; a masked sensitive input sends the customer to the product page),
+  and sort/offers chips on `/products`.
+- **"getServerSnapshot should be cached":** a `useSyncExternalStore` server
+  snapshot must return a stable reference (see `NO_ITEMS` in `lib/hooks.ts`).
+- **Local frontends talk to the wrong API:** start them with
+  `NEXT_PUBLIC_API_URL=http://localhost:<api port>/api/v1` (the API may not be
+  on :3000 locally).
 - **Pricing (owner's rules):** the customer pays exactly the sell price the
   owner sets. `PricingService` never applies `currency.fx_markup_percent` to the
   **base** currency (nothing is converted), and migration
