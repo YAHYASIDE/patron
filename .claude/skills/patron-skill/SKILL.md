@@ -320,6 +320,43 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
 - **Local frontends talk to the wrong API:** start them with
   `NEXT_PUBLIC_API_URL=http://localhost:<api port>/api/v1` (the API may not be
   on :3000 locally).
+- **Payments by country (owner's spec):** MR → MRU only; ML/NE → XOF or USD;
+  DZ → DZD or USD; every other country ("XX") → USD. Storefront `lib/regions.ts`
+  (region from the WhatsApp number's dial code, overridable in the header
+  switcher, stored in `patron_region`). Transfer accounts (system setting
+  `payments.manual_accounts`, `ManualAccount` in `manual.gateway.ts`) carry
+  `countries[]` ("XX" = others, empty = everywhere), `kind` mobile|bank|crypto,
+  `logo` (built-in key in `lib/paylogos.ts`, or `upload:<uuid>`) and `enabled`.
+  `normalizeAccount` reads old single-`country` rows. Public list = `isUsable`
+  (enabled + number); dashboard `/payment-methods` sees all. Migration
+  `20261019040100_payment_regions` loaded the owner's list (all MR methods on
+  22227268, Orange Money MR 74646158); methods without a given number (ML/DZ/NE,
+  Binance, USDT) start disabled — never guess where money goes. DZD added
+  (decimals 0, step 10, USD rate 133 — owner edits in /currencies).
+- **Transfer receipts:** `submitTransfer` needs `payerPhone` (the number/ID paid
+  from) and a screenshot already uploaded (`POST /payments/:id/proof`, multipart
+  `file`, else 400 `PROOF_REQUIRED`); `reference` is optional now. Images live in
+  the `uploads` table (bytea; Render has no persistent disk), type sniffed from
+  magic bytes (JPEG/PNG/WebP), ≤ 4 MB; one proof per payment (replaced). Staff
+  read it via `GET /admin/payments/:id/proof` (admin `Receipt.tsx` fetches it
+  with the bearer token into an object URL). Public uploads (logos, banner
+  pictures): `POST /admin/uploads/logo|banner`, served at `GET /uploads/:id` with
+  `Cross-Origin-Resource-Policy: cross-origin` (helmet would block the store).
+- **Card payment:** `StripeGateway` uses hosted Checkout Sessions (gatewayRef =
+  session id, `resumeUrl` reuses an open page, webhooks
+  `checkout.session.completed` (paid) / `expired`, refunds via the session's
+  payment_intent). Return URL limited to CORS_ORIGINS / STOREFRONT_URL. Hidden
+  until `STRIPE_SECRET_KEY` (+ `STRIPE_WEBHOOK_SECRET`, endpoint
+  `/api/v1/webhooks/payments/stripe`) are set in Render — not in render.yaml.
+  Stripe is not reachable from the dev container ("fetch failed" is expected).
+- **Store languages (ar/fr/en):** Arabic is the source text and the dictionary
+  key (`lib/i18n/dict/*.ts`, fr + en per area). Cookie `patron_lang` → root
+  layout sets `<html lang dir>` and `LangProvider`; `setLang` reloads. In render
+  use `useT()`; `tNow()` only in handlers; server pages use `serverLang()` +
+  `translate()` (`lib/i18n/core.ts` is server-safe, `lib/i18n/index.tsx` is
+  'use client'). fr/en show `nameEn` (swapped in `lib/api.ts` localizeProduct).
+  Messages sent to the owner on WhatsApp stay Arabic. Check coverage with a
+  scan for t()/tNow()/translate() keys missing from FR/EN.
 - **Pricing (owner's rules):** the customer pays exactly the sell price the
   owner sets. `PricingService` never applies `currency.fx_markup_percent` to the
   **base** currency (nothing is converted), and migration
