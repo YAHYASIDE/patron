@@ -316,3 +316,259 @@ export function sendEvent(ev: StoreEvent): void {
     /* never let reporting break the page */
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Product prices per currency (products list, quick edit, product form).
+ * A customer outside the base currency pays either a FIXED price the owner set
+ * (ProductPrice) or the dollar price converted at the latest rate and rounded
+ * the way the API does it (PricingService.round). Self-contained block.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+export type ShopCurrency = {
+  code: string;
+  nameAr: string;
+  symbol: string;
+  decimals: number;
+  isBase: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  roundingMode: string;
+  roundingStep: string | number | null;
+};
+/** GET /catalog/rates: 1 base = rates[code]. */
+export type FxRates = { base: string; rates: Record<string, number> };
+/** A fixed price as the admin product endpoints return it (amount as a decimal string). */
+export type FixedPrice = { currencyCode: string; sellPrice: string | number; isActive?: boolean };
+
+export const CURRENCIES_PATH = '/catalog/currencies';
+export const RATES_PATH = '/catalog/rates';
+
+const PRICE_IN: Record<string, string> = {
+  MRU: 'بالأوقية',
+  XOF: 'بالفرنك (CFA)',
+  DZD: 'بالدينار',
+  EUR: 'باليورو',
+};
+/** "السعر بالأوقية", "السعر بالدينار"… */
+export const priceInLabel = (c: Pick<ShopCurrency, 'code' | 'nameAr'>) =>
+  `السعر ${PRICE_IN[c.code] ?? `بـ${c.nameAr}`}`;
+
+/** The currencies customers can pay in besides the dollar, Mauritania first. */
+export function localCurrencies(all: ShopCurrency[] | null | undefined): ShopCurrency[] {
+  return (all ?? [])
+    .filter((c) => c.isActive && !c.isBase)
+    .sort((a, b) => (a.code === 'MRU' ? -1 : b.code === 'MRU' ? 1 : a.sortOrder - b.sortOrder));
+}
+
+function roundBy(v: number, mode: string): number {
+  const x = Number(v.toFixed(8)); // drop binary noise: 4.35 * 100 = 434.99999999999994
+  return mode === 'UP' ? Math.ceil(x) : mode === 'DOWN' ? Math.floor(x) : Math.round(x);
+}
+
+/** Same as the API: round to the currency's decimals, then snap to its step (e.g. whole ouguiya). */
+export function roundForCurrency(
+  value: number,
+  c: Pick<ShopCurrency, 'decimals' | 'roundingMode' | 'roundingStep'>,
+): number {
+  const f = 10 ** c.decimals;
+  let r = roundBy(value * f, c.roundingMode) / f;
+  const step = Number(c.roundingStep ?? 0);
+  if (step > 0) r = roundBy(r / step, c.roundingMode) * step;
+  return Number(r.toFixed(Math.max(c.decimals, 4)));
+}
+
+/**
+ * What a customer pays in `c` for a dollar amount when no fixed price is set,
+ * after an optional discount. Null when there is no rate for that currency.
+ * (The API may add an FX markup setting on top; it is 0 by default.)
+ */
+export function autoLocalPrice(usd: number, rate: number | undefined, c: ShopCurrency, discountPercent = 0) {
+  if (!rate || !isFinite(usd)) return null;
+  return roundForCurrency(usd * rate * (1 - discountPercent / 100), c);
+}
+
+/** What a customer pays for a fixed price after the owner's discount (the discount applies to it too). */
+export const fixedAfterDiscount = (fixed: number, c: ShopCurrency, discountPercent = 0) =>
+  roundForCurrency(fixed * (1 - discountPercent / 100), c);
+
+/** While typing an amount: Arabic digits → Latin, "٫" or "," → ".", only digits and one point. */
+export function cleanAmount(s: string): string {
+  const latin = s
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٫,]/g, '.')
+    .replace(/[^0-9.]/g, '');
+  const dot = latin.indexOf('.');
+  return dot < 0 ? latin : latin.slice(0, dot + 1) + latin.slice(dot + 1).replace(/\./g, '');
+}
+
+/** "100.0000" → "100" for an input field. */
+export const amountText = (v: string | number | null | undefined) =>
+  v === null || v === undefined || v === '' ? '' : String(Number(v));
+
+/** The owner's fixed prices by currency, as input text (an inactive row counts as automatic). */
+export function fixedTexts(prices: FixedPrice[] | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const p of prices ?? []) if (p.isActive !== false) out[p.currencyCode] = amountText(p.sellPrice);
+  return out;
+}
+
+/** True when the fixed-price inputs differ from what is saved. */
+export function fixedChanged(now: Record<string, string>, saved: Record<string, string>): boolean {
+  const keys = new Set([...Object.keys(now), ...Object.keys(saved)]);
+  for (const k of keys) {
+    const a = (now[k] ?? '').trim();
+    const b = (saved[k] ?? '').trim();
+    if (a === b) continue;
+    if (a === '' || b === '' || Number(a) !== Number(b)) return true;
+  }
+  return false;
+}
+
+/**
+ * The `prices` list for POST/PATCH /admin/catalog/products. The API replaces
+ * every fixed price with this list, so a currency the owner cleared is left
+ * out (back to automatic) and fixed prices of currencies not shown are kept.
+ */
+export function pricesBody(
+  texts: Record<string, string>,
+  shown: string[],
+  saved: FixedPrice[] | null | undefined,
+): { currencyCode: string; sellPrice: number }[] {
+  const out: { currencyCode: string; sellPrice: number }[] = [];
+  for (const code of shown) {
+    const t = (texts[code] ?? '').trim();
+    if (t !== '') out.push({ currencyCode: code, sellPrice: Number(t) });
+  }
+  for (const p of saved ?? []) {
+    if (!shown.includes(p.currencyCode) && p.isActive !== false) {
+      out.push({ currencyCode: p.currencyCode, sellPrice: Number(p.sellPrice) });
+    }
+  }
+  return out;
+}
+
+/** A product as the admin endpoints return it: the fields PATCH needs back, plus fixed prices. */
+export type AdminProduct = {
+  id: string;
+  sku: string;
+  type: string;
+  delivery: string;
+  nameAr: string;
+  nameEn: string;
+  categoryId: string;
+  gameId?: string | null;
+  costPrice: number | string;
+  sellPrice: number | string;
+  discountPercent?: number | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  stockQty: number | null;
+  maxPerOrder?: number | null;
+  isActive: boolean;
+  isFeatured: boolean;
+  prices?: FixedPrice[];
+};
+
+/**
+ * PATCH /admin/catalog/products/:id validates the whole product and rejects
+ * unknown fields, so a quick edit sends every DTO field from the row it has,
+ * with the changed ones on top.
+ */
+export function productPatchBody(p: AdminProduct, changes: Record<string, unknown>): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    sku: p.sku,
+    type: p.type,
+    delivery: p.delivery,
+    nameAr: p.nameAr,
+    nameEn: p.nameEn,
+    categoryId: p.categoryId,
+    gameId: p.gameId || null,
+    costPrice: Number(p.costPrice),
+    sellPrice: Number(p.sellPrice),
+    discountPercent: p.discountPercent ?? null,
+    description: p.description ?? null,
+    imageUrl: p.imageUrl ?? null,
+    stockQty: p.stockQty,
+    isActive: p.isActive,
+    isFeatured: p.isFeatured,
+    ...changes,
+  };
+  // non-nullable in the database: omit rather than send null
+  if (p.maxPerOrder !== null && p.maxPerOrder !== undefined) body.maxPerOrder = p.maxPerOrder;
+  return body;
+}
+
+export const updateProduct = (id: string, body: Record<string, unknown>) =>
+  api.patch<AdminProduct>(`/admin/catalog/products/${id}`, body);
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Owner's reports page (/reports): GET /admin/reports/summary (reports.read).
+ * Money is in USD (the base currency), as strings with two decimals. A paid
+ * order is counted on the day it was paid, like the dashboard home's "today".
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+export type ReportPayGateway = 'MANUAL' | 'WALLET' | 'CARD' | 'OTHER';
+export type ReportPayMethod = {
+  /** The transfer app's name (Bankily, Masrvi…), or "المحفظة" / "بطاقة" / "أخرى". */
+  method: string;
+  gateway: ReportPayGateway;
+  /** The logo the owner chose for that app on the payment-methods page. */
+  logo: string | null;
+  orders: number;
+  revenue: string;
+  /** Percent of the period's sales. */
+  share: number;
+};
+export type ReportSummary = {
+  range: { from: string; to: string };
+  totals: {
+    revenue: string;
+    cost: string;
+    profit: string;
+    marginPercent: number;
+    orders: number;
+    itemsDelivered: number;
+    averageOrder: string;
+  };
+  losses: {
+    refunds: string;
+    refundCount: number;
+    belowCost: { productId: string; sku: string; nameAr: string; units: number; loss: string }[];
+    belowCostTotal: string;
+    failedOrCancelled: { count: number; value: string };
+    total: string;
+  };
+  today: {
+    revenue: string;
+    cost: string;
+    profit: string;
+    orders: number;
+    cashByMethod: { method: string; gateway: ReportPayGateway; logo: string | null; amount: string; orders: number }[];
+  };
+  byMethod: ReportPayMethod[];
+  topCustomers: {
+    id: string;
+    fullName: string;
+    phone: string | null;
+    country: string | null;
+    orders: number;
+    spent: string;
+    profit: string;
+    lastOrderAt: string;
+  }[];
+  topProducts: { productId: string; sku: string; nameAr: string; units: number; revenue: string; profit: string }[];
+  byCountry: { country: string | null; orders: number; revenue: string }[];
+  /** Every day of the period, zeros included (YYYY-MM-DD, UTC). */
+  series: { date: string; revenue: string; cost: string; profit: string; orders: number }[];
+};
+
+/** `from` / `to` are YYYY-MM-DD (UTC); `to` includes its whole day. Both omitted: this month. */
+export const reportSummaryPath = (from?: string, to?: string) => {
+  const q = new URLSearchParams();
+  if (from) q.set('from', from);
+  if (to) q.set('to', to);
+  const s = q.toString();
+  return `/admin/reports/summary${s ? `?${s}` : ''}`;
+};
+export const getReportSummary = (from?: string, to?: string) => api.get<ReportSummary>(reportSummaryPath(from, to));

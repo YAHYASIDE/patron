@@ -1,25 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
-import { num, money } from '@/lib/format';
+import { num, money, moneyIn } from '@/lib/format';
+import type { AdminProduct } from '@/lib/api';
 import BulkPrice from '@/components/BulkPrice';
+import QuickEdit from '@/components/QuickEdit';
+import { localListPrice, usePriceSetup } from '@/components/PriceFields';
 
-type Product = {
-  id: string;
-  sku: string;
-  type: string;
-  delivery: string;
-  nameAr: string;
-  nameEn: string;
-  sellPrice: number | string;
-  stockQty: number | null;
-  isActive: boolean;
-  isFeatured: boolean;
-  discountPercent?: number | null;
+type Product = AdminProduct & {
   category?: { nameEn?: string };
   game?: { nameEn?: string };
+  _count?: { codes?: number };
 };
 type Paginated<T> = { data: T[]; meta?: { page: number; limit: number; total: number; pages: number } };
 
@@ -43,6 +36,13 @@ export default function ProductsPage() {
   const [bulk, setBulk] = useState(false);
   // ticked rows for the bulk price tool, kept across pages
   const [picked, setPicked] = useState<Map<string, string>>(new Map());
+  // quick edit: the open row, rows saved since the last fetch, and a short "saved" line
+  const [quick, setQuick] = useState<Product | null>(null);
+  const [edited, setEdited] = useState<Record<string, Product>>({});
+  const [quickSaved, setQuickSaved] = useState<string | null>(null);
+  const pricing = usePriceSetup();
+  // the local price shown next to the dollar (ouguiya first)
+  const local = pricing.local[0];
 
   // brief confirmation after returning from the add/edit form (?saved=1)
   useEffect(() => {
@@ -62,6 +62,22 @@ export default function ProductsPage() {
 
   const meta = data?.meta;
   const cols = bulk ? 7 : 6;
+  const rows = data?.data?.map((p) => edited[p.id] ?? p);
+
+  // a fresh page (search, paging, bulk price) replaces any row saved in place
+  useEffect(() => setEdited({}), [data]);
+  useEffect(() => {
+    if (!quickSaved) return;
+    const t = setTimeout(() => setQuickSaved(null), 3500);
+    return () => clearTimeout(t);
+  }, [quickSaved]);
+
+  const closeQuick = useCallback(() => setQuick(null), []);
+  const onQuickSaved = useCallback((row: Product) => {
+    setEdited((m) => ({ ...m, [row.id]: row }));
+    setQuick(null);
+    setQuickSaved(row.nameAr);
+  }, []);
 
   function toggle(p: Product) {
     setPicked((m) => {
@@ -127,6 +143,12 @@ export default function ProductsPage() {
         />
       )}
 
+      {quickSaved && (
+        <div role="status" className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-sm font-semibold text-ok">
+          تم حفظ «{quickSaved}».
+        </div>
+      )}
+
       {saved && (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-sm font-semibold text-ok">
           تم حفظ المنتج بنجاح.
@@ -154,7 +176,7 @@ export default function ProductsPage() {
                   <th
                     key={h}
                     className={
-                      'px-5 py-3 text-start text-xs font-semibold ' + (h === 'المنتج' || h === 'السعر' ? '' : 'hidden md:table-cell')
+                      'px-3 py-3 text-start text-xs font-semibold sm:px-5 ' + (h === 'المنتج' || h === 'السعر' ? '' : 'hidden md:table-cell')
                     }
                   >
                     {h}
@@ -170,34 +192,50 @@ export default function ProductsPage() {
                   </td>
                 </tr>
               )}
-              {!loading && (data?.data?.length ?? 0) === 0 && (
+              {!loading && (rows?.length ?? 0) === 0 && (
                 <tr>
                   <td colSpan={cols} className="px-5 py-8 text-center text-muted">
                     لا توجد منتجات مطابقة.
                   </td>
                 </tr>
               )}
-              {data?.data?.map((p) => {
+              {rows?.map((p) => {
                 const auto = p.delivery === 'AUTO_PROVIDER';
                 // null stockQty means unlimited, not "sold out"
                 const out = !auto && p.stockQty !== null && p.stockQty <= 0;
+                const lp = local ? localListPrice(p, local, pricing.rates[local.code]) : null;
                 return (
-                  <tr key={p.id} className={'border-t hairline ' + (picked.has(p.id) ? 'bg-teal/5' : '')}>
+                  <tr
+                    key={p.id}
+                    // tapping a row opens the quick edit (or ticks it while bulk pricing)
+                    onClick={() => (bulk ? toggle(p) : setQuick(p))}
+                    className={
+                      'cursor-pointer border-t hairline transition hover:bg-teal/5 ' + (picked.has(p.id) ? 'bg-teal/5' : '')
+                    }
+                  >
                     {bulk && (
                       <td className="px-3 py-3">
                         <input
                           type="checkbox"
                           checked={picked.has(p.id)}
                           onChange={() => toggle(p)}
+                          onClick={(e) => e.stopPropagation()}
                           aria-label={`تحديد ${p.nameAr}`}
                           className="h-4 w-4 accent-[#0d6d64]"
                         />
                       </td>
                     )}
-                    <td className="px-5 py-3">
-                      <Link href={`/products/${p.id}`} className="font-semibold text-teal hover:underline">
+                    <td className="px-3 py-3 sm:px-5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuick(p);
+                        }}
+                        className="text-start font-semibold text-teal hover:underline"
+                      >
                         {p.nameAr}
-                      </Link>
+                      </button>
                       <div className="break-all text-xs text-muted" dir="ltr">
                         {p.sku}
                         {p.game?.nameEn ? ` · ${p.game.nameEn}` : ''}
@@ -217,7 +255,34 @@ export default function ProductsPage() {
                     <td className="hidden px-5 py-3 tnum md:table-cell">
                       {auto || p.stockQty === null ? '∞' : num(p.stockQty)}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3 tnum font-semibold">{money(p.sellPrice)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 align-top sm:px-5">
+                      <div className="tnum font-semibold">{money(p.sellPrice)}</div>
+                      {lp && (
+                        <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                          <span className="tnum">{moneyIn(lp.amount, local!.code)}</span>
+                          {lp.fixed && (
+                            <span
+                              title="سعر ثابت لا يتغيّر مع سعر الدولار"
+                              className="rounded-full bg-gold/15 px-1.5 py-px text-[10px] font-bold text-gold-deep"
+                            >
+                              ثابت
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {!bulk && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuick(p);
+                          }}
+                          className="mt-1.5 rounded-lg border border-[rgb(var(--line))] px-2.5 py-1 text-xs font-bold text-muted hover:border-teal hover:text-[rgb(var(--text))]"
+                        >
+                          تعديل سريع
+                        </button>
+                      )}
+                    </td>
                     <td className="hidden px-5 py-3 md:table-cell">
                       <StatusChips p={p} out={out} />
                     </td>
@@ -228,6 +293,17 @@ export default function ProductsPage() {
           </table>
         </div>
       </div>
+
+      {quick && (
+        <QuickEdit
+          key={quick.id}
+          product={quick}
+          local={local}
+          rates={pricing.rates}
+          onClose={closeQuick}
+          onSaved={onQuickSaved}
+        />
+      )}
 
       {meta && meta.pages > 1 && (
         <div className="flex items-center justify-center gap-3">

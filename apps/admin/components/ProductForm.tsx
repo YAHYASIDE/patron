@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError } from '@/lib/api';
+import { api, cleanAmount, fixedChanged, fixedTexts, pricesBody, priceInLabel, type FixedPrice } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { LocalPriceField, productError, usePriceSetup } from '@/components/PriceFields';
 
 type Category = { id: string; nameAr: string; nameEn: string };
 type Game = { id: string; nameAr: string; nameEn: string; categoryId?: string };
@@ -27,6 +28,8 @@ export type ProductInput = {
   maxPerOrder?: number | null;
   isActive: boolean;
   isFeatured: boolean;
+  /** Fixed prices per currency; a currency without one is converted from sellPrice. */
+  prices?: FixedPrice[];
 };
 
 const TYPES = [
@@ -78,20 +81,6 @@ function skuFrom(name: string): string {
     .slice(0, 40);
 }
 
-/** Translate the API's English validation messages into Arabic. */
-function friendly(err: unknown): string {
-  if (!(err instanceof ApiError)) return 'تعذّر الاتصال بالخادم.';
-  if (err.status === 409) return 'رمز SKU مستخدم لمنتج آخر. غيّره ثم أعد المحاولة.';
-  const m = err.message;
-  if (/discountPercent/i.test(m)) return 'الخصم كبير: السعر بعده أقل من التكلفة، أي بيع بخسارة.';
-  if (/below costPrice/i.test(m)) return 'سعر البيع أقل من التكلفة، أي أنّ المنتج سيُباع بخسارة.';
-  if (/GAME_TOPUP/i.test(m)) return 'منتج «شحن ألعاب» يجب ربطه بلعبة.';
-  if (/Invalid categoryId/i.test(m)) return 'اختر فئة صحيحة.';
-  if (/Invalid gameId/i.test(m)) return 'اللعبة المختارة غير صحيحة.';
-  if (err.status === 403) return 'ليست لديك صلاحية تعديل المنتجات أو الأسعار.';
-  return m;
-}
-
 const input =
   'surface-2 hairline w-full rounded-xl border px-3.5 py-2.5 text-[15px] outline-none focus:border-teal';
 
@@ -117,6 +106,10 @@ export default function ProductForm({
   const [skuTouched, setSkuTouched] = useState(editing);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // fixed local prices as typed ('' = automatic), and as saved, to send `prices` only when changed
+  const [savedFixed] = useState(() => fixedTexts(initial?.prices));
+  const [fixed, setFixed] = useState(savedFixed);
+  const pricing = usePriceSetup();
 
   const cats = useFetch<Category[]>('/admin/catalog/categories');
   const games = useFetch<Paginated<Game>>(
@@ -166,6 +159,16 @@ export default function ProductForm({
     if (!wholeOrBlank(f.stockQty) || !wholeOrBlank(f.maxPerOrder))
       return setError('الكمية يجب أن تكون رقمًا صحيحًا (بدون فواصل).');
     if (String(f.maxPerOrder ?? '') === '0') return setError('أقصى كمية للطلب يجب أن تكون 1 على الأقل.');
+    const atLoss: string[] = [];
+    for (const c of pricing.local) {
+      const t = (fixed[c.code] ?? '').trim();
+      if (t === '') continue;
+      const n = Number(t);
+      if (!isFinite(n) || n <= 0) return setError(`${priceInLabel(c)}: اكتب رقمًا أكبر من صفر، أو اتركه فارغًا ليُحسب تلقائيًا.`);
+      const rate = pricing.rates[c.code];
+      if (rate && n * (1 - discount / 100) < cost * rate) atLoss.push(priceInLabel(c));
+    }
+    if (atLoss.length && !confirm(`${atLoss.join('، ')} أقل من التكلفة، أي بيع بخسارة. هل تحفظ رغم ذلك؟`)) return;
 
     // Only DTO fields: the API rejects unknown properties.
     const body: Record<string, unknown> = {
@@ -186,6 +189,14 @@ export default function ProductForm({
       isActive: f.isActive,
       isFeatured: f.isFeatured,
     };
+    // `prices` replaces every fixed price on the server: send it only when the owner changed one
+    if (editing ? fixedChanged(fixed, savedFixed) : Object.values(fixed).some((v) => v.trim() !== '')) {
+      body.prices = pricesBody(
+        fixed,
+        pricing.local.map((c) => c.code),
+        initial?.prices,
+      );
+    }
     // maxPerOrder is non-nullable in the DB (default 10): omit it when blank.
     if (f.maxPerOrder !== null && f.maxPerOrder !== undefined && String(f.maxPerOrder) !== '') {
       body.maxPerOrder = Number(f.maxPerOrder);
@@ -198,7 +209,7 @@ export default function ProductForm({
         : await api.post<{ id: string }>('/admin/catalog/products', body);
       onSaved(saved.id);
     } catch (err) {
-      setError(friendly(err));
+      setError(productError(err));
       setBusy(false);
     }
   }
@@ -258,19 +269,19 @@ export default function ProductForm({
         <section className="surface flex flex-col gap-4 rounded-2xl p-5 shadow-card">
           <h2 className="text-base font-bold">السعر</h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="سعر البيع ($) *" hint="السعر الأصلي قبل أي خصم. يراه الزبون كما هو بالضبط.">
-              <input required inputMode="decimal" dir="ltr" value={f.sellPrice} onChange={(e) => set('sellPrice', e.target.value)} className={input + ' text-right tnum'} placeholder="26.50" />
+            <Field label="سعر البيع ($) *" hint="السعر الأصلي قبل أي خصم، لمن يدفع بالدولار.">
+              <input required inputMode="decimal" dir="ltr" value={f.sellPrice} onChange={(e) => set('sellPrice', cleanAmount(e.target.value))} className={input + ' text-right tnum'} placeholder="26.50" />
             </Field>
             <Field label="التكلفة ($) *" hint="ما تدفعه أنت للمورّد. لا تظهر للزبون.">
-              <input required inputMode="decimal" dir="ltr" value={f.costPrice} onChange={(e) => set('costPrice', e.target.value)} className={input + ' text-right tnum'} placeholder="24.00" />
+              <input required inputMode="decimal" dir="ltr" value={f.costPrice} onChange={(e) => set('costPrice', cleanAmount(e.target.value))} className={input + ' text-right tnum'} placeholder="24.00" />
             </Field>
           </div>
-          <Field label="الخصم % (اختياري)" hint="اكتب نسبة الخصم فيظهر للزبون السعر القديم مشطوبًا. اتركه فارغًا = بلا خصم.">
+          <Field label="الخصم % (اختياري)" hint="اكتب نسبة الخصم فيظهر للزبون السعر القديم مشطوبًا، بكل العملات. اتركه فارغًا = بلا خصم.">
             <input
               inputMode="numeric"
               dir="ltr"
               value={f.discountPercent ?? ''}
-              onChange={(e) => set('discountPercent', e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+              onChange={(e) => set('discountPercent', cleanAmount(e.target.value).replace(/\./g, '').slice(0, 2))}
               className={input + ' text-right tnum sm:w-40'}
               placeholder="مثال: 10"
             />
@@ -278,7 +289,7 @@ export default function ProductForm({
           {margin && (
             <div className="surface-2 flex flex-col gap-1 rounded-xl px-4 py-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted">يدفع الزبون</span>
+                <span className="text-muted">يدفع الزبون بالدولار</span>
                 {/* dir=ltr keeps "$" and the struck price in reading order inside RTL text */}
                 <span dir="ltr" className="tnum font-bold">
                   {discount > 0 && (
@@ -295,6 +306,32 @@ export default function ProductForm({
               </div>
             </div>
           )}
+
+          <div className="hairline flex flex-col gap-4 border-t pt-4">
+            <div>
+              <h3 className="text-sm font-bold">ما يدفعه الزبون بعملة بلده</h3>
+              <p className="mt-1 text-xs text-muted">اتركه فارغًا ليُحسب تلقائيًا من سعر الدولار.</p>
+            </div>
+            {pricing.loading && <p className="text-sm text-muted">جارٍ تحميل العملات…</p>}
+            {pricing.error && !pricing.loading && (
+              <p className="text-sm text-bad">تعذّر جلب العملات وأسعار الصرف: {pricing.error}</p>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {pricing.local.map((c) => (
+                <LocalPriceField
+                  key={c.code}
+                  currency={c}
+                  rate={pricing.rates[c.code]}
+                  usd={parseFloat(String(f.sellPrice))}
+                  costUsd={parseFloat(String(f.costPrice))}
+                  discount={isFinite(discount) ? discount : 0}
+                  value={fixed[c.code] ?? ''}
+                  onChange={(v) => setFixed((m) => ({ ...m, [c.code]: v }))}
+                  className={input}
+                />
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="surface flex flex-col gap-4 rounded-2xl p-5 shadow-card">
