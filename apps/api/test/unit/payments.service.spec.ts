@@ -111,9 +111,32 @@ describe('PaymentsService', () => {
 
       const res = await service.initiate('ord1', 'usr1', 'STRIPE' as any);
 
-      expect(res).toEqual({ paymentId: 'pay0', status: 'AUTHORIZED', gatewayRef: 'pi_0' });
+      expect(res).toEqual({ paymentId: 'pay0', status: 'AUTHORIZED', gatewayRef: 'pi_0', redirectUrl: undefined });
       expect(gateway.verify).toHaveBeenCalledWith('pi_0');
       expect(prisma.payment.create).not.toHaveBeenCalled();
+    });
+
+    it('sends the customer back to a card page that is still open', async () => {
+      prisma.payment.findFirst.mockResolvedValue({ id: 'pay0', status: 'AUTHORIZED', gateway: 'STRIPE', gatewayRef: 'cs_0' });
+      gateway.verify.mockResolvedValue({ status: 'PENDING' });
+      gateway.resumeUrl = jest.fn().mockResolvedValue('https://checkout/cs_0');
+
+      const res = await service.initiate('ord1', 'usr1', 'STRIPE' as any);
+
+      expect(res).toEqual({ paymentId: 'pay0', status: 'AUTHORIZED', gatewayRef: 'cs_0', redirectUrl: 'https://checkout/cs_0' });
+      expect(prisma.payment.create).not.toHaveBeenCalled();
+    });
+
+    it('opens a new card page when the old one can no longer be used', async () => {
+      prisma.payment.findFirst.mockResolvedValue({ id: 'pay0', status: 'AUTHORIZED', gateway: 'STRIPE', gatewayRef: 'cs_0' });
+      gateway.verify.mockResolvedValue({ status: 'PENDING' });
+      gateway.resumeUrl = jest.fn().mockResolvedValue(undefined);
+      gateway.initiate.mockResolvedValue({ status: 'REQUIRES_ACTION', gatewayRef: 'cs_1', redirectUrl: 'https://checkout/cs_1' });
+
+      const res = await service.initiate('ord1', 'usr1', 'STRIPE' as any);
+
+      expect(prisma.payment.create).toHaveBeenCalled();
+      expect(res).toMatchObject({ status: 'REQUIRES_ACTION', redirectUrl: 'https://checkout/cs_1' });
     });
 
     it('creates a new payment when the in-flight attempt is no longer pending', async () => {

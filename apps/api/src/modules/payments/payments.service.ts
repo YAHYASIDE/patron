@@ -57,9 +57,14 @@ export class PaymentsService {
       orderBy: { createdAt: 'desc' },
     });
     if (inFlight && inFlight.gateway === gatewayCode) {
-      const verified = await this.gateways.get(gatewayCode).verify(inFlight.gatewayRef ?? '');
+      const inFlightGateway = this.gateways.get(gatewayCode);
+      const verified = await inFlightGateway.verify(inFlight.gatewayRef ?? '');
       if (verified.status === 'PENDING') {
-        return { paymentId: inFlight.id, status: inFlight.status, gatewayRef: inFlight.gatewayRef };
+        // a card page still open is reused; an expired one falls through to a new attempt
+        const redirectUrl = inFlight.gatewayRef ? await inFlightGateway.resumeUrl?.(inFlight.gatewayRef) : undefined;
+        if (!inFlightGateway.resumeUrl || redirectUrl) {
+          return { paymentId: inFlight.id, status: inFlight.status, gatewayRef: inFlight.gatewayRef, redirectUrl };
+        }
       }
     }
 

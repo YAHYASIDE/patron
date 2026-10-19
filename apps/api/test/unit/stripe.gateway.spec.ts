@@ -47,110 +47,127 @@ describe('StripeGateway', () => {
   });
 
   describe('initiate', () => {
-    it('creates a PaymentIntent and returns REQUIRES_ACTION with client secret and redirect', async () => {
-      mockFetch({
-        id: 'pi_1',
-        client_secret: 'cs_1',
-        next_action: { redirect_to_url: { url: 'https://redirect' } },
-      });
+    beforeEach(() => {
+      process.env.STOREFRONT_URL = 'https://store.example';
+    });
+    afterEach(() => {
+      delete process.env.STOREFRONT_URL;
+    });
 
-      const res = await gateway.initiate(baseReq);
+    it("creates a hosted Checkout session and sends the customer to Stripe's page", async () => {
+      mockFetch({ id: 'cs_1', url: 'https://checkout.stripe.com/c/pay/cs_1' });
+
+      const res = await gateway.initiate({ ...baseReq, returnUrl: 'https://store.example/orders/ord1' });
 
       expect(res).toEqual({
         status: 'REQUIRES_ACTION',
-        gatewayRef: 'pi_1',
-        clientSecret: 'cs_1',
-        redirectUrl: 'https://redirect',
-        raw: expect.objectContaining({ id: 'pi_1' }),
+        gatewayRef: 'cs_1',
+        redirectUrl: 'https://checkout.stripe.com/c/pay/cs_1',
+        raw: expect.objectContaining({ id: 'cs_1' }),
       });
-
       const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-      expect(url).toBe('https://api.stripe.com/v1/payment_intents');
+      expect(url).toBe('https://api.stripe.com/v1/checkout/sessions');
       expect(init.method).toBe('POST');
       expect(init.headers.authorization).toBe(`Bearer ${SECRET_KEY}`);
+      expect(init.body.get('mode')).toBe('payment');
       // decimal currency -> minor units are x100
-      expect(init.body.get('amount')).toBe('2500');
-      expect(init.body.get('currency')).toBe('usd');
+      expect(init.body.get('line_items[0][price_data][unit_amount]')).toBe('2500');
+      expect(init.body.get('line_items[0][price_data][currency]')).toBe('usd');
+      expect(init.body.get('line_items[0][price_data][product_data][name]')).toBe('Order 1000');
+      expect(init.body.get('client_reference_id')).toBe('pay1');
       expect(init.body.get('metadata[order_id]')).toBe('ord1');
-      expect(init.body.get('metadata[payment_id]')).toBe('pay1');
+      expect(init.body.get('success_url')).toBe('https://store.example/orders/ord1?card=done');
+      expect(init.body.get('cancel_url')).toBe('https://store.example/orders/ord1?card=cancelled');
     });
 
     it('does not multiply zero-decimal currencies into minor units', async () => {
-      mockFetch({ id: 'pi_2', client_secret: 'cs_2' });
-
+      mockFetch({ id: 'cs_2', url: 'https://checkout' });
       await gateway.initiate({ ...baseReq, currency: 'XOF', amount: new Prisma.Decimal('2500') });
-
       const init = (global.fetch as jest.Mock).mock.calls[0][1];
-      expect(init.body.get('amount')).toBe('2500');
-      expect(init.body.get('currency')).toBe('xof');
+      expect(init.body.get('line_items[0][price_data][unit_amount]')).toBe('2500');
+      expect(init.body.get('line_items[0][price_data][currency]')).toBe('xof');
     });
 
-    it('omits redirectUrl when the intent needs no next action', async () => {
-      mockFetch({ id: 'pi_3', client_secret: 'cs_3' });
-      const res = await gateway.initiate(baseReq);
-      expect(res).toMatchObject({ status: 'REQUIRES_ACTION', redirectUrl: undefined });
+    it("never sends the customer back anywhere but the shop's own pages", async () => {
+      mockFetch({ id: 'cs_3', url: 'https://checkout' });
+      await gateway.initiate({ ...baseReq, returnUrl: 'https://evil.example/steal' });
+      const init = (global.fetch as jest.Mock).mock.calls[0][1];
+      expect(init.body.get('success_url')).toBe('https://store.example/orders/ord1?card=done');
+
+      config.get.mockImplementation((k: string) => (k === 'app.corsOrigins' ? 'https://shop.example,https://other.example' : SECRET_KEY));
+      mockFetch({ id: 'cs_4', url: 'https://checkout' });
+      await gateway.initiate({ ...baseReq, returnUrl: 'https://other.example/orders/ord1?pay=STRIPE' });
+      const init2 = (global.fetch as jest.Mock).mock.calls[1][1];
+      expect(init2.body.get('success_url')).toBe('https://other.example/orders/ord1?pay=STRIPE&card=done');
+
+      mockFetch({ id: 'cs_5', url: 'https://checkout' });
+      await gateway.initiate({ ...baseReq, returnUrl: 'not a url' });
+      expect((global.fetch as jest.Mock).mock.calls[2][1].body.get('cancel_url')).toBe('https://store.example/orders/ord1?card=cancelled');
     });
 
     it('maps a gateway error envelope to a FAILED result', async () => {
-      mockFetch({ error: { message: 'card_declined' } }, false, 402);
+      mockFetch({ error: { message: 'currency not supported' } }, false, 400);
       const res = await gateway.initiate(baseReq);
-      expect(res).toEqual({
-        status: 'FAILED',
-        failureCode: 'gateway_error',
-        failureReason: 'card_declined',
-      });
+      expect(res).toEqual({ status: 'FAILED', failureCode: 'gateway_error', failureReason: 'currency not supported' });
     });
 
     it('falls back to a status-based message when the error envelope is empty', async () => {
       mockFetch({}, false, 500);
       const res = await gateway.initiate(baseReq);
-      expect(res).toEqual({
-        status: 'FAILED',
-        failureCode: 'gateway_error',
-        failureReason: 'Gateway returned 500',
-      });
+      expect(res).toEqual({ status: 'FAILED', failureCode: 'gateway_error', failureReason: 'Gateway returned 500' });
+    });
+  });
+
+  describe('resumeUrl', () => {
+    it('returns the page of a session still open, and nothing once it closed', async () => {
+      mockFetch({ status: 'open', url: 'https://checkout/cs_1' });
+      await expect(gateway.resumeUrl('cs_1')).resolves.toBe('https://checkout/cs_1');
+      mockFetch({ status: 'expired', url: null });
+      await expect(gateway.resumeUrl('cs_1')).resolves.toBeUndefined();
+      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe('https://api.stripe.com/v1/checkout/sessions/cs_1');
     });
   });
 
   describe('verify', () => {
-    it('maps succeeded to CAPTURED', async () => {
-      mockFetch({ status: 'succeeded' });
-      const res = await gateway.verify('pi_1');
-      expect(res).toEqual({ status: 'CAPTURED', raw: { status: 'succeeded' } });
+    it('maps a paid session to CAPTURED', async () => {
+      mockFetch({ status: 'complete', payment_status: 'paid' });
+      const res = await gateway.verify('cs_1');
+      expect(res).toEqual({ status: 'CAPTURED', raw: { status: 'complete', payment_status: 'paid' } });
       const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-      expect(url).toBe('https://api.stripe.com/v1/payment_intents/pi_1');
+      expect(url).toBe('https://api.stripe.com/v1/checkout/sessions/cs_1');
       expect(init.method).toBe('GET');
       expect(init.body).toBeUndefined();
     });
 
-    it('maps requires_payment_method and canceled to FAILED', async () => {
-      mockFetch({ status: 'requires_payment_method' });
-      await expect(gateway.verify('pi_1')).resolves.toMatchObject({ status: 'FAILED' });
-      mockFetch({ status: 'canceled' });
-      await expect(gateway.verify('pi_1')).resolves.toMatchObject({ status: 'FAILED' });
+    it('maps an expired session to FAILED', async () => {
+      mockFetch({ status: 'expired', payment_status: 'unpaid' });
+      await expect(gateway.verify('cs_1')).resolves.toMatchObject({ status: 'FAILED' });
     });
 
-    it('maps any other status to PENDING', async () => {
-      mockFetch({ status: 'processing' });
-      await expect(gateway.verify('pi_1')).resolves.toMatchObject({ status: 'PENDING' });
+    it('keeps an open or unpaid session PENDING', async () => {
+      mockFetch({ status: 'open', payment_status: 'unpaid' });
+      await expect(gateway.verify('cs_1')).resolves.toMatchObject({ status: 'PENDING' });
     });
   });
 
   describe('refund', () => {
-    it('posts a refund and returns its gatewayRef', async () => {
+    it("refunds the session's card charge", async () => {
+      mockFetch({ payment_intent: 'pi_1' });
       mockFetch({ id: 're_1' });
-      const res = await gateway.refund({
-        gatewayRef: 'pi_1',
-        amount: new Prisma.Decimal('10'),
-        currency: 'USD',
-        reason: 'duplicate',
-      } as any);
+      const res = await gateway.refund({ gatewayRef: 'cs_1', amount: new Prisma.Decimal('10'), currency: 'USD', reason: 'duplicate' } as any);
       expect(res).toEqual({ gatewayRef: 're_1', raw: { id: 're_1' } });
-      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[1];
       expect(url).toBe('https://api.stripe.com/v1/refunds');
       expect(init.body.get('payment_intent')).toBe('pi_1');
       expect(init.body.get('amount')).toBe('1000');
       expect(init.body.get('metadata[reason]')).toBe('duplicate');
+    });
+
+    it('refuses to refund a session that was never charged', async () => {
+      mockFetch({ payment_intent: null });
+      await expect(
+        gateway.refund({ gatewayRef: 'cs_1', amount: new Prisma.Decimal('10'), currency: 'USD', reason: 'x' } as any),
+      ).rejects.toThrow('never charged');
     });
   });
 
@@ -202,22 +219,26 @@ describe('StripeGateway', () => {
   });
 
   describe('parseWebhook', () => {
-    it('maps payment_intent.succeeded to CAPTURED', () => {
-      expect(
-        gateway.parseWebhook({ id: 'evt_1', type: 'payment_intent.succeeded', data: { object: { id: 'pi_1' } } }),
-      ).toEqual({ eventId: 'evt_1', gatewayRef: 'pi_1', status: 'CAPTURED' });
+    const ev = (type: string, object: Record<string, unknown>) => ({ id: 'evt_1', type, data: { object: { id: 'cs_1', ...object } } });
+
+    it('captures a completed session only once it is paid', () => {
+      expect(gateway.parseWebhook(ev('checkout.session.completed', { payment_status: 'paid' }))).toEqual({
+        eventId: 'evt_1',
+        gatewayRef: 'cs_1',
+        status: 'CAPTURED',
+      });
+      expect(gateway.parseWebhook(ev('checkout.session.completed', { payment_status: 'unpaid' }))).toBeNull();
+      expect(gateway.parseWebhook(ev('checkout.session.async_payment_succeeded', {}))).toMatchObject({ status: 'CAPTURED' });
     });
 
-    it('maps payment_intent.payment_failed to FAILED', () => {
-      expect(
-        gateway.parseWebhook({ id: 'evt_2', type: 'payment_intent.payment_failed', data: { object: { id: 'pi_2' } } }),
-      ).toEqual({ eventId: 'evt_2', gatewayRef: 'pi_2', status: 'FAILED' });
+    it('fails an expired session or a failed delayed payment', () => {
+      expect(gateway.parseWebhook(ev('checkout.session.expired', {}))).toMatchObject({ status: 'FAILED', gatewayRef: 'cs_1' });
+      expect(gateway.parseWebhook(ev('checkout.session.async_payment_failed', {}))).toMatchObject({ status: 'FAILED' });
     });
 
     it('returns null for an unhandled event type', () => {
-      expect(
-        gateway.parseWebhook({ id: 'evt_3', type: 'charge.updated', data: { object: { id: 'ch_1' } } }),
-      ).toBeNull();
+      expect(gateway.parseWebhook(ev('charge.updated', {}))).toBeNull();
+      expect(gateway.parseWebhook({})).toBeNull();
     });
   });
 });

@@ -45,6 +45,8 @@ export interface PaymentGateway {
   /** Whether the method can be offered right now (credentials/accounts configured). Default: yes. */
   isEnabled?(): boolean | Promise<boolean>;
   initiate(req: InitiatePaymentRequest): Promise<InitiateResult>;
+  /** For a redirect gateway: the page of an attempt still open, so a second tap resumes it. */
+  resumeUrl?(gatewayRef: string): Promise<string | undefined>;
   /** Confirm final state with the gateway — never trust the client's word. */
   verify(gatewayRef: string): Promise<{ status: 'CAPTURED' | 'FAILED' | 'PENDING'; raw?: unknown }>;
   refund(req: RefundRequest): Promise<{ gatewayRef: string; raw?: unknown }>;

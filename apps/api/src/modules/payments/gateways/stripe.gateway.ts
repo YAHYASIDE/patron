@@ -6,11 +6,12 @@ import {
 } from './payment-gateway.interface';
 
 /**
- * Card gateway.
- *
- * Wired against Stripe's PaymentIntents shape. The HTTP calls are isolated in
- * `call()` so swapping to Moyasar or Tap for the MENA/West-Africa corridors is
- * this one file — nothing in PaymentsService knows the difference.
+ * Card gateway, through Stripe's hosted Checkout page: the customer is sent to
+ * Stripe to type the card and comes back to their order, so the shop never
+ * handles card numbers and needs no card form. The gateway reference is the
+ * Checkout Session id. The HTTP calls are isolated in `call()` so swapping to
+ * another card provider is this one file — nothing in PaymentsService knows
+ * the difference.
  *
  * Amounts are converted to minor units per currency: XOF has none, so 2500 XOF
  * is 2500, not 250000. Getting this wrong is a 100× overcharge.
@@ -39,43 +40,66 @@ export class StripeGateway implements PaymentGateway {
     return StripeGateway.ZERO_DECIMAL.has(currency) ? Math.round(value) : Math.round(value * 100);
   }
 
+  /**
+   * Where Stripe sends the customer back. Only the shop's own origins are
+   * accepted (CORS_ORIGINS / STOREFRONT_URL), so the link cannot be pointed
+   * at another site; anything else returns them to their order page.
+   */
+  private returnTo(req: InitiatePaymentRequest): string {
+    const store = (process.env.STOREFRONT_URL ?? '').replace(/\/+$/, '');
+    const allowed = new Set(
+      [store, ...(this.config.get<string>('app.corsOrigins') ?? '').split(',')].map((o) => o.trim()).filter(Boolean),
+    );
+    try {
+      const url = new URL(req.returnUrl ?? '');
+      if (allowed.has(url.origin)) return url.toString();
+    } catch {
+      /* not a URL */
+    }
+    return `${store}/orders/${req.orderId}`;
+  }
+
   async initiate(req: InitiatePaymentRequest): Promise<InitiateResult> {
     try {
-      const intent = await this.call<{ id: string; client_secret: string; next_action?: { redirect_to_url?: { url: string } } }>(
-        'payment_intents',
-        {
-          amount: this.toMinorUnits(req.amount, req.currency),
-          currency: req.currency.toLowerCase(),
-          description: req.description,
-          'metadata[order_id]': req.orderId,
-          'metadata[payment_id]': req.paymentId,
-        },
-      );
-
-      return {
-        status: 'REQUIRES_ACTION',
-        gatewayRef: intent.id,
-        clientSecret: intent.client_secret,
-        redirectUrl: intent.next_action?.redirect_to_url?.url,
-        raw: intent,
-      };
+      const back = this.returnTo(req);
+      const sep = back.includes('?') ? '&' : '?';
+      const session = await this.call<{ id: string; url: string }>('checkout/sessions', {
+        mode: 'payment',
+        'line_items[0][quantity]': 1,
+        'line_items[0][price_data][currency]': req.currency.toLowerCase(),
+        'line_items[0][price_data][unit_amount]': this.toMinorUnits(req.amount, req.currency),
+        'line_items[0][price_data][product_data][name]': req.description,
+        client_reference_id: req.paymentId,
+        'metadata[order_id]': req.orderId,
+        'metadata[payment_id]': req.paymentId,
+        success_url: `${back}${sep}card=done`,
+        cancel_url: `${back}${sep}card=cancelled`,
+      });
+      return { status: 'REQUIRES_ACTION', gatewayRef: session.id, redirectUrl: session.url, raw: session };
     } catch (err) {
       return { status: 'FAILED', failureCode: 'gateway_error', failureReason: (err as Error).message };
     }
   }
 
+  /** The Checkout page of a session still open, to send the customer back to it. */
+  async resumeUrl(gatewayRef: string): Promise<string | undefined> {
+    const session = await this.call<{ status: string; url?: string | null }>(`checkout/sessions/${gatewayRef}`, undefined, 'GET');
+    return session.status === 'open' ? (session.url ?? undefined) : undefined;
+  }
+
   async verify(gatewayRef: string) {
-    const intent = await this.call<{ status: string }>(`payment_intents/${gatewayRef}`, undefined, 'GET');
-    if (intent.status === 'succeeded') return { status: 'CAPTURED' as const, raw: intent };
-    if (['requires_payment_method', 'canceled'].includes(intent.status)) {
-      return { status: 'FAILED' as const, raw: intent };
-    }
-    return { status: 'PENDING' as const, raw: intent };
+    const session = await this.call<{ status: string; payment_status: string }>(`checkout/sessions/${gatewayRef}`, undefined, 'GET');
+    if (session.payment_status === 'paid') return { status: 'CAPTURED' as const, raw: session };
+    if (session.status === 'expired') return { status: 'FAILED' as const, raw: session };
+    return { status: 'PENDING' as const, raw: session };
   }
 
   async refund(req: RefundRequest) {
+    // a refund is made against the card charge the session produced
+    const session = await this.call<{ payment_intent: string | null }>(`checkout/sessions/${req.gatewayRef}`, undefined, 'GET');
+    if (!session.payment_intent) throw new Error('This card payment was never charged');
     const refund = await this.call<{ id: string }>('refunds', {
-      payment_intent: req.gatewayRef,
+      payment_intent: session.payment_intent,
       amount: this.toMinorUnits(req.amount, req.currency),
       'metadata[reason]': req.reason,
     });
@@ -100,14 +124,15 @@ export class StripeGateway implements PaymentGateway {
   }
 
   parseWebhook(payload: unknown) {
-    const event = payload as { id: string; type: string; data: { object: { id: string } } };
-    const map: Record<string, 'CAPTURED' | 'FAILED'> = {
-      'payment_intent.succeeded': 'CAPTURED',
-      'payment_intent.payment_failed': 'FAILED',
-    };
-    const status = map[event?.type];
+    const event = payload as { id: string; type: string; data: { object: { id: string; payment_status?: string } } };
+    const session = event?.data?.object;
+    let status: 'CAPTURED' | 'FAILED' | null = null;
+    // "completed" can arrive before the money for slower methods: only "paid" settles
+    if (event?.type === 'checkout.session.completed') status = session?.payment_status === 'paid' ? 'CAPTURED' : null;
+    if (event?.type === 'checkout.session.async_payment_succeeded') status = 'CAPTURED';
+    if (event?.type === 'checkout.session.async_payment_failed' || event?.type === 'checkout.session.expired') status = 'FAILED';
     if (!status) return null;
-    return { eventId: event.id, gatewayRef: event.data.object.id, status };
+    return { eventId: event.id, gatewayRef: session.id, status };
   }
 
   private async call<T>(path: string, body?: Record<string, string | number>, method = 'POST'): Promise<T> {
