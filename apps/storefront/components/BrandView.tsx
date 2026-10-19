@@ -173,7 +173,7 @@ export default function BrandView({
         </Link>
       </nav>
 
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
         {/* brand card */}
         <aside className="surface flex gap-4 rounded-2xl p-4 shadow-card lg:sticky lg:top-20 lg:flex-col lg:p-5">
           <div className="aspect-square w-24 flex-none overflow-hidden rounded-xl bg-[rgb(var(--surface-2))] lg:w-full">
