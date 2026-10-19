@@ -1,4 +1,13 @@
 import type {
+  AppNotification,
+  BestSeller,
+  MyCode,
+  PriceWatch,
+  Rates,
+  ReviewSummary,
+  SavedInput,
+  StoreStats,
+  SupportTicket,
   Banner,
   Category,
   Currency,
@@ -369,5 +378,87 @@ export const shop = {
   },
   wallet() {
     return request<{ currencyCode: string; balance: string; currency?: Currency }[]>('/wallet', { auth: true });
+  },
+};
+
+// ─────────────── the 50 additions (docs/api-contract-50.md) ───────────────
+
+/** Public store facts: best sellers, trust numbers, exchange rates, reviews. */
+export const store = {
+  bestSellers(limit = 8) {
+    return request<BestSeller[]>(`/catalog/best-sellers${qs({ limit })}`);
+  },
+  stats() {
+    return request<StoreStats>('/catalog/stats');
+  },
+  rates() {
+    return request<Rates>('/catalog/rates');
+  },
+  reviews(productIds: string[]) {
+    return request<ReviewSummary>(`/catalog/reviews${qs({ productIds: productIds.join(',') })}`);
+  },
+};
+
+/** The signed-in customer's own data. */
+export const me = {
+  updateProfile(body: { fullName?: string; country?: string; city?: string; locale?: string; defaultCurrency?: string }) {
+    return request<Me>('/users/me', { method: 'PATCH', body, auth: true });
+  },
+  savedInputs(gameId?: string) {
+    return request<SavedInput[]>(`/me/saved-inputs${qs({ gameId })}`, { auth: true });
+  },
+  saveInput(body: { gameId: string; label?: string; values: Record<string, string> }) {
+    return request<SavedInput>('/me/saved-inputs', { method: 'POST', body, auth: true });
+  },
+  deleteInput(id: string) {
+    return request<{ deleted: true }>(`/me/saved-inputs/${id}`, { method: 'DELETE', auth: true });
+  },
+  favorites() {
+    return request<string[]>('/me/favorites', { auth: true });
+  },
+  addFavorite(brandKey: string) {
+    return request<{ brandKey: string }>(`/me/favorites/${encodeURIComponent(brandKey)}`, { method: 'PUT', auth: true });
+  },
+  removeFavorite(brandKey: string) {
+    return request<{ deleted: true }>(`/me/favorites/${encodeURIComponent(brandKey)}`, { method: 'DELETE', auth: true });
+  },
+  watches() {
+    return request<PriceWatch[]>('/me/watches', { auth: true });
+  },
+  watch(productId: string, kind: 'price' | 'stock') {
+    return request<PriceWatch>('/me/watches', { method: 'POST', body: { productId, kind }, auth: true });
+  },
+  unwatch(id: string) {
+    return request<{ deleted: true }>(`/me/watches/${id}`, { method: 'DELETE', auth: true });
+  },
+  notifications(page = 1, limit = 20) {
+    return request<Paginated<AppNotification>>(`/notifications${qs({ page, limit })}`, { auth: true });
+  },
+  unreadCount() {
+    return request<{ count: number }>('/notifications/unread-count', { auth: true });
+  },
+  markRead(ids?: string[]) {
+    return request<{ updated: number }>('/notifications/read', { method: 'POST', body: ids ? { ids } : {}, auth: true });
+  },
+  codes() {
+    return request<MyCode[]>('/me/codes', { auth: true });
+  },
+  reviewed() {
+    return request<string[]>('/me/reviews', { auth: true });
+  },
+  review(body: { orderItemId: string; rating: number; comment?: string }) {
+    return request<{ id: string }>('/reviews', { method: 'POST', body, auth: true });
+  },
+  tickets() {
+    return request<SupportTicket[]>('/support/tickets', { auth: true });
+  },
+  openTicket(body: { orderId?: string; subject: string; message: string }) {
+    return request<SupportTicket>('/support/tickets', { method: 'POST', body, auth: true });
+  },
+  walletTransactions() {
+    return request<Paginated<{ id: string; type: string; amount: string; currencyCode: string; balanceAfter?: string; description?: string | null; createdAt: string }>>(
+      '/wallet/transactions',
+      { auth: true },
+    );
   },
 };

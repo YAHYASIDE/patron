@@ -150,6 +150,12 @@ model User {
   defaultCurrency String    @default("USD") @db.Char(3)
   lastLoginAt     DateTime?
   lastLoginIp     String?
+  /// Where the customer lives (ISO country, city they typed): the owner sees where customers are.
+  country         String?   @db.Char(2)
+  city            String?
+  /// Only staff see these.
+  adminNote       String?
+  tags            String[]  @default([])
 
   roles              UserRole[]
   orders             Order[]
@@ -164,6 +170,11 @@ model User {
   auditLogs          AuditLog[]
   refundsRequested   Refund[]            @relation("RefundRequester")
   refundsProcessed   Refund[]            @relation("RefundProcessor")
+  savedInputs        SavedInput[]
+  favorites          Favorite[]
+  priceWatches       PriceWatch[]
+  reviews            Review[]
+  supportTickets     SupportTicket[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -171,6 +182,7 @@ model User {
 
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([country])
   @@map("users")
 }
 
@@ -391,6 +403,11 @@ model Product {
   providers  ProductProvider[]
   codes      ProductCode[]
   orderItems OrderItem[]
+  watches    PriceWatch[]
+  reviews    Review[]
+
+  /// Usual minutes from paid to delivered, shown to customers ("usually within 10 minutes").
+  etaMinutes Int?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -592,6 +609,10 @@ model Order {
   items    OrderItem[]
   payments Payment[]
   refunds  Refund[]
+  tickets  SupportTicket[]
+
+  /// Staff-only note on the order.
+  adminNote String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -634,6 +655,8 @@ model OrderItem {
   results       OrderResult[]
   providerCalls ProviderCall[]
   assignedCodes ProductCode[]
+
+  review Review?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1165,3 +1188,89 @@ model NotificationTemplate {
 /// Dashboards read this instead of scanning orders ⨝ order_items. Recomputed
 /// nightly for the previous few days, and re-computable for any single historic
 /// day after a correction — which a materialised view cannot do without a full
+
+/// Account values a customer saved for a game (player ID, username…), filled in next time.
+model SavedInput {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId    String   @db.Uuid
+  label     String?
+  /// { "<input key>": "<value>" }
+  values    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, gameId])
+  @@map("saved_inputs")
+}
+
+/// A brand the customer marked with a heart (brand key as the store groups products).
+model Favorite {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandKey  String
+  createdAt DateTime @default(now())
+
+  @@id([userId, brandKey])
+  @@map("favorites")
+}
+
+/// "Tell me when the price drops" (kind price) or "when it is back" (kind stock).
+model PriceWatch {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId    String    @db.Uuid
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind         String    @default("price")
+  /// The base (USD) price when the customer asked; a drop below it notifies them.
+  priceAtWatch Decimal   @db.Decimal(14, 4)
+  notifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([userId, productId, kind])
+  @@index([productId, notifiedAt])
+  @@map("price_watches")
+}
+
+/// A customer's rating of a delivered item; one per item.
+model Review {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId   String    @db.Uuid
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItemId String    @unique @db.Uuid
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  rating      Int
+  comment     String?
+  isPublished Boolean   @default(true)
+  reply       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([productId, isPublished])
+  @@map("reviews")
+}
+
+/// "Problem with my order": a customer request and the shop's reply.
+model SupportTicket {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?   @db.Uuid
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  subject   String
+  message   String
+  /// OPEN | ANSWERED | CLOSED
+  status    String    @default("OPEN")
+  reply     String?
+  repliedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("support_tickets")
+}

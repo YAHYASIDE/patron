@@ -112,7 +112,69 @@ export type Me = {
   defaultCurrency?: string;
   wallets?: { currencyCode: string; balance: string }[];
   roles?: string[];
+  /** Where the customer lives: ISO country and the city they typed. */
+  country?: string | null;
+  city?: string | null;
 };
+
+// ─── the 50 additions (docs/api-contract-50.md) ───
+
+export type SavedInput = { id: string; gameId: string; label: string | null; values: Record<string, string>; updatedAt: string };
+
+export type PriceWatch = {
+  id: string;
+  productId: string;
+  kind: 'price' | 'stock';
+  priceAtWatch: string;
+  notifiedAt: string | null;
+  createdAt: string;
+  product: { id: string; sku: string; nameAr: string; nameEn: string; gameId: string | null };
+};
+
+export type AppNotification = {
+  id: string;
+  titleAr: string;
+  titleEn: string;
+  bodyAr: string;
+  bodyEn: string;
+  data: { type?: string; orderId?: string; productId?: string; link?: string; fr?: { title: string; body: string } } | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
+export type MyCode = {
+  orderId: string;
+  orderNumber: string;
+  itemId: string;
+  productId: string;
+  productNameAr: string;
+  productNameEn: string;
+  quantity: number;
+  deliveredAt: string | null;
+  results: { id: string; resultType: string; revealed: boolean }[];
+};
+
+export type ReviewSummary = {
+  average: number | null;
+  count: number;
+  items: { id: string; rating: number; comment: string | null; author: string; createdAt: string; reply: string | null }[];
+};
+
+export type SupportTicket = {
+  id: string;
+  orderId: string | null;
+  orderNumber: string | null;
+  subject: string;
+  message: string;
+  status: 'OPEN' | 'ANSWERED' | 'CLOSED';
+  reply: string | null;
+  repliedAt: string | null;
+  createdAt: string;
+};
+
+export type BestSeller = { productId: string; sku: string; gameId: string | null; units: number };
+export type StoreStats = { ordersDelivered: number; customers: number };
+export type Rates = { base: string; rates: Record<string, number> };
 
 export type QuoteItem = {
   productId: string;

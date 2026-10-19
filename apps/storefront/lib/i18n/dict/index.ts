@@ -8,10 +8,12 @@ import catalog from './catalog';
 import checkout from './checkout';
 import account from './account';
 import pages from './pages';
+import discovery from './discovery';
+import myaccount from './myaccount';
 
 export type Dict = { fr: Record<string, string>; en: Record<string, string> };
 
-const parts: Dict[] = [common, catalog, checkout, account, pages];
+const parts: Dict[] = [common, catalog, checkout, account, pages, discovery, myaccount];
 
 export const FR: Record<string, string> = Object.assign({}, ...parts.map((p) => p.fr));
 export const EN: Record<string, string> = Object.assign({}, ...parts.map((p) => p.en));
