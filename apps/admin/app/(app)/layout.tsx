@@ -23,7 +23,7 @@ const NAV = [
   { href: '/banners', label: 'العروض', icon: 'tag' },
   { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
   { href: '/verifications', label: 'رموز التحقق', icon: 'shield' },
-  { href: '/currencies', label: 'العملات', icon: 'coins' },
+  { href: '/currencies', label: 'أسعار الصرف', icon: 'coins' },
   { href: '/activity', label: 'سجل النشاط', icon: 'history' },
   { href: '/errors', label: 'الأخطاء', icon: 'alert' },
   { href: '/settings', label: 'الإعدادات', icon: 'gear' },
