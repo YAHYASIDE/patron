@@ -240,3 +240,79 @@ export async function login(email: string, password: string): Promise<Tokens> {
 export function logout() {
   clearTokens();
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Learning from the shop (docs/api-contract-feedback.md): what visitors looked
+ * for and did not find, and the errors the store, the dashboard and the server
+ * ran into. Read by /opportunities, /errors and the home card.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+export type OpportunityDays = 7 | 30 | 90;
+export type SearchMiss = { query: string; count: number; lastAt: string };
+export type Suggestion = {
+  id: string;
+  text: string;
+  contact: string | null;
+  createdAt: string;
+  user: { id: string; fullName: string; phone: string | null } | null;
+};
+export type AbandonedProduct = {
+  productId: string;
+  sku: string;
+  nameAr: string;
+  checkouts: number;
+  customers: number;
+  lastAt: string;
+};
+export type ViewedBrand = { brandKey: string; title: string; views: number };
+export type Opportunities = {
+  days: number;
+  searchMisses: SearchMiss[];
+  suggestions: Suggestion[];
+  abandoned: AbandonedProduct[];
+  mostViewed: ViewedBrand[];
+};
+
+export type ErrorDays = 1 | 7 | 30;
+export type ErrorSource = 'store' | 'admin' | 'server';
+export type ErrorGroup = {
+  source: ErrorSource;
+  message: string;
+  count: number;
+  lastAt: string;
+  lastPath: string | null;
+  lastUa: string | null;
+  stack: string | null;
+};
+
+/** GET /admin/opportunities (reports.read): search misses, suggestions, abandoned checkouts, most viewed brands. */
+export const opportunitiesPath = (days: OpportunityDays = 30) => `/admin/opportunities?days=${days}`;
+export const getOpportunities = (days?: OpportunityDays) => api.get<Opportunities>(opportunitiesPath(days));
+
+/** GET /admin/errors (reports.read): error groups, newest first, at most 50. */
+export const errorsPath = (days: ErrorDays = 7) => `/admin/errors?days=${days}`;
+export const getErrors = (days?: ErrorDays) => api.get<ErrorGroup[]>(errorsPath(days));
+
+export type StoreEvent = {
+  kind: 'search_miss' | 'brand_view' | 'suggestion' | 'client_error';
+  value: string;
+  path?: string;
+  detail?: Record<string, unknown>;
+};
+
+/**
+ * POST /events, fire-and-forget: no token, no retry, no waking banner, and it
+ * survives a page unload (keepalive). A failure is swallowed on purpose.
+ */
+export function sendEvent(ev: StoreEvent): void {
+  try {
+    void fetch(`${BASE}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ev),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    /* never let reporting break the page */
+  }
+}

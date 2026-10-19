@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
 import { num, money, moneyIn, date, statusChip } from '@/lib/format';
 import Notice from '@/components/Notice';
+import LearnCard from '@/components/LearnCard';
 
 type Day = { revenue: string | number; cost: string | number; profit: string | number; orders: number };
 type Overview = {
@@ -222,6 +223,12 @@ export default function DashboardPage() {
           <p className="text-xs text-muted">بالدولار (العملة الأساسية)، من منتصف الليل.</p>
         </section>
       )}
+
+      {/* what visitors ran into: errors today, searches that found nothing this week */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-bold">من المتجر</h2>
+        <LearnCard />
+      </section>
 
       {!ov.error && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

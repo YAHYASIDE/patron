@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { isAuthed, logout } from '@/lib/api';
 import WakeBanner from '@/components/WakeBanner';
+import ErrorReporter from '@/components/ErrorReporter';
 import { usePulse, beep, soundOn, systemNotify, AlertsButton, Toast, type PulseEvent } from '@/components/Pulse';
 
 const NAV = [
@@ -18,11 +19,13 @@ const NAV = [
   { href: '/coupons', label: 'القسائم', icon: 'ticket' },
   { href: '/broadcast', label: 'رسالة للزبائن', icon: 'megaphone' },
   { href: '/reports', label: 'التقارير', icon: 'chart' },
+  { href: '/opportunities', label: 'الفرص', icon: 'bulb' },
   { href: '/banners', label: 'العروض', icon: 'tag' },
   { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
   { href: '/verifications', label: 'رموز التحقق', icon: 'shield' },
   { href: '/currencies', label: 'العملات', icon: 'coins' },
   { href: '/activity', label: 'سجل النشاط', icon: 'history' },
+  { href: '/errors', label: 'الأخطاء', icon: 'alert' },
   { href: '/settings', label: 'الإعدادات', icon: 'gear' },
 ] as const;
 
@@ -152,6 +155,20 @@ function Icon({ name }: { name: string }) {
         <svg {...common}>
           <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
           <path d="M3 3v5h5M12 7v5l3 2" />
+        </svg>
+      );
+    case 'bulb':
+      return (
+        <svg {...common}>
+          <path d="M9 18h6M10 21h4" />
+          <path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3Z" />
+        </svg>
+      );
+    case 'alert':
+      return (
+        <svg {...common}>
+          <path d="M10.3 4 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0Z" />
+          <path d="M12 9.5v4M12 17h.01" />
         </svg>
       );
     default:
@@ -290,6 +307,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
         {toast && <Toast ev={toast} onClose={closeToast} />}
       </div>
+      <ErrorReporter />
     </div>
   );
 }
