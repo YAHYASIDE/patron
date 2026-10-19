@@ -68,7 +68,13 @@ const BRANDS = {
   mattel: { word: 'MATTEL', bg: '#D7141A' },
   mauritel: { word: 'MAURITEL', bg: '#0A5BA8' },
   chinguitel: { word: 'CHINGUITEL', bg: '#0E8A3E' },
+  kast: { word: 'KAST', bg: '#0b0b0b' },
+  redotpay: { word: 'RedotPay', bg: '#D7141A' },
 };
+
+// pack names say what a "$5" tier really holds; the card says the same
+const YALLA = { 2: '830', 5: '2,320', 10: '5,150' };
+const JAWAKER = { 1: '4,250', 5: '32,500', 10: '70,000' };
 
 const months = (code) => (code === '1M' ? '1 MONTH' : code === '12M' ? '12 MONTHS' : `${parseInt(code, 10)} MONTHS`);
 const num = (n) => Number(n).toLocaleString('en-US');
@@ -82,10 +88,12 @@ function specFor(sku) {
   if ((m = sku.match(/^TOP-CODM-(\d+)$/))) return { brand: 'codm', sub: 'MOBILE', label: `${num(m[1])} CP` };
   if (sku === 'TOP-GENSHIN-WELKIN') return { brand: 'genshin', label: 'WELKIN MOON' };
   if ((m = sku.match(/^TOP-GENSHIN-(\d+)$/))) return { brand: 'genshin', label: `${num(m[1])} CRYSTALS` };
-  if ((m = sku.match(/^TOP-YALLA-(\d+)$/))) return { brand: 'yalla', label: `$${m[1]}` };
-  if ((m = sku.match(/^TOP-JAWAKER-(\d+)$/))) return { brand: 'jawaker', sub: 'TOKENS', label: `$${m[1]}` };
+  if ((m = sku.match(/^TOP-YALLA-(\d+)$/))) return { brand: 'yalla', label: YALLA[m[1]] ? `${YALLA[m[1]]} DIAMONDS` : `$${m[1]}` };
+  if ((m = sku.match(/^TOP-JAWAKER-(\d+)$/))) return { brand: 'jawaker', sub: 'TOKENS', label: JAWAKER[m[1]] ?? `$${m[1]}` };
   if ((m = sku.match(/^APP-TIKTOK-(\d+)$/))) return { brand: 'tiktok', label: `${num(m[1])} COINS` };
-  if ((m = sku.match(/^APP-BIGO-(\d+)$/))) return { brand: 'bigo', sub: 'DIAMONDS', label: `$${m[1]}` };
+  if ((m = sku.match(/^APP-BIGO-(\d+)$/))) return { brand: 'bigo', sub: 'DIAMONDS', label: Number(m[1]) >= 100 ? num(m[1]) : `$${m[1]}` };
+  if ((m = sku.match(/^CRYPTO-USDT-(\d+)$/))) return { brand: 'binance', sub: 'USDT TOP-UP', label: `${m[1]} USDT` };
+  if ((m = sku.match(/^CRYPTO-(KAST|REDOTPAY)-(\d+)$/))) return { brand: m[1].toLowerCase(), sub: 'CARD TOP-UP', label: `${m[2]} USDT` };
   if (sku === 'GC-FORTNITE-1000') return { brand: 'fortnite', label: '1,000 V-BUCKS' };
   if (sku === 'GC-MINECRAFT-JAVA-BEDROCK') return { brand: 'minecraft', label: 'JAVA + BEDROCK' };
   if (sku === 'GC-MINECRAFT-1720') return { brand: 'minecraft', label: '1,720 MINECOINS' };
@@ -104,7 +112,7 @@ function specFor(sku) {
     NFLX: ['netflix', ''], SHAHID: ['shahid', 'VIP'], OSN: ['osn', ''], DISNEY: ['disney', ''],
     YTPREMIUM: ['youtube', 'PREMIUM'], SPOTIFY: ['spotify', 'PREMIUM'], ANGHAMI: ['anghami', 'PLUS'],
     APPLEMUSIC: ['applemusic', 'APPLE MUSIC'], SNAPPLUS: ['snapchat', 'SNAPCHAT+'], TGPREMIUM: ['telegram', 'PREMIUM'],
-    CHATGPT: ['chatgpt', 'CHATGPT PLUS'], 'CLAUDE-PRO': ['claude', 'PRO'], CANVA: ['canva', 'PRO'], 'DISCORD-NITRO': ['discord', 'NITRO'],
+    CHATGPT: ['chatgpt', 'CHATGPT PLUS'], 'CLAUDE-PRO': ['claude', 'PRO'], CANVA: ['canva', 'PRO'], 'DISCORD-NITRO': ['discord', 'NITRO'], 'DISCORD-BASIC': ['discord', 'NITRO BASIC'],
     'GAMEPASS-ULT': ['gamepass', 'ULTIMATE'], 'PSPLUS-ESS': ['psplus', 'PLUS ESSENTIAL'],
   };
   if ((m = sku.match(/^SUB-([A-Z-]+?)-(\d+M)$/)) && subs[m[1]]) {
@@ -202,6 +210,12 @@ for (const [, slug, op] of source.matchAll(/slug: '([a-z]+)', sku: '([A-Z]+)'/g)
   for (const f of faces) {
     skus.push(`TOP-${op}-${f}`);
     gameOf[`TOP-${op}-${f}`] = slug;
+  }
+// v5 crypto top-ups are built per amount (`usdtPacks('CRYPTO-USDT', 'usdt-binance', …)`)
+for (const [, prefix, slug] of source.matchAll(/usdtPacks\('([A-Z-]+)', '([a-z0-9-]+)'/g))
+  for (const n of [10, 20, 50, 100]) {
+    skus.push(`${prefix}-${n}`);
+    gameOf[`${prefix}-${n}`] = slug;
   }
 // brands the shop merges (lib/brand-aliases.json), e.g. the Microsoft 365 plans
 const aliases = JSON.parse(readFileSync(join(here, '..', 'lib', 'brand-aliases.json'), 'utf8'));
