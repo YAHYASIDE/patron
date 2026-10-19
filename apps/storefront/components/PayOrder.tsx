@@ -120,7 +120,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
           <div>
             <h2 className="font-bold">{t('وصلنا تحويلك، بانتظار تأكيد المتجر')}</h2>
             <p className="mt-1 text-sm text-muted">
-              {t('نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.')}
+              {t('نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا، ويصلك إشعار عند التسليم.')}
             </p>
           </div>
         </div>

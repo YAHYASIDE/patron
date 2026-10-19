@@ -516,7 +516,12 @@ export default function CheckoutPage() {
             >
               {step === 'working' ? t('جارٍ المعالجة…') : gateway === 'MANUAL' ? t('متابعة إلى التحويل') : t('ادفع الآن')}
             </button>
-            <p className="mt-3 text-center text-xs text-muted">{t('بالضغط على «ادفع الآن» فأنت توافق على الشروط.')}</p>
+            <p className="mt-3 text-center text-xs text-muted">
+              {t('بالمتابعة فأنت توافق على')}{' '}
+              <Link href="/terms" className="font-bold underline">
+                {t('شروط المتجر')}
+              </Link>
+            </p>
           </div>
         </div>
       </div>

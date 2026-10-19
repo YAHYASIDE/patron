@@ -159,10 +159,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {revealing === it.id ? t('جارٍ…') : t('إظهار الكود')}
                 </button>
               ) : (
-                <p className="mt-3 text-sm text-muted">
-                  {order.status === 'PENDING_PAYMENT'
-                    ? t('يُسلَّم هنا بعد تأكيد الدفع.')
-                    : t('نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.')}
+                <p className={`mt-3 text-sm ${it.status === 'FAILED' ? 'font-semibold text-bad' : 'text-muted'}`}>
+                  {it.status === 'FAILED'
+                    ? t('لم نستطع تسليمه تلقائيًا. سنسلّمه يدويًا أو نعيد لك المبلغ كاملًا، ولا داعي للدفع مرة أخرى.')
+                    : it.status === 'REFUNDED'
+                      ? t('أعدنا لك ثمن هذا البند.')
+                      : it.status === 'CANCELLED' || order.status === 'CANCELLED'
+                        ? t('أُلغي هذا البند، ولم يُخصم ثمنه.')
+                        : order.status === 'PENDING_PAYMENT'
+                          ? t('يُسلَّم هنا بعد تأكيد الدفع.')
+                          : t('نجهّز طلبك الآن، ويظهر هنا بمجرّد تسليمه مع إشعار لك.')}
                 </p>
               )}
 

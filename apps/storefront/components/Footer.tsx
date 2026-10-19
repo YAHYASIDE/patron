@@ -14,8 +14,8 @@ export default function Footer() {
         <div className="flex items-start gap-3">
           <BoltIcon className="mt-0.5 text-teal" />
           <div>
-            <div className="font-bold">{t('تسليم فوري')}</div>
-            <p className="mt-1 text-sm text-muted">{t('تصلك الأكواد مباشرة بعد إتمام الدفع.')}</p>
+            <div className="font-bold">{t('تسليم سريع وموثوق')}</div>
+            <p className="mt-1 text-sm text-muted">{t('نسلّم طلبك بعد تأكيد الدفع، ويصلك إشعار فور التسليم.')}</p>
           </div>
         </div>
         <div className="flex items-start gap-3">

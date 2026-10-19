@@ -64,8 +64,9 @@ const dict: Dict = {
     'جارٍ…': 'En cours…',
     'إظهار الكود': 'Afficher le code',
     'يُسلَّم هنا بعد تأكيد الدفع.': 'Livré ici après confirmation du paiement.',
-    'نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.':
-      'Nous préparons votre commande ; le code apparaîtra ici dès sa livraison.',
+    'أعدنا لك ثمن هذا البند.': 'Nous vous avons remboursé cet article.',
+    'أُلغي هذا البند، ولم يُخصم ثمنه.': "Cet article a été annulé et n'a pas été débité.",
+    'نجهّز طلبك الآن، ويظهر هنا بمجرّد تسليمه مع إشعار لك.': 'Nous préparons votre commande ; elle apparaîtra ici dès sa livraison, avec une notification.',
     'جارٍ التجهيز…': 'Préparation…',
     'اطلب مجددًا': 'Commander à nouveau',
     // account
@@ -140,8 +141,9 @@ const dict: Dict = {
     'جارٍ…': 'Working…',
     'إظهار الكود': 'Show the code',
     'يُسلَّم هنا بعد تأكيد الدفع.': 'Delivered here once the payment is confirmed.',
-    'نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.':
-      "We're preparing your order; the code will appear here as soon as it's delivered.",
+    'أعدنا لك ثمن هذا البند.': 'We refunded this item.',
+    'أُلغي هذا البند، ولم يُخصم ثمنه.': 'This item was cancelled and not charged.',
+    'نجهّز طلبك الآن، ويظهر هنا بمجرّد تسليمه مع إشعار لك.': 'We are preparing your order; it appears here as soon as it is delivered, with a notification.',
     'جارٍ التجهيز…': 'Preparing…',
     'اطلب مجددًا': 'Buy again',
     // account
