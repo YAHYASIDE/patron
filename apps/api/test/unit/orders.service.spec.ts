@@ -485,3 +485,18 @@ describe('OrdersService', () => {
     });
   });
 });
+
+describe('guideOf', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { guideOf } = require('../../src/modules/orders/orders.service');
+
+  it("returns a product's how-to guide, or null when it has none", () => {
+    const guide = { after: [{ ar: 'ادخل إلى apple.com/redeem' }] };
+    expect(guideOf({ region: 'US', guide })).toEqual(guide);
+    expect(guideOf({ region: 'US' })).toBeNull();
+    expect(guideOf(null)).toBeNull();
+    expect(guideOf(undefined)).toBeNull();
+    expect(guideOf([1, 2])).toBeNull();
+    expect(guideOf({ guide: 'text' })).toBeNull();
+  });
+});

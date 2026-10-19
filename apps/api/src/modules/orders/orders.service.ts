@@ -30,6 +30,12 @@ interface PresentableOrder {
   }>;
 }
 
+/** The customer-facing guide a product carries in `metadata.guide` (null when none). */
+export function guideOf(metadata: Prisma.JsonValue | undefined): unknown {
+  const guide = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata.guide : null;
+  return guide && typeof guide === 'object' ? guide : null;
+}
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
@@ -200,14 +206,19 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { inputs: true, results: true } },
+        items: { include: { inputs: true, results: true, product: { select: { metadata: true } } } },
         payments: { select: { id: true, gateway: true, status: true, amount: true, failureReason: true, createdAt: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     if (userId && order.userId !== userId) throw new ForbiddenException('This order belongs to another account');
 
-    return this.present(order, !!userId);
+    // the customer gets each product's how-to-use guide, not the rest of the product
+    const presented = this.present(order, !!userId);
+    return {
+      ...presented,
+      items: presented.items.map(({ product, ...item }) => ({ ...item, guide: guideOf(product?.metadata) })),
+    };
   }
 
   /**
