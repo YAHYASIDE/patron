@@ -4,6 +4,8 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { AnalyticsService } from './analytics.service';
 import { ReportExportService } from './report-export.service';
+import { ReportSummaryController } from './summary.controller';
+import { ReportSummaryService } from './summary.service';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { QUEUES } from '../queues/queue.constants';
 
@@ -18,8 +20,8 @@ import { QUEUES } from '../queues/queue.constants';
     // rather than re-registering a second, divergent instance.
     MaintenanceModule,
   ],
-  controllers: [ReportsController],
-  providers: [ReportsService, AnalyticsService, ReportExportService],
+  controllers: [ReportsController, ReportSummaryController],
+  providers: [ReportsService, AnalyticsService, ReportExportService, ReportSummaryService],
   exports: [ReportsService, AnalyticsService],
 })
 export class ReportsModule {}
