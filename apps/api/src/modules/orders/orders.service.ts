@@ -1,7 +1,7 @@
 import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, QuoteStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, QuoteStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
@@ -592,7 +592,31 @@ export class OrdersService {
       items: { none: { status: 'FAILED' } },
     };
     const transferWhere: Prisma.PaymentWhereInput = { gateway: 'MANUAL', status: 'AUTHORIZED', updatedAt: { lt: late } };
-    const duplicateWhere: Prisma.PaymentWhereInput = { failureCode: 'duplicate_payment', status: 'FAILED' };
+    // Payments taken twice: the ones the payment service turned away, and any order that
+    // was settled more than once before that guard existed (all but its first payment,
+    // unless already refunded).
+    const settled: PaymentStatus[] = ['CAPTURED', 'PARTIALLY_REFUNDED', 'REFUNDED'];
+    const twice = await this.prisma.payment.groupBy({
+      by: ['orderId'],
+      where: { status: { in: settled } },
+      having: { orderId: { _count: { gt: 1 } } },
+    });
+    const extra: string[] = [];
+    if (twice.length) {
+      const seen = new Set<string>();
+      const rows = await this.prisma.payment.findMany({
+        where: { orderId: { in: twice.map((t) => t.orderId) }, status: { in: settled } },
+        select: { id: true, orderId: true, status: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      for (const p of rows) {
+        if (!seen.has(p.orderId)) seen.add(p.orderId);
+        else if (p.status !== 'REFUNDED') extra.push(p.id);
+      }
+    }
+    const duplicateWhere: Prisma.PaymentWhereInput = {
+      OR: [{ failureCode: 'duplicate_payment', status: 'FAILED' }, ...(extra.length ? [{ id: { in: extra } }] : [])],
+    };
 
     const [failed, failedCount, lateOrders, lateCount, transfers, transferCount, duplicates, duplicateCount] = await Promise.all([
       this.prisma.order.findMany({ where: failedWhere, select: { ...orderSelect, items: { where: { status: 'FAILED' }, select: { lastError: true }, take: 1 } }, orderBy: { paidAt: 'asc' }, take: 20 }),

@@ -536,6 +536,7 @@ describe('OrdersService', () => {
           .mockResolvedValueOnce([{ id: 'p1', amount: 40, currency: 'MRU', updatedAt: paidAt, order: { id: 'o3' } }])
           .mockResolvedValueOnce([{ id: 'p2', gateway: 'STRIPE', amount: 40, currency: 'MRU', createdAt: paidAt, order: { id: 'o4' } }]),
         count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1),
+        groupBy: jest.fn().mockResolvedValue([]),
       };
 
       const res = await service.attention(15);
@@ -549,6 +550,29 @@ describe('OrdersService', () => {
       const transferWhere = prisma.payment.findMany.mock.calls[0][0].where;
       expect(transferWhere).toMatchObject({ gateway: 'MANUAL', status: 'AUTHORIZED' });
       expect(transferWhere.updatedAt.lt.getTime()).toBeLessThanOrEqual(Date.now() - 15 * 60_000 + 1000);
+    });
+
+    it('also lists an order settled twice before the guard existed, but not its first payment or one already refunded', async () => {
+      prisma.order.findMany = jest.fn().mockResolvedValue([]);
+      prisma.order.count = jest.fn().mockResolvedValue(0);
+      prisma.payment = {
+        groupBy: jest.fn().mockResolvedValue([{ orderId: 'o9' }]),
+        findMany: jest.fn()
+          // the settled payments of the order taken twice, oldest first
+          .mockResolvedValueOnce([
+            { id: 'first', orderId: 'o9', status: 'CAPTURED' },
+            { id: 'second', orderId: 'o9', status: 'CAPTURED' },
+            { id: 'third', orderId: 'o9', status: 'REFUNDED' },
+          ])
+          .mockResolvedValue([]),
+        count: jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1),
+      };
+
+      const res = await service.attention(15);
+
+      const duplicateWhere = prisma.payment.findMany.mock.calls[2][0].where;
+      expect(duplicateWhere.OR).toEqual([{ failureCode: 'duplicate_payment', status: 'FAILED' }, { id: { in: ['second'] } }]);
+      expect(res.duplicatePayments.count).toBe(1);
     });
   });
 
