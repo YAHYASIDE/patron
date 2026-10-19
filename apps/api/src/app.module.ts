@@ -36,6 +36,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SupportModule } from './modules/support/support.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
 import { InsightsModule } from './modules/insights/insights.module';
 import { AdminToolsModule } from './modules/admin-tools/admin-tools.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
@@ -89,6 +90,7 @@ import { optInTier } from './common/guards/throttle-tiers';
     CustomerModule,
     ReviewsModule,
     SupportModule,
+    FeedbackModule,
     InsightsModule,
     AdminToolsModule,
     ProvidersModule,

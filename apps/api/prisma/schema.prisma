@@ -175,6 +175,7 @@ model User {
   priceWatches       PriceWatch[]
   reviews            Review[]
   supportTickets     SupportTicket[]
+  storeEvents        StoreEvent[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1273,4 +1274,22 @@ model SupportTicket {
   @@index([status, createdAt])
   @@index([userId])
   @@map("support_tickets")
+}
+
+/// What the shop learns from its visitors, for the owner's "opportunities" and
+/// "errors" pages: searches that found nothing, brand pages viewed, product
+/// suggestions, and errors in the browser or the server. Kept 90 days.
+model StoreEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// search_miss | brand_view | suggestion | client_error | server_error
+  kind      String   @db.VarChar(20)
+  value     String   @db.VarChar(300)
+  detail    Json?
+  path      String?  @db.VarChar(200)
+  userId    String?  @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@map("store_events")
 }

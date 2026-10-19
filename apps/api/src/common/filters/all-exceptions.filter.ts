@@ -5,6 +5,7 @@ import { Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { trace } from '@opentelemetry/api';
 import { RequestContextStore } from '../context/request-context';
+import { reportServerError } from './server-error-sink';
 
 interface ErrorBody {
   statusCode: number;
@@ -98,6 +99,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
         `${req.method} ${req.url} → ${status}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+      reportServerError({
+        message: exception instanceof Error ? exception.message : String(exception),
+        method: req.method,
+        path: req.url,
+        status,
+        correlationId: body.correlationId,
+      });
     }
 
     res.status(status).json(body);

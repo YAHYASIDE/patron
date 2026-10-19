@@ -26,6 +26,7 @@ export class RetentionService {
     notifications: 90,
     verificationTokens: 7,
     refreshTokensRevoked: 30,
+    storeEvents: 90,      // searches, views, suggestions and errors the owner reviews
     idempotencyRecords: 1,
   } as const;
 
@@ -64,6 +65,9 @@ export class RetentionService {
 
       notifications: () =>
         this.chunkedDeleteRaw('notifications', 'createdAt', RetentionService.POLICY.notifications),
+
+      storeEvents: () =>
+        this.chunkedDeleteRaw('store_events', 'createdAt', RetentionService.POLICY.storeEvents),
 
       verificationTokens: () =>
         this.chunkedDeleteRaw('verification_tokens', 'expiresAt', RetentionService.POLICY.verificationTokens),

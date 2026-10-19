@@ -26,12 +26,13 @@ describe('RetentionService', () => {
         auditLogs: 3,
         loginAttempts: 3,
         notifications: 3,
+        storeEvents: 3,
         verificationTokens: 3,
         refreshTokens: 3,
         idempotency: 3,
       });
-      // 7 raw-SQL chunked deletes, each a single sub-CHUNK batch.
-      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(7);
+      // 8 raw-SQL chunked deletes, each a single sub-CHUNK batch.
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(8);
     });
 
     it('isolates a failing task as -1 and keeps the others running', async () => {
