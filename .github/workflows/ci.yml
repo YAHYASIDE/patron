@@ -215,8 +215,6 @@ jobs:
         options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
         ports: ['6379:6379']
     env:
-      NODE_ENV: development
-      PORT: '3010'
       DATABASE_URL: postgresql://patron:patron@localhost:5432/patron_checkout?schema=public
       REDIS_HOST: localhost
       REDIS_PORT: 6379
@@ -239,6 +237,10 @@ jobs:
 
       - name: API · migrate, seed, starter catalogue, start
         working-directory: apps/api
+        # development for the API only: a store `next build` refuses NODE_ENV=development
+        env:
+          NODE_ENV: development
+          PORT: '3010'
         run: |
           npx prisma generate
           npx prisma migrate deploy
