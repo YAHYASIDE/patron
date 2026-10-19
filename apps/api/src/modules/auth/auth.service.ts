@@ -11,6 +11,7 @@ import { VerificationPurpose } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
+import { countryFromPhone } from '../../common/reference/phone-country';
 import { TokenService, TokenPair } from './token.service';
 import {
   ChangePasswordDto,
@@ -234,7 +235,12 @@ export class AuthService {
       if (!dto.phone) throw new BadRequestException({ message: 'Add your WhatsApp number first', error: 'PHONE_REQUIRED' });
       const taken = await this.prisma.user.findFirst({ where: { phone: dto.phone, id: { not: userId } } });
       if (taken) throw new BadRequestException('That number belongs to another account');
-      phone = (await this.prisma.user.update({ where: { id: userId }, data: { phone: dto.phone } })).phone;
+      phone = (
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { phone: dto.phone, country: user.country ?? countryFromPhone(dto.phone) },
+        })
+      ).phone;
     }
 
     await this.issueVerificationCode(userId, VerificationPurpose.PHONE_VERIFY, { relay: true });
@@ -260,6 +266,7 @@ export class AuthService {
         data: {
           phone,
           fullName,
+          country: countryFromPhone(phone),
           locale: locale ?? 'ar',
           defaultCurrency: currency,
           lastLoginAt: new Date(),

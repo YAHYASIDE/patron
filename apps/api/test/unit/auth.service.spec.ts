@@ -144,6 +144,7 @@ describe('AuthService · WhatsApp number sign-in', () => {
   let prisma: any;
   let crypto: any;
   let tokens: any;
+  let txUserCreate: jest.Mock;
   let service: AuthService;
   const PHONE = '+22222123456';
 
@@ -166,8 +167,9 @@ describe('AuthService · WhatsApp number sign-in', () => {
       },
       $transaction: jest.fn(),
     };
+    txUserCreate = jest.fn().mockResolvedValue({ id: 'new-user' });
     prisma.$transaction.mockImplementation((fn: (tx: any) => unknown) =>
-      fn({ user: { create: jest.fn().mockResolvedValue({ id: 'new-user' }) }, auditLog: { create: jest.fn() } }),
+      fn({ user: { create: txUserCreate }, auditLog: { create: jest.fn() } }),
     );
     crypto = {
       fakeVerify: jest.fn(),
@@ -197,6 +199,8 @@ describe('AuthService · WhatsApp number sign-in', () => {
       expect(res).toEqual({ status: 'SIGNED_IN', ...PAIR });
       expect(tokens.issue).toHaveBeenCalledWith('new-user', null, expect.anything());
       expect(prisma.verificationToken.create).not.toHaveBeenCalled();
+      // the WhatsApp number's dial code says where the customer is
+      expect(txUserCreate.mock.calls[0][0].data.country).toBe('MR');
     });
 
     it('asks a new number for a name', async () => {
@@ -272,7 +276,16 @@ describe('AuthService · WhatsApp number sign-in', () => {
       prisma.user.findFirst.mockResolvedValue(null);
 
       await service.requestPhoneCode('u1', { phone: PHONE });
-      expect(prisma.user.update.mock.calls[0][0].data).toEqual({ phone: PHONE });
+      // the dial code gives the country when the customer has not chosen one
+      expect(prisma.user.update.mock.calls[0][0].data).toEqual({ phone: PHONE, country: 'MR' });
+    });
+
+    it('keeps a country the customer already chose when adding the number', async () => {
+      prisma.user.findFirstOrThrow.mockResolvedValue(existing({ phone: null, country: 'SN' }));
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await service.requestPhoneCode('u1', { phone: PHONE });
+      expect(prisma.user.update.mock.calls[0][0].data).toEqual({ phone: PHONE, country: 'SN' });
     });
 
     it('will not take a number that belongs to another account', async () => {
