@@ -49,11 +49,13 @@ describe('Money flows (e2e)', () => {
     customerId = (await prisma.user.update({ where: { phone }, data: { phoneVerifiedAt: new Date() } })).id;
 
     const email = `owner-${Date.now()}@shop.test`;
+    // a fresh password each run: nothing that reads like a credential lives in the repo
+    const password = randomUUID();
     const role = await prisma.role.findUniqueOrThrow({ where: { name: 'super_admin' } });
     await prisma.user.create({
-      data: { email, fullName: 'المالك', passwordHash: await hash('Owner-pass-1234'), roles: { create: { roleId: role.id } } },
+      data: { email, fullName: 'المالك', passwordHash: await hash(password), roles: { create: { roleId: role.id } } },
     });
-    owner = (await http().post('/auth/login').send({ email, password: 'Owner-pass-1234' }).expect(200)).body.accessToken;
+    owner = (await http().post('/auth/login').send({ email, password }).expect(200)).body.accessToken;
   });
 
   afterAll(async () => {
