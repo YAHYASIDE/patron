@@ -25,6 +25,9 @@ deploy/nginx/certs/
 coverage/
 .nyc_output/
 junit.xml
+# live shop check (tests/live): its own install and its report/screenshots
+tests/live/node_modules/
+tests/live/out/
 
 # ─── prisma ───
 # The generated client is a build artifact: `prisma generate` recreates it.

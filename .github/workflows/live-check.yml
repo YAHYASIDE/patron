@@ -1,0 +1,107 @@
+name: Live shop check
+
+# Smoke-checks the LIVE shop on Render (store, dashboard, API) with a real
+# browser: tests/live/check.mjs. It is a check of what customers see, not of
+# the code, so it runs after every push to the deploy branch (Render deploys
+# that branch on its own), every morning, and on demand. GitHub only runs the
+# schedule and the "Run workflow" button from the default branch, so those two
+# start working once this file is merged into main; the push trigger works now.
+on:
+  push:
+    branches: [claude/patron-monorepo-setup-1o2gl7]
+    paths: ['apps/**', 'tests/live/**', 'render.yaml']
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+# never two runs at once (they would wake and load the same free instances)
+concurrency:
+  group: live-shop-check
+  cancel-in-progress: false
+
+env:
+  DEPLOY_BRANCH: claude/patron-monorepo-setup-1o2gl7
+  STORE_URL: https://etssadagha-store.onrender.com
+  ADMIN_URL: https://etssadagha-shop.onrender.com
+  API_URL: https://etssadagha-api.onrender.com/api/v1
+
+jobs:
+  live:
+    name: Live shop · store, dashboard, API
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tests/live
+    steps:
+      - uses: actions/checkout@v4
+
+      # a push is not live yet: Render builds and deploys the branch on its
+      # own, which takes several minutes on the free plan. Give it time so we
+      # check the new version, not the previous one.
+      - name: Wait for Render to deploy
+        if: github.event_name == 'push'
+        working-directory: .
+        run: sleep 720
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/live/package-lock.json
+
+      # isolated install: only tests/live (its own lockfile), never the workspaces
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+
+      - name: Check the live shop
+        run: node check.mjs
+
+      - name: Upload report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-check
+          path: tests/live/out/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Report the failure on the PR (or an issue)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ISSUE_TITLE: 'فحص المتجر الحي فشل / Live shop check failed'
+        run: |
+          {
+            if [ -f out/report.md ]; then
+              head -c 60000 out/report.md
+            else
+              echo "# فحص المتجر الحي / Live shop check"
+              echo
+              echo "لم يكتمل الفحص (لا يوجد تقرير) / The check did not finish (no report)."
+            fi
+            echo
+            echo "---"
+            echo "التشغيل / Run: $RUN_URL"
+          } > "$RUNNER_TEMP/comment.md"
+
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$DEPLOY_BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"Live shop check failed\"" --json number,title \
+            --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/comment.md"
+          fi
