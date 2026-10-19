@@ -72,10 +72,11 @@ export class FulfilmentProcessor extends WorkerHost {
       return { skipped: order.status };
     }
 
-    // MANUAL items without stock wait for staff (OrdersService.deliverManually);
-    // a provider attempt would only mark them FAILED with "no provider".
+    // MANUAL and code-stock items that stock could not cover wait for staff
+    // (OrdersService.deliverManually, or "deliver from stock" once codes are
+    // added); a provider attempt would only mark them FAILED with "no provider".
     const pending = order.items.filter(
-      (i) => ['PENDING', 'FAILED'].includes(i.status) && i.product?.delivery !== 'MANUAL',
+      (i) => ['PENDING', 'FAILED'].includes(i.status) && i.product?.delivery === 'AUTO_PROVIDER',
     );
     for (const item of pending) {
       await this.engine.fulfilItem(item.id).catch((err) =>

@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RefundsService } from './refunds.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
-import { RefundsQueryDto, RejectRefundDto, RequestRefundDto } from '../payments/dto/payment.dto';
+import { ProcessRefundDto, RefundsQueryDto, RejectRefundDto, RequestRefundDto } from '../payments/dto/payment.dto';
 
 /**
  * Lives in RefundsModule rather than PaymentsModule.
@@ -33,8 +33,8 @@ export class RefundsController {
   }
 
   @RequirePermissions('payments.refund') @HttpCode(200) @Post(':id/process')
-  process(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') actorId: string) {
-    return this.refunds.process(id, actorId);
+  process(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ProcessRefundDto, @CurrentUser('id') actorId: string) {
+    return this.refunds.process(id, actorId, dto.reference);
   }
 
   @RequirePermissions('payments.refund') @HttpCode(200) @Post(':id/reject')

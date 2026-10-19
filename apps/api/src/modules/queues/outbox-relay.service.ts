@@ -122,6 +122,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
       case 'order.completed':
       case 'order.partially_completed':
       case 'order.failed':
+      case 'order.cancelled':
         await this.queueNotification(payload.userId, eventType, payload, event.id);
         break;
 
@@ -130,6 +131,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
         break;
 
       case 'order.created':
+      case 'order.processing':
         break; // nothing to do yet; kept for the audit trail
 
       default:

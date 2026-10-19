@@ -30,7 +30,10 @@ describe('RefundsService', () => {
         aggregate: jest.fn().mockResolvedValue({ _sum: { amount: new Prisma.Decimal('100') } }),
         findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ref1', status: 'PROCESSED' }),
       },
-      payment: { update: jest.fn().mockResolvedValue({}) },
+      payment: {
+        update: jest.fn().mockResolvedValue({}),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ amount: new Prisma.Decimal('100'), refundedAmount: new Prisma.Decimal('0') }),
+      },
       order: { update: jest.fn().mockResolvedValue({}) },
       orderItem: { updateMany: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
@@ -90,6 +93,26 @@ describe('RefundsService', () => {
         refunds: [{ status: RefundStatus.PROCESSED, amount: new Prisma.Decimal('100') }],
       });
       await expect(service.request('ord1', undefined, 'x', 'admin')).rejects.toThrow('must be positive');
+    });
+
+    it('counts refunds still waiting, so two requests cannot add up past the total', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        ...order,
+        refunds: [{ status: RefundStatus.REQUESTED, amount: new Prisma.Decimal('70') }, { status: RefundStatus.REJECTED, amount: new Prisma.Decimal('90') }],
+      });
+      await expect(service.request('ord1', 40, 'again', 'admin')).rejects.toThrow('exceeds order total');
+      await expect(service.request('ord1', 30, 'rest', 'admin')).resolves.toBeDefined();
+    });
+
+    it('refunds a wallet payment to the wallet, whatever was asked', async () => {
+      prisma.order.findUnique.mockResolvedValue({ ...order, payments: [{ id: 'pay1', gateway: 'WALLET', gatewayRef: 'wallet_pay1' }] });
+      await service.request('ord1', 10, 'duplicate', 'admin', false);
+      expect(prisma.refund.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ toWallet: true }) }));
+    });
+
+    it('looks for a payment that is captured or already partly refunded', async () => {
+      await service.request('ord1', 10, 'part', 'admin');
+      expect(prisma.order.findUnique.mock.calls[0][0].include.payments).toEqual({ where: { status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED'] } } });
     });
 
     it('rejects a refund that would exceed the order total', async () => {
@@ -193,6 +216,45 @@ describe('RefundsService', () => {
       );
       expect(tx.order.update).not.toHaveBeenCalled();
       expect(tx.orderItem.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('marks a payment fully refunded when this refund completes earlier partial ones', async () => {
+      prisma.refund.findUnique.mockResolvedValue({ ...cardRefund, amount: new Prisma.Decimal('60') });
+      tx.payment.findUniqueOrThrow.mockResolvedValue({ amount: new Prisma.Decimal('100'), refundedAmount: new Prisma.Decimal('40') });
+
+      await service.process('ref1', 'admin');
+
+      expect(tx.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'REFUNDED', refundedAmount: new Prisma.Decimal('100') }) }),
+      );
+    });
+
+    describe('back to a manual transfer', () => {
+      const manualRefund = { ...cardRefund, payment: { gateway: 'MANUAL', gatewayRef: 'manual_pay1' } };
+
+      it('is not marked done until the owner gives the transfer number of the money sent back', async () => {
+        prisma.refund.findUnique.mockResolvedValue(manualRefund);
+
+        await expect(service.process('ref1', 'admin')).rejects.toMatchObject({ response: expect.objectContaining({ error: 'REFUND_REFERENCE_REQUIRED' }) });
+        await expect(service.process('ref1', 'admin', '   ')).rejects.toThrow('enter the transfer number');
+        expect(tx.refund.updateMany).not.toHaveBeenCalled();
+        expect(outbox.emit).not.toHaveBeenCalled();
+      });
+
+      it('records the transfer number, calls no gateway and tells the customer how much went where', async () => {
+        prisma.refund.findUnique.mockResolvedValue(manualRefund);
+
+        await service.process('ref1', 'admin', ' BK-7781 ');
+
+        expect(gateway.refund).not.toHaveBeenCalled();
+        expect(tx.refund.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ status: RefundStatus.PROCESSED, gatewayRef: 'manual:BK-7781' }) }),
+        );
+        expect(outbox.emit).toHaveBeenCalledWith(tx, expect.objectContaining({
+          eventType: 'refund.processed',
+          payload: expect.objectContaining({ amount: '100', currency: 'USD', destination: 'transfer' }),
+        }));
+      });
     });
 
     it('rejects a concurrent claim when the conditional update matches nothing', async () => {

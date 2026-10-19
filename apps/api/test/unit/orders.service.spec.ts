@@ -371,29 +371,49 @@ describe('OrdersService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('cancels the batch and releases each distinct coupon once', async () => {
-      prisma.order.findMany.mockResolvedValue([
-        { id: 'a', couponId: 'c1' },
-        { id: 'b', couponId: 'c1' },
-        { id: 'c', couponId: null },
-      ]);
+    const stale = [
+      { id: 'a', userId: 'u1', couponId: 'c1' },
+      { id: 'b', userId: 'u2', couponId: 'c1' },
+      { id: 'c', userId: 'u3', couponId: null },
+    ];
+
+    beforeEach(() => {
+      prisma.order.findMany.mockResolvedValue(stale.map(({ id }) => ({ id })));
+      tx.$queryRaw = jest.fn().mockResolvedValue(stale.map(({ id }) => ({ id })));
+      tx.order.findMany = jest.fn().mockResolvedValue(stale);
       tx.order.updateMany = jest.fn().mockResolvedValue({ count: 3 });
+    });
+
+    it('cancels the batch, gives each order its coupon use back and tells each customer', async () => {
       const res = await service.expireUnpaid(30);
-      expect(tx.order.updateMany).toHaveBeenCalled();
+
+      expect(tx.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['a', 'b', 'c'] } } }));
       expect(tx.orderItem.updateMany).toHaveBeenCalled();
-      // c1 released once despite appearing twice; null skipped
-      expect(tx.coupon.update).toHaveBeenCalledTimes(1);
+      // one use back per order that held the coupon, none for the order without one
+      expect(tx.coupon.update).toHaveBeenCalledTimes(2);
+      expect(outbox.emit).toHaveBeenCalledTimes(3);
+      expect(outbox.emit).toHaveBeenCalledWith(tx, expect.objectContaining({ eventType: 'order.cancelled', payload: expect.objectContaining({ orderId: 'a', userId: 'u1' }) }));
       expect(res).toBe(3);
     });
 
-    it('never expires an order whose customer reported a manual transfer (staff are reviewing it)', async () => {
-      prisma.order.findMany.mockResolvedValue([{ id: 'a', couponId: null }]);
-      tx.order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    it('never expires an order under review, nor one whose payment moved inside the window', async () => {
       await service.expireUnpaid(30);
 
-      const guard = { payments: { none: { gateway: 'MANUAL', status: 'AUTHORIZED' } } };
-      expect(prisma.order.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining(guard));
-      expect(tx.order.updateMany.mock.calls[0][0].where).toEqual(expect.objectContaining(guard)); // and at write time
+      const where = prisma.order.findMany.mock.calls[0][0].where;
+      expect(where.payments).toEqual({
+        none: { OR: [{ gateway: 'MANUAL', status: 'AUTHORIZED' }, { updatedAt: { gte: expect.any(Date) } }] },
+      });
+      // and the same guard again at write time, under the row locks
+      expect(tx.order.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining({ payments: where.payments }));
+    });
+
+    it('cancels nothing when every order was paid while the sweep waited for the locks', async () => {
+      tx.$queryRaw.mockResolvedValue([]);
+      tx.order.findMany.mockResolvedValue([]);
+
+      await expect(service.expireUnpaid(30)).resolves.toBe(0);
+      expect(tx.order.updateMany).not.toHaveBeenCalled();
+      expect(outbox.emit).not.toHaveBeenCalled();
     });
   });
 
