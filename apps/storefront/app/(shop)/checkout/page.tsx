@@ -52,6 +52,8 @@ export default function CheckoutPage() {
   // the code the current quote carries, and why the last one typed was refused
   const [applied, setApplied] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
+  // most customers have no code: the field stays a small link until asked for
+  const [couponOpen, setCouponOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // auth guard
@@ -326,6 +328,14 @@ export default function CheckoutPage() {
                   <CloseIcon size={16} />
                 </button>
               </div>
+            ) : !couponOpen ? (
+              <button
+                type="button"
+                onClick={() => setCouponOpen(true)}
+                className="text-xs font-semibold text-teal hover:underline"
+              >
+                {t('لديك كود خصم؟')}
+              </button>
             ) : (
               <form
                 onSubmit={(e) => {
@@ -346,22 +356,23 @@ export default function CheckoutPage() {
                   autoCapitalize="characters"
                   autoComplete="off"
                   spellCheck={false}
+                  autoFocus
                   className={
-                    'surface-2 hairline w-full min-w-0 rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal ' +
+                    'surface-2 hairline w-full min-w-0 rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:border-teal ' +
                     (couponError ? 'border-bad/60' : '')
                   }
                 />
                 <button
                   type="submit"
                   disabled={step === 'loading' || step === 'working' || !coupon.trim()}
-                  className="flex-none rounded-xl border border-[rgb(var(--line))] px-3 py-2 text-sm font-bold disabled:opacity-60"
+                  className="flex-none rounded-lg border border-[rgb(var(--line))] px-2.5 py-1.5 text-xs font-bold disabled:opacity-60"
                 >
                   {t('تطبيق')}
                 </button>
               </form>
             )}
             {couponError && (
-              <p role="alert" className="mt-2 text-sm text-bad">
+              <p role="alert" className="mt-2 text-xs text-bad">
                 {couponError}
               </p>
             )}
