@@ -1,8 +1,8 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, NOT_READY, isNotReady } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { moneyIn, dateTime, statusChip, paymentChip, GATEWAY_LABEL } from '@/lib/format';
 import Receipt from '@/components/Receipt';
@@ -45,10 +45,18 @@ type Order = {
   currency: string;
   createdAt: string;
   paidAt?: string | null;
-  user: { email: string | null; fullName: string; phone?: string | null; phoneVerifiedAt?: string | null };
+  user: {
+    id?: string;
+    email: string | null;
+    fullName: string;
+    phone?: string | null;
+    phoneVerifiedAt?: string | null;
+  };
   items: Item[];
   payments: Payment[];
+  adminNote?: string | null;
 };
+type Template = { id: string; title: string; body: string };
 
 // where the customer sees their order (for the WhatsApp message)
 const STORE_URL = (process.env.NEXT_PUBLIC_STORE_URL ?? 'https://etssadagha-store.onrender.com').replace(
@@ -169,7 +177,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <h2 className="text-base font-bold">الزبون</h2>
             <div className="mt-3 flex flex-col gap-1.5 text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-semibold">{order.user.fullName}</span>
+                {order.user.id ? (
+                  <Link href={`/customers/${order.user.id}`} className="font-semibold text-teal hover:underline">
+                    {order.user.fullName}
+                  </Link>
+                ) : (
+                  <span className="font-semibold">{order.user.fullName}</span>
+                )}
                 {order.user.phoneVerifiedAt ? (
                   <span className="rounded-full bg-ok/12 px-2 py-0.5 text-[11px] font-bold text-ok">
                     رقم موثّق
@@ -198,6 +212,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
           </section>
+
+          <QuickReplies order={order} />
+
+          <OrderNote orderId={order.id} initial={order.adminNote ?? ''} />
 
           {/* payments */}
           <section className="surface rounded-2xl p-5 shadow-card">
@@ -414,6 +432,125 @@ function ItemCard({
       {!orderPaid && !item.results.length && manual && (
         <p className="mt-3 text-xs text-muted">يُسلَّم بعد تأكيد الدفع.</p>
       )}
+    </section>
+  );
+}
+
+/** Fill a quick reply's placeholders with this order's details. */
+function fill(body: string, order: Order): string {
+  return body
+    .replaceAll('{name}', order.user.fullName)
+    .replaceAll('{order}', order.orderNumber)
+    .replaceAll('{link}', `${STORE_URL}/orders/${order.id}`);
+}
+
+/** The owner's saved WhatsApp replies (settings), one tap to open the chat with the text ready. */
+function QuickReplies({ order }: { order: Order }) {
+  const { data, error, loading } = useFetch<Template[]>('/admin/shop/templates');
+  const phone = order.user.phone;
+
+  return (
+    <section className="surface rounded-2xl p-5 shadow-card">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base font-bold">ردود واتساب السريعة</h2>
+        <Link href="/settings#quick-replies" className="text-xs font-bold text-teal hover:underline">
+          تعديل
+        </Link>
+      </div>
+      {!phone && <p className="mt-3 text-sm text-muted">لا رقم واتساب لهذا الزبون.</p>}
+      {phone && loading && <p className="mt-3 text-sm text-muted">…</p>}
+      {phone && error && (
+        <p className="mt-3 text-sm text-muted">{error === NOT_READY ? 'الردود السريعة غير متاحة بعد.' : error}</p>
+      )}
+      {phone && data && data.length === 0 && (
+        <p className="mt-3 text-sm text-muted">
+          لا ردود محفوظة.{' '}
+          <Link href="/settings#quick-replies" className="font-bold text-teal hover:underline">
+            أضف ردودًا من الإعدادات
+          </Link>
+        </p>
+      )}
+      {phone && data && data.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2">
+          {data.map((t) => {
+            const text = fill(t.body, order);
+            return (
+              <a
+                key={t.id}
+                href={`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={text}
+                className="hairline flex flex-col rounded-xl border px-3.5 py-2.5 text-start transition hover:border-[#1FA855]"
+              >
+                <span className="text-sm font-bold">{t.title}</span>
+                <span className="line-clamp-2 text-xs text-muted">{text}</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** A note only staff see (e.g. "customer will pay tomorrow"). */
+function OrderNote({ orderId, initial }: { orderId: string; initial: string }) {
+  const [saved, setSaved] = useState(initial);
+  const [note, setNote] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    setSaved(initial);
+    setNote(initial);
+  }, [initial]);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.patch<{ adminNote: string | null }>(`/admin/orders/${orderId}/note`, {
+        note: note.trim() ? note.trim() : null,
+      });
+      setSaved(res.adminNote ?? '');
+      setNote(res.adminNote ?? '');
+      setMsg({ ok: true, text: 'حُفظت الملاحظة.' });
+    } catch (e) {
+      setMsg({
+        ok: false,
+        text: isNotReady(e) ? 'الملاحظات غير متاحة بعد.' : friendly(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="surface rounded-2xl p-5 shadow-card">
+      <h2 className="text-base font-bold">ملاحظة داخلية</h2>
+      <p className="mt-1 text-xs text-muted">لك ولفريقك فقط، لا تظهر للزبون.</p>
+      <textarea
+        rows={3}
+        maxLength={1000}
+        value={note}
+        onChange={(e) => {
+          setNote(e.target.value);
+          setMsg(null);
+        }}
+        placeholder="مثال: الزبون سيرسل باقي المبلغ غدًا."
+        className="surface-2 hairline mt-3 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none focus:border-teal"
+      />
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={busy || note === saved}
+          className="rounded-xl bg-teal px-5 py-2 text-sm font-bold text-white transition hover:bg-teal-deep disabled:opacity-50"
+        >
+          {busy ? 'جارٍ…' : 'حفظ الملاحظة'}
+        </button>
+        {msg && <span className={`text-xs font-semibold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</span>}
+      </div>
     </section>
   );
 }

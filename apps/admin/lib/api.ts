@@ -57,6 +57,10 @@ export class ApiError extends Error {
   }
 }
 
+/** Shown when the server answers that a route does not exist (an older API). */
+export const NOT_READY = 'غير متاح بعد';
+export const isNotReady = (e: unknown) => e instanceof ApiError && e.message === NOT_READY;
+
 type Opts = { method?: string; body?: unknown; auth?: boolean; retry?: boolean };
 
 /*
@@ -129,6 +133,10 @@ async function raw<T>(path: string, opts: Opts = {}): Promise<T> {
     throw new ApiError(res.status, `الخادم غير متاح حاليًا (${res.status}). حاول بعد لحظات.`);
   }
   if (!res.ok) {
+    // the route itself is missing: this server does not have the feature yet
+    if (res.status === 404 && typeof data?.message === 'string' && /^Cannot [A-Z]+ \//.test(data.message)) {
+      throw new ApiError(404, NOT_READY, data.correlationId);
+    }
     const msg = (data && (data.message || data.error)) || `خطأ ${res.status}`;
     throw new ApiError(res.status, Array.isArray(msg) ? msg.join('، ') : msg, data?.correlationId);
   }
@@ -167,15 +175,53 @@ export const api = {
   },
   /** An image only staff may see (e.g. a transfer receipt), as a local object URL. */
   async imageUrl(path: string): Promise<string> {
-    const token = getAccess();
-    let res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (res.status === 401 && getRefresh() && (await tryRefresh())) {
-      res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${getAccess()}` } });
-    }
+    const res = await fetchAuthed(path);
     if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'لا توجد صورة.' : `خطأ ${res.status}`);
     return URL.createObjectURL(await res.blob());
   },
+  /** A file only staff may download (CSV export, backup): fetched with the token, saved by the browser. */
+  async download(path: string, fallbackName: string): Promise<void> {
+    let res: Response;
+    try {
+      res = await fetchAuthed(path);
+    } catch {
+      throw new ApiError(0, 'تعذّر الاتصال بالخادم. تحقّق من الإنترنت ثم أعد المحاولة.');
+    }
+    if (!res.ok) {
+      let message = `خطأ ${res.status}`;
+      try {
+        const body = (await res.json()) as { message?: string | string[] };
+        const m = Array.isArray(body.message) ? body.message.join('، ') : body.message;
+        if (res.status === 404 && m && /^Cannot [A-Z]+ \//.test(m)) message = NOT_READY;
+        else if (res.status === 403) message = 'ليست لديك صلاحية لهذا التنزيل.';
+        else if (m) message = m;
+      } catch {
+        /* not JSON: keep the status */
+      }
+      throw new ApiError(res.status, message);
+    }
+    // the server names the file (e.g. orders-2026-10-19.csv); otherwise use ours
+    const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(res.headers.get('content-disposition') ?? '');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = named ? decodeURIComponent(named[1]) : fallbackName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
 };
+
+/** A GET with the bearer token, refreshed once on a 401 (for binary bodies). */
+async function fetchAuthed(path: string): Promise<Response> {
+  const token = getAccess();
+  let res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (res.status === 401 && getRefresh() && (await tryRefresh())) {
+    res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${getAccess()}` } });
+  }
+  return res;
+}
 
 /** Where the API serves public uploads (logos, banner pictures). */
 export const uploadUrl = (path: string) => `${BASE}${path}`;

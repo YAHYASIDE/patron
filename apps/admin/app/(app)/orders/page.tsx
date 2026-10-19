@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { moneyIn, date, dateTime, statusChip } from '@/lib/format';
+import { moneyIn, date, dateTime, statusChip, GATEWAY_LABEL } from '@/lib/format';
+import { MAIN_COUNTRIES, countryName, flagOf } from '@/lib/countries';
+import ExportButton from '@/components/ExportButton';
 
 type OrderRow = {
   id: string;
@@ -14,8 +16,10 @@ type OrderRow = {
   total: number | string;
   currency: string;
   createdAt: string;
-  user?: { email?: string | null; fullName?: string; phone?: string | null };
+  user?: { email?: string | null; fullName?: string; phone?: string | null; country?: string | null };
   payments?: { id: string; gateway: string; status: string }[];
+  adminNote?: string | null;
+  country?: string | null;
 };
 type OrdersResp = { data: OrderRow[]; meta?: { hasMore: boolean; nextCursor: string | null } };
 
@@ -36,6 +40,18 @@ const FILTERS: { key: string; label: string }[] = [
   { key: 'COMPLETED', label: 'مكتمل' },
 ];
 
+const GATEWAYS = ['MANUAL', 'WALLET', 'STRIPE'];
+
+/** yyyy-mm-dd (local day) → ISO instant; `end` gives the start of the next day so the day is included. */
+function dayIso(day: string, end = false): string {
+  const d = new Date(`${day}T00:00:00`);
+  if (end) d.setDate(d.getDate() + 1);
+  return d.toISOString();
+}
+
+const select =
+  'surface-2 hairline w-full min-w-0 rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal';
+
 export default function OrdersPage() {
   const router = useRouter();
   const [status, setStatus] = useState('');
@@ -47,6 +63,11 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [first, setFirst] = useState(true);
+  const [gateway, setGateway] = useState('');
+  const [country, setCountry] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const filtered = !!(gateway || country || from || to);
   const pending = useFetch<PendingTransfer[]>('/admin/payments/manual/pending');
 
   const load = useCallback(
@@ -58,18 +79,30 @@ export default function OrdersPage() {
         if (next) qs.set('cursor', next);
         if (status) qs.set('status', status);
         if (search) qs.set('search', search);
+        if (gateway) qs.set('gateway', gateway);
+        if (country) qs.set('country', country);
+        if (from) qs.set('from', dayIso(from));
+        if (to) qs.set('to', dayIso(to, true));
         const resp = await api.get<OrdersResp>(`/admin/orders?${qs.toString()}`);
         setRows((prev) => (next ? [...prev, ...resp.data] : resp.data));
         setHasMore(resp.meta?.hasMore ?? false);
         setCursor(resp.meta?.nextCursor ?? null);
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'تعذّر جلب الطلبات');
+        // an older server rejects the new filter fields
+        setError(
+          e instanceof ApiError && /should not exist/i.test(e.message)
+            ? 'فلاتر الدفع والدولة والتاريخ غير متاحة بعد على الخادم.'
+            : e instanceof ApiError
+              ? e.message
+              : 'تعذّر جلب الطلبات',
+        );
+        if (!next) setRows([]);
       } finally {
         setLoading(false);
         setFirst(false);
       }
     },
-    [status, search],
+    [status, search, gateway, country, from, to],
   );
 
   // the customers page links here with ?search=<their number>
@@ -95,11 +128,26 @@ export default function OrdersPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-extrabold">الطلبات</h1>
-        <p className="mt-1 text-sm text-muted">
-          كل طلبات المتجر، الأحدث أولاً. اضغط على طلب لتأكيد دفعه وتسليمه.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">الطلبات</h1>
+          <p className="mt-1 text-sm text-muted">
+            كل طلبات المتجر، الأحدث أولاً. اضغط على طلب لتأكيد دفعه وتسليمه.
+          </p>
+        </div>
+        <ExportButton
+          path={`/admin/export/orders.csv${
+            from || to
+              ? '?' +
+                new URLSearchParams({
+                  ...(from && { from: dayIso(from) }),
+                  ...(to && { to: dayIso(to, true) }),
+                }).toString()
+              : ''
+          }`}
+          filename={`orders-${new Date().toLocaleDateString('en-CA')}.csv`}
+          label={from || to ? 'تصدير الفترة CSV' : 'تصدير CSV'}
+        />
       </div>
 
       {transfers.length > 0 && (
@@ -158,6 +206,52 @@ export default function OrdersPage() {
         ))}
       </div>
 
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs font-semibold text-muted">طريقة الدفع</span>
+          <select value={gateway} onChange={(e) => setGateway(e.target.value)} className={select}>
+            <option value="">الكل</option>
+            {GATEWAYS.map((g) => (
+              <option key={g} value={g}>
+                {GATEWAY_LABEL[g] ?? g}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs font-semibold text-muted">دولة الزبون</span>
+          <select value={country} onChange={(e) => setCountry(e.target.value)} className={select}>
+            <option value="">الكل</option>
+            {MAIN_COUNTRIES.map((c) => (
+              <option key={c} value={c}>
+                {flagOf(c)} {countryName(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs font-semibold text-muted">من يوم</span>
+          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className={select} />
+        </label>
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs font-semibold text-muted">إلى يوم</span>
+          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={select} />
+        </label>
+      </div>
+      {filtered && (
+        <button
+          onClick={() => {
+            setGateway('');
+            setCountry('');
+            setFrom('');
+            setTo('');
+          }}
+          className="self-start text-xs font-bold text-teal hover:underline"
+        >
+          مسح الفلاتر
+        </button>
+      )}
+
       {error && (
         <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
       )}
@@ -173,7 +267,7 @@ export default function OrdersPage() {
                     key={h}
                     className={
                       'px-5 py-3 text-start text-xs font-semibold ' +
-                      (h === 'العميل' || h === 'التاريخ' ? 'hidden sm:table-cell' : '')
+                      (h === 'العميل' || h === 'التاريخ' || h === 'الحالة' ? 'hidden sm:table-cell' : '')
                     }
                   >
                     {h}
@@ -219,14 +313,35 @@ export default function OrdersPage() {
                       <div className="mt-0.5 text-xs font-normal text-muted sm:hidden">
                         {o.user?.fullName ?? o.user?.email ?? '—'} · {date(o.createdAt)}
                       </div>
+                      {/* phones: the status shows here instead of its own column */}
+                      <div className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
+                        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}>
+                          {chip.label}
+                        </span>
+                        {awaitingReview && (
+                          <span className="whitespace-nowrap rounded-full bg-warn/12 px-2 py-0.5 text-[11px] font-bold text-warn">
+                            تحويل للتأكيد
+                          </span>
+                        )}
+                      </div>
+                      {o.adminNote && (
+                        <div className="mt-1 max-w-56 truncate text-xs font-normal text-gold-deep" title={o.adminNote}>
+                          ملاحظة: {o.adminNote}
+                        </div>
+                      )}
                     </td>
                     <td className="hidden px-5 py-3 sm:table-cell">
-                      <div className="font-semibold">{o.user?.fullName ?? '—'}</div>
+                      <div className="font-semibold">
+                        {(o.country ?? o.user?.country) && (
+                          <span title={countryName(o.country ?? o.user?.country)}>{flagOf(o.country ?? o.user?.country)} </span>
+                        )}
+                        {o.user?.fullName ?? '—'}
+                      </div>
                       <div className="text-xs text-muted" dir="ltr">
                         {o.user?.phone ?? o.user?.email}
                       </div>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="hidden px-5 py-3 sm:table-cell">
                       <div className="flex flex-col items-start gap-1.5">
                         <span
                           className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${chip.cls}`}

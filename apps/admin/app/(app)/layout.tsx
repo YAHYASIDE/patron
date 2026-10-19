@@ -1,21 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, isAuthed, logout } from '@/lib/api';
+import { isAuthed, logout } from '@/lib/api';
 import WakeBanner from '@/components/WakeBanner';
+import { usePulse, beep, soundOn, systemNotify, AlertsButton, Toast, type PulseEvent } from '@/components/Pulse';
 
 const NAV = [
   { href: '/', label: 'لوحة القيادة', icon: 'grid' },
   { href: '/products', label: 'المنتجات', icon: 'box' },
   { href: '/orders', label: 'الطلبات', icon: 'receipt' },
   { href: '/customers', label: 'الزبائن', icon: 'users' },
+  { href: '/locations', label: 'مواقع الزبائن', icon: 'pin' },
+  { href: '/support', label: 'طلبات الدعم', icon: 'chat' },
+  { href: '/reviews', label: 'التقييمات', icon: 'star' },
+  { href: '/coupons', label: 'القسائم', icon: 'ticket' },
+  { href: '/broadcast', label: 'رسالة للزبائن', icon: 'megaphone' },
   { href: '/reports', label: 'التقارير', icon: 'chart' },
   { href: '/banners', label: 'العروض', icon: 'tag' },
   { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
   { href: '/verifications', label: 'رموز التحقق', icon: 'shield' },
   { href: '/currencies', label: 'العملات', icon: 'coins' },
+  { href: '/activity', label: 'سجل النشاط', icon: 'history' },
   { href: '/settings', label: 'الإعدادات', icon: 'gear' },
 ] as const;
 
@@ -106,30 +113,50 @@ function Icon({ name }: { name: string }) {
           <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.3a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.7 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 7 2.7h.1A1.6 1.6 0 0 0 9 1.1V1a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 17 2.7a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7Z" />
         </svg>
       );
+    case 'pin':
+      return (
+        <svg {...common}>
+          <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
+          <circle cx="12" cy="9.5" r="2.5" />
+        </svg>
+      );
+    case 'chat':
+      return (
+        <svg {...common}>
+          <path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10Z" />
+          <path d="M8 8h8M8 12h5" />
+        </svg>
+      );
+    case 'star':
+      return (
+        <svg {...common}>
+          <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
+        </svg>
+      );
+    case 'ticket':
+      return (
+        <svg {...common}>
+          <path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4V8Z" />
+          <path d="M14 6v12" strokeDasharray="2 2.5" />
+        </svg>
+      );
+    case 'megaphone':
+      return (
+        <svg {...common}>
+          <path d="M3 10v4a1 1 0 0 0 1 1h3l9 5V4L7 9H4a1 1 0 0 0-1 1Z" />
+          <path d="M19.5 9a4 4 0 0 1 0 6M7 15l1.5 5" />
+        </svg>
+      );
+    case 'history':
+      return (
+        <svg {...common}>
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+          <path d="M3 3v5h5M12 7v5l3 2" />
+        </svg>
+      );
     default:
       return <svg {...common} />;
   }
-}
-
-/** Codes customers are waiting for, polled so a new request shows up without reloading. */
-function usePendingCodes(enabled: boolean) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    const poll = () =>
-      api
-        .get<unknown[]>('/admin/verifications/pending')
-        .then((rows) => alive && setCount(rows.length))
-        .catch(() => undefined);
-    poll();
-    const t = setInterval(poll, 20_000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, [enabled]);
-  return count;
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -137,7 +164,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
-  const pendingCodes = usePendingCodes(ready);
+  const [toast, setToast] = useState<PulseEvent | null>(null);
+  const closeToast = useCallback(() => setToast(null), []);
+  // new order or transfer while the dashboard is open: sound, toast, browser notification
+  const pulse = usePulse(ready, (ev) => {
+    if (soundOn()) beep();
+    setToast(ev);
+    systemNotify(ev, (href) => router.push(href));
+  });
+  const pendingCodes = pulse?.pendingVerifications ?? 0;
+  const badges: Record<string, number> = {
+    '/orders': pulse?.pendingTransfers ?? 0,
+    '/verifications': pendingCodes,
+    '/support': pulse?.openTickets ?? 0,
+  };
 
   useEffect(() => {
     if (!isAuthed()) {
@@ -158,7 +198,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const SidebarInner = (
     <>
-      <div className="flex h-16 items-center gap-3 px-5">
+      <div className="flex h-16 flex-none items-center gap-3 px-5">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-teal-soft to-teal text-[16px] font-extrabold text-teal-ink">
           P
         </span>
@@ -166,7 +206,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           باترون<span className="text-gold">.</span>
         </span>
       </div>
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
+      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
         {NAV.map((item) => {
           // highlight the section on its sub-pages too (e.g. /products/new)
           const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -176,7 +216,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               href={item.href}
               onClick={() => setOpen(false)}
               className={
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-semibold transition ' +
+                'flex flex-none items-center gap-3 rounded-xl px-3 py-2 text-[15px] font-semibold transition ' +
                 (active
                   ? 'bg-teal/12 text-teal'
                   : 'text-muted hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]')
@@ -184,9 +224,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <Icon name={item.icon} />
               {item.label}
-              {item.href === '/verifications' && pendingCodes > 0 && (
+              {(badges[item.href] ?? 0) > 0 && (
                 <span className="ms-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1.5 text-[11px] font-bold text-white tnum">
-                  {pendingCodes}
+                  {badges[item.href]}
                 </span>
               )}
             </Link>
@@ -195,7 +235,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </nav>
       <button
         onClick={onLogout}
-        className="m-3 flex items-center justify-center gap-2 rounded-xl border border-[rgb(var(--line))] py-2.5 text-sm font-semibold text-muted transition hover:text-bad"
+        className="m-3 flex flex-none items-center justify-center gap-2 rounded-xl border border-[rgb(var(--line))] py-2.5 text-sm font-semibold text-muted transition hover:text-bad"
       >
         تسجيل الخروج
       </button>
@@ -228,17 +268,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="text-sm text-muted">لوحة تحكم المتجر</div>
-          <div className="ms-auto flex items-center gap-2">
+          <div className="hidden text-sm text-muted sm:block">لوحة تحكم المتجر</div>
+          <div className="ms-auto flex min-w-0 items-center gap-2">
             {pendingCodes > 0 && (
               <Link
                 href="/verifications"
-                className="rounded-full bg-warn/12 px-3 py-1.5 text-xs font-bold text-warn"
+                className="truncate rounded-full bg-warn/12 px-3 py-1.5 text-xs font-bold text-warn"
               >
                 {pendingCodes} رمز بانتظار الإرسال
               </Link>
             )}
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-teal/15 text-sm font-bold text-teal">
+            <AlertsButton />
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-teal/15 text-sm font-bold text-teal">
               A
             </span>
           </div>
@@ -247,6 +288,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <WakeBanner />
           <div>{children}</div>
         </main>
+        {toast && <Toast ev={toast} onClose={closeToast} />}
       </div>
     </div>
   );

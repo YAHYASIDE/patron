@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { date, money } from '@/lib/format';
+import { countryName, flagOf } from '@/lib/countries';
+import ExportButton from '@/components/ExportButton';
 
 type Customer = {
   id: string;
@@ -16,6 +18,9 @@ type Customer = {
   paidOrders: number;
   totalSpentBase: string;
   lastOrderAt: string | null;
+  country?: string | null;
+  city?: string | null;
+  tags?: string[];
 };
 type Page = { data: Customer[]; meta: { page: number; pages: number; total: number } };
 
@@ -71,11 +76,26 @@ export default function CustomersPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-extrabold">الزبائن</h1>
-        <p className="mt-1 text-sm text-muted">
-          {res ? `${res.meta.total} زبون` : 'كل من سجّل في المتجر'}، ومجموع ما اشتراه كلٌّ منهم.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">الزبائن</h1>
+          <p className="mt-1 text-sm text-muted">
+            {res ? `${res.meta.total} زبون` : 'كل من سجّل في المتجر'}، ومجموع ما اشتراه كلٌّ منهم.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-start gap-2">
+          <Link
+            href="/locations"
+            className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold hover:border-teal"
+          >
+            حسب الدولة والمدينة
+          </Link>
+          <ExportButton
+            path="/admin/export/customers.csv"
+            filename={`customers-${new Date().toLocaleDateString('en-CA')}.csv`}
+            label="تصدير CSV"
+          />
+        </div>
       </div>
 
       <input
@@ -99,9 +119,9 @@ export default function CustomersPage() {
         {res?.data.map((c) => (
           <section key={c.id} className="surface flex flex-col gap-3 rounded-2xl p-4 shadow-card">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <Link href={`/customers/${c.id}`} className="min-w-0 hover:opacity-80">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-bold">{c.fullName}</span>
+                  <span className="font-bold text-teal underline-offset-4 hover:underline">{c.fullName}</span>
                   {c.phoneVerifiedAt ? (
                     <span className="rounded-full bg-ok/12 px-2 py-0.5 text-[11px] font-bold text-ok">
                       موثّق
@@ -120,7 +140,22 @@ export default function CustomersPage() {
                 <div dir="ltr" className="mt-0.5 text-right text-sm text-muted">
                   {c.phone ?? c.email}
                 </div>
-              </div>
+                {(c.country || (c.tags?.length ?? 0) > 0) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                    {c.country && (
+                      <span>
+                        {flagOf(c.country)} {countryName(c.country)}
+                        {c.city ? ` · ${c.city}` : ''}
+                      </span>
+                    )}
+                    {c.tags?.map((t) => (
+                      <span key={t} className="rounded-full bg-gold/15 px-2 py-0.5 font-bold text-gold-deep">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Link>
               <div className="text-end">
                 <div className="tnum text-lg font-extrabold">{money(c.totalSpentBase)}</div>
                 <div className="text-xs text-muted">{c.paidOrders} طلب مدفوع</div>
@@ -142,10 +177,10 @@ export default function CustomersPage() {
                 </a>
               )}
               <Link
-                href={`/orders?search=${encodeURIComponent(c.phone ?? c.fullName)}`}
+                href={`/customers/${c.id}`}
                 className="flex-1 rounded-xl border border-[rgb(var(--line))] py-2 text-center text-sm font-bold"
               >
-                طلباته
+                الملف
               </Link>
               <button
                 onClick={() => toggleBlock(c)}

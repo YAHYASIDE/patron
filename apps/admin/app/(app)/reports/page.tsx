@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useFetch } from '@/lib/hooks';
 import { date, money } from '@/lib/format';
+import ExportButton from '@/components/ExportButton';
 
 type ProfitRow = {
   period: string;
@@ -67,11 +68,18 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-extrabold">التقارير</h1>
-        <p className="mt-1 text-sm text-muted">
-          المبيعات والأرباح من المنتجات المُسلَّمة، بالدولار (العملة الأساسية).
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">التقارير</h1>
+          <p className="mt-1 text-sm text-muted">
+            المبيعات والأرباح من المنتجات المُسلَّمة، بالدولار (العملة الأساسية).
+          </p>
+        </div>
+        <ExportButton
+          path={`/admin/export/orders.csv?${qs}`}
+          filename={`orders-${range}-${new Date().toLocaleDateString('en-CA')}.csv`}
+          label="تصدير طلبات الفترة CSV"
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">

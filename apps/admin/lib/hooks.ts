@@ -33,3 +33,9 @@ export function useFetch<T>(path: string | null): State<T> & { reload: () => voi
 
   return { ...state, reload: run };
 }
+
+/** A list endpoint may answer a bare array or a page ({ data: [...] }). */
+export function rowsOf<T>(r: T[] | { data: T[] } | null | undefined): T[] {
+  if (!r) return [];
+  return Array.isArray(r) ? r : (r.data ?? []);
+}

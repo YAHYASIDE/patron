@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
 import { num, money } from '@/lib/format';
+import BulkPrice from '@/components/BulkPrice';
 
 type Product = {
   id: string;
@@ -39,6 +40,9 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [saved, setSaved] = useState(false);
+  const [bulk, setBulk] = useState(false);
+  // ticked rows for the bulk price tool, kept across pages
+  const [picked, setPicked] = useState<Map<string, string>>(new Map());
 
   // brief confirmation after returning from the add/edit form (?saved=1)
   useEffect(() => {
@@ -52,11 +56,21 @@ export default function ProductsPage() {
 
   const qs = new URLSearchParams({ page: String(page), limit: '20' });
   if (query) qs.set('search', query);
-  const { data, error, loading } = useFetch<Paginated<Product>>(
+  const { data, error, loading, reload } = useFetch<Paginated<Product>>(
     `/admin/catalog/products?${qs.toString()}`,
   );
 
   const meta = data?.meta;
+  const cols = bulk ? 7 : 6;
+
+  function toggle(p: Product) {
+    setPicked((m) => {
+      const next = new Map(m);
+      if (next.has(p.id)) next.delete(p.id);
+      else next.set(p.id, p.nameAr);
+      return next;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -90,8 +104,28 @@ export default function ProductsPage() {
           >
             + منتج جديد
           </Link>
+          {!bulk && (
+            <button
+              type="button"
+              onClick={() => setBulk(true)}
+              className="rounded-xl border border-[rgb(var(--line))] px-4 py-2 text-sm font-bold hover:border-teal"
+            >
+              تعديل الأسعار جماعيًا
+            </button>
+          )}
         </form>
       </div>
+
+      {bulk && (
+        <BulkPrice
+          selected={[...picked].map(([id, nameAr]) => ({ id, nameAr }))}
+          onClose={() => {
+            setBulk(false);
+            setPicked(new Map());
+          }}
+          onApplied={reload}
+        />
+      )}
 
       {saved && (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-sm font-semibold text-ok">
@@ -110,8 +144,19 @@ export default function ProductsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="surface-2 text-muted">
+                {bulk && (
+                  <th className="w-10 px-3 py-3">
+                    <span className="sr-only">تحديد</span>
+                  </th>
+                )}
                 {['المنتج', 'النوع', 'التسليم', 'المخزون', 'السعر', 'الحالة'].map((h) => (
-                  <th key={h} className="px-5 py-3 text-start text-xs font-semibold">
+                  // phones: type, delivery, stock and status show under the name instead
+                  <th
+                    key={h}
+                    className={
+                      'px-5 py-3 text-start text-xs font-semibold ' + (h === 'المنتج' || h === 'السعر' ? '' : 'hidden md:table-cell')
+                    }
+                  >
                     {h}
                   </th>
                 ))}
@@ -120,14 +165,14 @@ export default function ProductsPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-muted">
+                  <td colSpan={cols} className="px-5 py-8 text-center text-muted">
                     جارٍ التحميل…
                   </td>
                 </tr>
               )}
               {!loading && (data?.data?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-muted">
+                  <td colSpan={cols} className="px-5 py-8 text-center text-muted">
                     لا توجد منتجات مطابقة.
                   </td>
                 </tr>
@@ -137,40 +182,44 @@ export default function ProductsPage() {
                 // null stockQty means unlimited, not "sold out"
                 const out = !auto && p.stockQty !== null && p.stockQty <= 0;
                 return (
-                  <tr key={p.id} className="border-t hairline">
+                  <tr key={p.id} className={'border-t hairline ' + (picked.has(p.id) ? 'bg-teal/5' : '')}>
+                    {bulk && (
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={picked.has(p.id)}
+                          onChange={() => toggle(p)}
+                          aria-label={`تحديد ${p.nameAr}`}
+                          className="h-4 w-4 accent-[#0d6d64]"
+                        />
+                      </td>
+                    )}
                     <td className="px-5 py-3">
                       <Link href={`/products/${p.id}`} className="font-semibold text-teal hover:underline">
                         {p.nameAr}
                       </Link>
-                      <div className="text-xs text-muted" dir="ltr">
+                      <div className="break-all text-xs text-muted" dir="ltr">
                         {p.sku}
                         {p.game?.nameEn ? ` · ${p.game.nameEn}` : ''}
                       </div>
-                    </td>
-                    <td className="px-5 py-3 text-muted">{TYPE_LABEL[p.type] ?? p.type}</td>
-                    <td className="px-5 py-3 text-muted">{DELIVERY_LABEL[p.delivery] ?? p.delivery}</td>
-                    <td className="px-5 py-3 tnum">{auto || p.stockQty === null ? '∞' : num(p.stockQty)}</td>
-                    <td className="px-5 py-3 tnum font-semibold">{money(p.sellPrice)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                            out ? 'bg-bad/12 text-bad' : p.isActive ? 'bg-ok/12 text-ok' : 'bg-ink-400/15 text-muted'
-                          }`}
-                        >
-                          {out ? 'نفد' : p.isActive ? 'نشط' : 'موقوف'}
-                        </span>
-                        {(p.discountPercent ?? 0) > 0 && (
-                          <span className="rounded-full bg-teal/12 px-2.5 py-1 text-xs font-bold text-teal">
-                            خصم {num(p.discountPercent)}%
-                          </span>
-                        )}
-                        {p.isFeatured && (
-                          <span className="rounded-full bg-gold/15 px-2.5 py-1 text-xs font-bold text-gold-deep">
-                            مميّز
-                          </span>
-                        )}
+                      <div className="mt-1 text-xs text-muted md:hidden">
+                        {TYPE_LABEL[p.type] ?? p.type} · {DELIVERY_LABEL[p.delivery] ?? p.delivery} · المخزون{' '}
+                        <span className="tnum">{auto || p.stockQty === null ? '∞' : num(p.stockQty)}</span>
                       </div>
+                      <div className="mt-1.5 md:hidden">
+                        <StatusChips p={p} out={out} />
+                      </div>
+                    </td>
+                    <td className="hidden px-5 py-3 text-muted md:table-cell">{TYPE_LABEL[p.type] ?? p.type}</td>
+                    <td className="hidden px-5 py-3 text-muted md:table-cell">
+                      {DELIVERY_LABEL[p.delivery] ?? p.delivery}
+                    </td>
+                    <td className="hidden px-5 py-3 tnum md:table-cell">
+                      {auto || p.stockQty === null ? '∞' : num(p.stockQty)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3 tnum font-semibold">{money(p.sellPrice)}</td>
+                    <td className="hidden px-5 py-3 md:table-cell">
+                      <StatusChips p={p} out={out} />
                     </td>
                   </tr>
                 );
@@ -200,6 +249,30 @@ export default function ProductsPage() {
             التالي
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+function StatusChips({ p, out }: { p: Product; out: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span
+        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
+          out ? 'bg-bad/12 text-bad' : p.isActive ? 'bg-ok/12 text-ok' : 'bg-ink-400/15 text-muted'
+        }`}
+      >
+        {out ? 'نفد' : p.isActive ? 'نشط' : 'موقوف'}
+      </span>
+      {(p.discountPercent ?? 0) > 0 && (
+        <span className="whitespace-nowrap rounded-full bg-teal/12 px-2.5 py-1 text-xs font-bold text-teal">
+          خصم {num(p.discountPercent)}%
+        </span>
+      )}
+      {p.isFeatured && (
+        <span className="whitespace-nowrap rounded-full bg-gold/15 px-2.5 py-1 text-xs font-bold text-gold-deep">
+          مميّز
+        </span>
       )}
     </div>
   );

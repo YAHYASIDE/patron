@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { date } from '@/lib/format';
+import ExportButton from '@/components/ExportButton';
+import Notice from '@/components/Notice';
 
 type Me = {
   id: string;
@@ -25,12 +27,16 @@ export default function SettingsPage() {
     <div className="flex max-w-2xl flex-col gap-5">
       <div>
         <h1 className="text-2xl font-extrabold">الإعدادات</h1>
-        <p className="mt-1 text-sm text-muted">طرق استلام الدفع، وحسابك.</p>
+        <p className="mt-1 text-sm text-muted">طرق استلام الدفع، ردود واتساب، النسخ الاحتياطي، وحسابك.</p>
       </div>
 
       <ShopWhatsapp />
 
       <PaymentAccounts />
+
+      <QuickReplies />
+
+      <Backup />
 
       {error && (
         <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
@@ -147,5 +153,178 @@ function Row({ k, v, dir }: { k: string; v: string; dir?: 'ltr' | 'rtl' }) {
         {v}
       </dd>
     </div>
+  );
+}
+
+type Template = { id: string; title: string; body: string };
+
+const MAX_TEMPLATES = 20;
+const PLACEHOLDERS = [
+  { k: '{name}', v: 'اسم الزبون', sample: 'محمد' },
+  { k: '{order}', v: 'رقم الطلب', sample: 'PTN-20261019-01000015' },
+  { k: '{link}', v: 'رابط صفحة الطلب في المتجر', sample: 'https://…/orders/…' },
+];
+const STARTERS: Omit<Template, 'id'>[] = [
+  { title: 'استلمنا طلبك', body: 'مرحبًا {name}، استلمنا طلبك {order} وسنسلّمه لك خلال دقائق.' },
+  { title: 'لم يصل التحويل', body: 'مرحبًا {name}، لم يصلنا تحويل الطلب {order} بعد. أرسل لنا صورة الإيصال من فضلك.' },
+  { title: 'تم التسليم', body: 'مرحبًا {name}، طلبك {order} جاهز. تجده في صفحة طلبك: {link}' },
+];
+
+const newId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const preview = (body: string) => PLACEHOLDERS.reduce((t, p) => t.replaceAll(p.k, p.sample), body);
+
+/** Ready-made WhatsApp messages the order page fills in and opens in one tap. */
+function QuickReplies() {
+  const { data, error, loading } = useFetch<Template[]>('/admin/shop/templates');
+  const [rows, setRows] = useState<Template[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (data) setRows(data);
+  }, [data]);
+
+  const edit = (id: string, patch: Partial<Template>) => {
+    setRows((r) => r.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setMsg(null);
+  };
+
+  async function save() {
+    const clean = rows
+      .map((t) => ({ ...t, title: t.title.trim(), body: t.body.trim() }))
+      .filter((t) => t.title || t.body);
+    if (clean.some((t) => !t.title || !t.body)) {
+      setMsg({ ok: false, text: 'لكل رد عنوان ونص.' });
+      return;
+    }
+    setSaving(true);
+    setMsg(null);
+    try {
+      const saved = await api.put<Template[]>('/admin/shop/templates', { templates: clean });
+      setRows(Array.isArray(saved) ? saved : clean);
+      setMsg({ ok: true, text: 'تم الحفظ. تظهر الردود في صفحة كل طلب.' });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof ApiError ? e.message : 'تعذّر الحفظ.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section id="quick-replies" className="surface scroll-mt-20 rounded-2xl p-5 shadow-card">
+      <h2 className="text-base font-bold">ردود واتساب السريعة</h2>
+      <p className="mt-1 text-sm text-muted">
+        رسائل جاهزة تظهر في صفحة الطلب: اضغط على أحدها فيفتح واتساب الزبون والنص مكتوب. تُستبدل هذه الكلمات تلقائيًا:
+      </p>
+      <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+        {PLACEHOLDERS.map((p) => (
+          <li key={p.k} className="surface-2 rounded-lg px-2.5 py-1">
+            <code dir="ltr" className="font-bold text-teal">
+              {p.k}
+            </code>{' '}
+            {p.v}
+          </li>
+        ))}
+      </ul>
+
+      {loading && <p className="mt-4 text-sm text-muted">جارٍ التحميل…</p>}
+      {error && (
+        <div className="mt-4">
+          <Notice text={error} />
+        </div>
+      )}
+
+      {!error && !loading && (
+        <div className="mt-4 flex flex-col gap-3">
+          {rows.length === 0 && (
+            <div className="rounded-xl border border-dashed border-[rgb(var(--line))] p-4 text-center text-sm text-muted">
+              لا ردود بعد.{' '}
+              <button
+                onClick={() => setRows(STARTERS.map((t) => ({ ...t, id: newId() })))}
+                className="font-bold text-teal hover:underline"
+              >
+                ابدأ بثلاثة ردود مقترحة
+              </button>
+            </div>
+          )}
+          {rows.map((t, i) => (
+            <div key={t.id} className="hairline flex flex-col gap-2 rounded-xl border p-3">
+              <div className="flex items-center gap-2">
+                <span className="tnum text-xs font-bold text-muted">{i + 1}</span>
+                <input
+                  value={t.title}
+                  maxLength={40}
+                  onChange={(e) => edit(t.id, { title: e.target.value })}
+                  placeholder="العنوان (مثال: لم يصل التحويل)"
+                  className="surface-2 hairline min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-teal"
+                />
+                <button
+                  onClick={() => setRows((r) => r.filter((x) => x.id !== t.id))}
+                  className="rounded-lg px-2 py-1 text-xs font-bold text-bad hover:bg-bad/10"
+                >
+                  حذف
+                </button>
+              </div>
+              <textarea
+                rows={3}
+                maxLength={1000}
+                value={t.body}
+                onChange={(e) => edit(t.id, { body: e.target.value })}
+                placeholder="مرحبًا {name}، طلبك {order}…"
+                className="surface-2 hairline w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal"
+              />
+              {t.body && <p className="text-xs text-muted">معاينة: {preview(t.body)}</p>}
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setRows((r) => [...r, { id: newId(), title: '', body: '' }])}
+              disabled={rows.length >= MAX_TEMPLATES}
+              className="rounded-xl border border-[rgb(var(--line))] px-4 py-2.5 text-sm font-bold hover:border-teal disabled:opacity-40"
+            >
+              + رد جديد
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="rounded-xl bg-teal px-5 py-2.5 text-sm font-bold text-white transition hover:bg-teal-deep disabled:opacity-60"
+            >
+              {saving ? 'جارٍ…' : 'حفظ الردود'}
+            </button>
+          </div>
+          {msg && <p className={`text-sm font-semibold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Full backup: the free database is deleted after about 30 days, so the owner keeps copies. */
+function Backup() {
+  return (
+    <section className="surface flex flex-col gap-3 rounded-2xl border-warn/40 p-5 shadow-card">
+      <h2 className="text-base font-bold">نسخة احتياطية كاملة</h2>
+      <div className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm leading-relaxed text-warn">
+        <b>مهم:</b> قاعدة البيانات المجانية على Render تُحذف بعد نحو 30 يومًا من إنشائها، ومعها كل الزبائن
+        والطلبات والمنتجات. نزّل نسخة احتياطية بانتظام (مرة في الأسبوع على الأقل) واحفظها في مكان آمن، ورقِّ قاعدة
+        البيانات إلى خطة مدفوعة على Render حتى لا تُحذف.
+      </div>
+      <p className="text-sm text-muted">
+        ملف JSON واحد فيه الزبائن والطلبات والمدفوعات والمنتجات والأسعار والفئات والعروض والقسائم والإعدادات. لا يحتوي
+        كلمات المرور ولا قيم الأكواد ولا الصور المرفوعة، فاحفظه بعيدًا عن أعين الآخرين لأنه يضم أرقام الزبائن.
+      </p>
+      <div>
+        <ExportButton
+          primary
+          path="/admin/backup"
+          filename={`patron-backup-${new Date().toLocaleDateString('en-CA')}.json`}
+          label="تنزيل نسخة احتياطية"
+        />
+      </div>
+    </section>
   );
 }
