@@ -277,11 +277,30 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
   build leaves behind. `rm -rf apps/<app>/node_modules apps/<app>/.next` and
   rebuild. Local only; Docker builds are fresh.
 - **CODE_POOL purchase fails `no_provider`:** expected — no dispenser yet (§4).
-- **No endpoint to upload codes:** there is no admin route to add `ProductCode`
-  rows, so a CODE_POOL product is always `inStock:false` in the store, and an
-  AUTO_PROVIDER one is out of stock unless it has an active+healthy
-  `ProductProvider`. Today only **MANUAL** delivery sells end to end; the admin
-  product form defaults to MANUAL and explains each mode.
+- **Code stock (owner pre-buys codes):** products stay **MANUAL**; the owner
+  pastes codes on the product page (`CodeStock.tsx` →
+  `GET/POST/DELETE /admin/catalog/products/:id/codes`, `codes.manage`).
+  `CodeStockService` stores them encrypted plus a `codeHash` (unique, migration
+  `20261019020000_code_stock`) so the same code is never stocked twice; the
+  admin only ever sees a masked form. After `order.paid` the fulfilment
+  processor calls `OrdersService.deliverFromStock` **first**: per item it claims
+  `quantity` codes with `FOR UPDATE SKIP LOCKED` (oldest first, no double sale),
+  all or nothing (a short stock leaves the item for manual delivery), copies the
+  ciphertext into `OrderResult` (`providerRef: stock:<id>`) and runs
+  `syncStatus`. `ProductCode.orderItemId` is no longer unique (qty > 1).
+  Stock uploaded after payment: the order page shows "سلّم من المخزون"
+  (`POST /admin/orders/:id/deliver-from-stock`). The WhatsApp delivery button
+  includes codes only when typed in that session; stock codes stay encrypted, so
+  it sends the order link. CODE_POOL / AUTO_PROVIDER still have no dispenser.
+- **"Do not know how to serialize a BigInt":** any `$queryRaw` `COUNT(*)` is a
+  BigInt. `src/common/serialization/bigint-json.ts` (imported first in
+  `app.module.ts`) sets `BigInt.prototype.toJSON` globally; don't remove it.
+- **Admin ops pages:** `/customers` (GET /users?role=customer, with
+  `ordersCount`/`paidOrders`/`totalSpentBase`/`lastOrderAt` from an orders
+  groupBy), `/orders?search=` (order number, phone digits, name) and `/reports`
+  (`/admin/reports/profit` + `/products`, base currency USD; send full ISO
+  timestamps — `from=to=<date>` is a zero-width range). Store links in admin use
+  `NEXT_PUBLIC_STORE_URL` (render.yaml + admin Dockerfile ARG).
 - **Pricing (owner's rules):** the customer pays exactly the sell price the
   owner sets. `PricingService` never applies `currency.fx_markup_percent` to the
   **base** currency (nothing is converted), and migration
@@ -300,8 +319,9 @@ real frontend, or publish an Artifact preview — and say plainly which one it i
   `apps/admin/components/ProductForm.tsx`. The API's ValidationPipe uses
   `forbidNonWhitelisted`, so the form builds the body from DTO fields only.
   `UpdateProductDto` extends `CreateProductDto` (PATCH needs the full body).
-  `maxPerOrder` is non-nullable (default 10): omit it, never send null. There is
-  no admin get-by-id, so the edit page finds the row in the admin list.
+  `maxPerOrder` is non-nullable (default 10): omit it, never send null. The edit
+  page loads `GET /admin/catalog/products/:id` (the list is paginated; the
+  catalog outgrew one page).
 - **e2e fails from "registers a customer" on a rerun:** the test DB still holds
   the previous run's users and Redis holds login lockouts/throttle counters. CI
   is always fresh; locally drop/recreate the test DB, `redis-cli flushall`,
