@@ -103,6 +103,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
       { code: 'EUR', nameAr: 'يورو', nameEn: 'Euro', symbol: '€', decimals: 2, isBase: false, sortOrder: 2 },
       { code: 'MRU', nameAr: 'أوقية موريتانية', nameEn: 'Mauritanian Ouguiya', symbol: 'UM', decimals: 2, isBase: false, sortOrder: 3 },
       { code: 'XOF', nameAr: 'فرنك غرب أفريقي', nameEn: 'West African CFA Franc', symbol: 'CFA', decimals: 0, isBase: false, sortOrder: 4, roundingStep: new Prisma.Decimal(5) },
+      { code: 'DZD', nameAr: 'دينار جزائري', nameEn: 'Algerian Dinar', symbol: 'DA', decimals: 0, isBase: false, sortOrder: 5, roundingStep: new Prisma.Decimal(10) },
     ];
     for (const c of currencies) {
       await prisma.currency.upsert({ where: { code: c.code }, update: c as any, create: c as any });
@@ -113,6 +114,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
       ['EUR', 0.92],
       ['MRU', 39.8],
       ['XOF', 604.0],
+      ['DZD', 133.0],
     ];
     for (const [quote, rate] of RATES) {
       const existing = await prisma.fxRate.findFirst({
@@ -298,7 +300,7 @@ export async function runSeed(client?: PrismaClient): Promise<void> {
     const settings = [
       { key: 'platform.name', value: 'Patron', group: 'general', isPublic: true },
       { key: 'platform.base_currency', value: 'USD', group: 'currency', isPublic: true },
-      { key: 'platform.enabled_currencies', value: ['USD', 'EUR', 'MRU', 'XOF'], group: 'currency', isPublic: true },
+      { key: 'platform.enabled_currencies', value: ['USD', 'EUR', 'MRU', 'XOF', 'DZD'], group: 'currency', isPublic: true },
       { key: 'currency.fx_markup_percent', value: 0, group: 'currency', description: 'Margin added on top of the raw FX rate for converted (non-base) currencies' },
       { key: 'currency.fx_refresh_minutes', value: 60, group: 'currency' },
       { key: 'tax.enabled', value: false, group: 'tax', description: 'MVP: off. Turning this on activates the taxAmount columns.' },

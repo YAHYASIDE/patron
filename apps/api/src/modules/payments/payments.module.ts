@@ -6,9 +6,10 @@ import { WalletGateway } from './gateways/wallet.gateway';
 import { StripeGateway } from './gateways/stripe.gateway';
 import { ManualTransferGateway } from './gateways/manual.gateway';
 import { WalletModule } from '../wallet/wallet.module';
+import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
-  imports: [WalletModule],
+  imports: [WalletModule, UploadsModule],
   controllers: [PaymentsController, PaymentsAdminController, WebhooksController],
   providers: [PaymentsService, GatewayRegistry, WalletGateway, StripeGateway, ManualTransferGateway],
   exports: [PaymentsService, GatewayRegistry],

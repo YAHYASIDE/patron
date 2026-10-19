@@ -9,16 +9,21 @@ import { assertTransition } from '../orders/order-state.machine';
 import { MetricsService } from '../../common/metrics/metrics.service';
 import { LockRank, acquireLocks } from '../../common/locking/lock-order';
 import { AuditService } from '../../common/audit/audit.service';
-import { ManualAccount, ManualTransferGateway, MANUAL_ACCOUNTS_KEY, MANUAL_NOTE_KEY } from './gateways/manual.gateway';
+import {
+  ManualAccount, ManualTransferGateway, MANUAL_ACCOUNTS_KEY, MANUAL_NOTE_KEY, isUsable,
+} from './gateways/manual.gateway';
+import { UploadsService, IncomingFile } from '../uploads/uploads.service';
 import { ManualAccountsDto, SubmitTransferDto } from './dto/payment.dto';
 
 /** What the customer reported for a manual transfer, kept on the payment. */
 interface TransferReport {
   accountId: string;
   method: string;
-  reference: string;
+  reference?: string;
   payerName?: string;
-  payerPhone?: string;
+  /** The number or account the money came from. */
+  payerPhone: string;
+  hasProof: boolean;
   submittedAt: string;
 }
 
@@ -33,6 +38,7 @@ export class PaymentsService {
     private metrics: MetricsService,
     private audit: AuditService,
     private manual: ManualTransferGateway,
+    private uploads: UploadsService,
   ) {}
 
   /**
@@ -268,10 +274,17 @@ export class PaymentsService {
 
   // ───────────────────────── manual transfer ─────────────────────────
 
-  /** Public: where to send a manual transfer. */
-  async manualInstructions(): Promise<{ accounts: ManualAccount[]; note: string | null }> {
+  /**
+   * Where to send a manual transfer. Customers only see methods that are
+   * switched on and have a receiving number; the dashboard sees them all.
+   */
+  async manualInstructions(all = false): Promise<{ accounts: ManualAccount[]; note: string | null }> {
     const note = await this.prisma.systemSetting.findUnique({ where: { key: MANUAL_NOTE_KEY } });
-    return { accounts: await this.manual.accounts(), note: typeof note?.value === 'string' ? note.value : null };
+    const accounts = await this.manual.accounts();
+    return {
+      accounts: all ? accounts : accounts.filter(isUsable),
+      note: typeof note?.value === 'string' ? note.value : null,
+    };
   }
 
   /** Owner sets the transfer accounts customers see at checkout. */
@@ -279,11 +292,21 @@ export class PaymentsService {
     const accounts: ManualAccount[] = dto.accounts.map((a) => ({
       id: a.id || randomUUID(),
       method: a.method.trim(),
-      country: a.country?.toUpperCase(),
-      accountName: a.accountName.trim(),
-      accountNumber: a.accountNumber.trim(),
-      instructions: a.instructions?.trim() || undefined,
+      countries: [...new Set((a.countries ?? (a.country ? [a.country] : [])).map((c) => c.toUpperCase()))],
+      accountName: a.accountName?.trim() ?? '',
+      accountNumber: a.accountNumber?.trim() ?? '',
+      kind: a.kind ?? 'mobile',
+      ...(a.logo && { logo: a.logo }),
+      enabled: a.enabled ?? true,
+      ...(a.instructions?.trim() && { instructions: a.instructions.trim() }),
     }));
+    const missing = accounts.find((a) => a.enabled && a.accountNumber.length < 2);
+    if (missing) {
+      throw new BadRequestException({
+        message: `${missing.method}: add the number customers pay to, or switch it off`,
+        error: 'ACCOUNT_NUMBER_REQUIRED',
+      });
+    }
     const value = JSON.parse(JSON.stringify(accounts)) as Prisma.InputJsonValue;
     await this.prisma.$transaction(async (tx) => {
       await tx.systemSetting.upsert({
@@ -315,15 +338,20 @@ export class PaymentsService {
     }
     if (payment.order.status !== 'PENDING_PAYMENT') throw new BadRequestException('This order is not awaiting payment');
 
-    const account = (await this.manual.accounts()).find((a) => a.id === dto.accountId);
+    const account = (await this.manual.accounts()).find((a) => a.id === dto.accountId && isUsable(a));
     if (!account) throw new BadRequestException('Unknown transfer account');
+    // the owner checks the receipt against their app before approving
+    if (!(await this.uploads.hasProof(paymentId))) {
+      throw new BadRequestException({ message: 'Attach a screenshot of the transfer', error: 'PROOF_REQUIRED' });
+    }
 
     const transfer: TransferReport = {
       accountId: account.id,
       method: account.method,
-      reference: dto.reference.trim(),
+      reference: dto.reference?.trim() || undefined,
       payerName: dto.payerName?.trim() || undefined,
-      payerPhone: dto.payerPhone?.trim() || undefined,
+      payerPhone: dto.payerPhone.trim(),
+      hasProof: true,
       submittedAt: new Date().toISOString(),
     };
     await this.prisma.payment.update({
@@ -338,6 +366,23 @@ export class PaymentsService {
   }
 
   /** Staff queue: transfers customers reported, oldest first. */
+  /** The customer attaches a screenshot of their transfer before reporting it. */
+  async attachProof(paymentId: string, userId: string, file: IncomingFile | undefined) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId }, select: { userId: true, gateway: true, status: true } });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.userId !== userId) throw new ForbiddenException('This payment belongs to another account');
+    if (payment.gateway !== 'MANUAL') throw new BadRequestException('Only a manual transfer takes a receipt');
+    if (!['INITIATED', 'AUTHORIZED'].includes(payment.status)) {
+      throw new BadRequestException('This payment has already been reviewed');
+    }
+    return this.uploads.saveProof(paymentId, file, userId);
+  }
+
+  /** Staff open the receipt while checking a transfer. */
+  proof(paymentId: string) {
+    return this.uploads.getProof(paymentId);
+  }
+
   listManualPending() {
     return this.prisma.payment.findMany({
       where: { gateway: 'MANUAL', status: PaymentStatus.AUTHORIZED },

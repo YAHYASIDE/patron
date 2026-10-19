@@ -5,6 +5,7 @@ import { PaymentsService } from '../../src/modules/payments/payments.service';
 describe('PaymentsService', () => {
   let audit: any;
   let manual: any;
+  let uploads: any;
   let prisma: any;
   let gateways: any;
   let gateway: any;
@@ -69,8 +70,18 @@ describe('PaymentsService', () => {
       webhooksTotal: { inc: jest.fn() },
     };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
-    manual = { accounts: jest.fn().mockResolvedValue([{ id: 'acc1', method: 'Bankily', country: 'MR', accountName: 'Patron', accountNumber: '22233344' }]) };
-    service = new PaymentsService(prisma, gateways, outbox, metrics, audit, manual);
+    manual = {
+      accounts: jest.fn().mockResolvedValue([
+        { id: 'acc1', method: 'Bankily', countries: ['MR'], accountName: 'Patron', accountNumber: '22233344', kind: 'mobile', enabled: true },
+        { id: 'off1', method: 'Moov Money', countries: ['ML'], accountName: '', accountNumber: '', kind: 'mobile', enabled: false },
+      ]),
+    };
+    uploads = {
+      hasProof: jest.fn().mockResolvedValue(true),
+      saveProof: jest.fn().mockResolvedValue({ proofId: 'up1' }),
+      getProof: jest.fn().mockResolvedValue({ mime: 'image/jpeg', data: Buffer.from('x') }),
+    };
+    service = new PaymentsService(prisma, gateways, outbox, metrics, audit, manual, uploads);
   });
 
   describe('initiate', () => {
@@ -345,19 +356,60 @@ describe('PaymentsService', () => {
       expect(data.rawResponse.transfer).toEqual(expect.objectContaining({ method: 'Bankily', reference: 'TX-998', payerPhone: '22244455' }));
     });
 
-    it("refuses another customer's payment, a non-manual payment, a reviewed one and an unknown account", async () => {
+    it("refuses another customer's payment, a non-manual payment, a reviewed one and an unknown or switched-off account", async () => {
+      const dto = (accountId = 'acc1') => ({ accountId, payerPhone: '22244455' });
       prisma.payment.findUnique.mockResolvedValueOnce(manualPayment({ userId: 'someone-else' }));
-      await expect(service.submitTransfer('pay1', 'u1', { accountId: 'acc1', reference: 'TX1' })).rejects.toThrow('another account');
+      await expect(service.submitTransfer('pay1', 'u1', dto())).rejects.toThrow('another account');
 
       prisma.payment.findUnique.mockResolvedValueOnce(manualPayment({ gateway: 'STRIPE' }));
-      await expect(service.submitTransfer('pay1', 'u1', { accountId: 'acc1', reference: 'TX1' })).rejects.toThrow('manual transfer');
+      await expect(service.submitTransfer('pay1', 'u1', dto())).rejects.toThrow('manual transfer');
 
       prisma.payment.findUnique.mockResolvedValueOnce(manualPayment({ status: 'CAPTURED' }));
-      await expect(service.submitTransfer('pay1', 'u1', { accountId: 'acc1', reference: 'TX1' })).rejects.toThrow('already been reviewed');
+      await expect(service.submitTransfer('pay1', 'u1', dto())).rejects.toThrow('already been reviewed');
 
       prisma.payment.findUnique.mockResolvedValueOnce(manualPayment());
-      await expect(service.submitTransfer('pay1', 'u1', { accountId: 'nope', reference: 'TX1' })).rejects.toThrow('Unknown transfer account');
+      await expect(service.submitTransfer('pay1', 'u1', dto('nope'))).rejects.toThrow('Unknown transfer account');
+
+      prisma.payment.findUnique.mockResolvedValueOnce(manualPayment());
+      await expect(service.submitTransfer('pay1', 'u1', dto('off1'))).rejects.toThrow('Unknown transfer account');
       expect(prisma.payment.update).not.toHaveBeenCalled();
+    });
+
+    it('needs a screenshot of the transfer before it can be reported', async () => {
+      prisma.payment.findUnique.mockResolvedValue(manualPayment());
+      uploads.hasProof.mockResolvedValueOnce(false);
+      await expect(service.submitTransfer('pay1', 'u1', { accountId: 'acc1', payerPhone: '22244455' })).rejects.toMatchObject({
+        response: expect.objectContaining({ error: 'PROOF_REQUIRED' }),
+      });
+      expect(prisma.payment.update).not.toHaveBeenCalled();
+    });
+
+    it('takes a receipt only from the payer, for an unreviewed manual payment', async () => {
+      prisma.payment.findUnique.mockResolvedValueOnce(manualPayment());
+      const file = { buffer: Buffer.from([0xff, 0xd8, 0xff]), size: 3 };
+      await expect(service.attachProof('pay1', 'u1', file)).resolves.toEqual({ proofId: 'up1' });
+      expect(uploads.saveProof).toHaveBeenCalledWith('pay1', file, 'u1');
+
+      prisma.payment.findUnique.mockResolvedValueOnce(null);
+      await expect(service.attachProof('pay1', 'u1', file)).rejects.toBeInstanceOf(NotFoundException);
+      prisma.payment.findUnique.mockResolvedValueOnce(manualPayment({ userId: 'other' }));
+      await expect(service.attachProof('pay1', 'u1', file)).rejects.toThrow('another account');
+      prisma.payment.findUnique.mockResolvedValueOnce(manualPayment({ gateway: 'WALLET' }));
+      await expect(service.attachProof('pay1', 'u1', file)).rejects.toThrow('receipt');
+      prisma.payment.findUnique.mockResolvedValueOnce(manualPayment({ status: 'FAILED' }));
+      await expect(service.attachProof('pay1', 'u1', file)).rejects.toThrow('already been reviewed');
+      expect(uploads.saveProof).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets staff open the receipt', async () => {
+      await expect(service.proof('pay1')).resolves.toEqual(expect.objectContaining({ mime: 'image/jpeg' }));
+      expect(uploads.getProof).toHaveBeenCalledWith('pay1');
+    });
+
+    it('shows customers only usable accounts, and the dashboard all of them', async () => {
+      prisma.systemSetting = { findUnique: jest.fn().mockResolvedValue(null) };
+      expect((await service.manualInstructions()).accounts.map((a) => a.id)).toEqual(['acc1']);
+      expect((await service.manualInstructions(true)).accounts.map((a) => a.id)).toEqual(['acc1', 'off1']);
     });
 
     it('approving captures the payment exactly like a gateway capture, and is audited', async () => {
@@ -399,10 +451,33 @@ describe('PaymentsService', () => {
         'admin1',
       );
       const saved = tx.systemSetting.upsert.mock.calls[0][0].create.value;
-      expect(saved[0]).toEqual(expect.objectContaining({ method: 'Masrvi', country: 'MR', accountNumber: '4455' }));
+      expect(saved[0]).toEqual(expect.objectContaining({ method: 'Masrvi', countries: ['MR'], accountNumber: '4455', kind: 'mobile', enabled: true }));
       expect(saved[0].id).toEqual(expect.any(String));
       expect(audit.record).toHaveBeenCalledWith(tx, expect.objectContaining({ action: 'payments.manual_accounts.update' }));
       expect(res.note).toBe('Send the order number as the reason');
+    });
+
+    it('saves several countries, the kind and the logo, and keeps a numberless method switched off', async () => {
+      tx.systemSetting = { upsert: jest.fn().mockResolvedValue({}) };
+      prisma.systemSetting = { findUnique: jest.fn().mockResolvedValue(null) };
+      await service.setManualInstructions(
+        {
+          accounts: [
+            { method: 'Binance Pay', countries: ['mr', 'XX', 'MR'], accountNumber: ' 123456789 ', kind: 'crypto', logo: 'binance' },
+            { method: 'Moov Money', countries: ['ML'], accountNumber: '', enabled: false },
+          ],
+        },
+        'admin1',
+      );
+      const saved = tx.systemSetting.upsert.mock.calls[0][0].create.value;
+      expect(saved[0]).toEqual(expect.objectContaining({ countries: ['MR', 'XX'], accountNumber: '123456789', kind: 'crypto', logo: 'binance', enabled: true }));
+      expect(saved[1]).toEqual(expect.objectContaining({ enabled: false, accountNumber: '' }));
+    });
+
+    it('refuses a switched-on method without a number to pay to', async () => {
+      await expect(
+        service.setManualInstructions({ accounts: [{ method: 'Nita', countries: ['NE'], accountNumber: '' }] }, 'admin1'),
+      ).rejects.toMatchObject({ response: expect.objectContaining({ error: 'ACCOUNT_NUMBER_REQUIRED' }) });
     });
   });
 });

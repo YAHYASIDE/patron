@@ -428,6 +428,24 @@ model ProductCode {
   @@map("product_codes")
 }
 
+/// Files people upload, kept in the database: the host keeps no disk across
+/// deploys and the owner has no image hosting. Transfer receipts are private
+/// (staff only); logos and banner images are public.
+model Upload {
+  id        String   @id @default(uuid()) @db.Uuid
+  kind      String // payment_proof | logo | banner
+  mime      String
+  size      Int
+  data      Bytes
+  isPublic  Boolean  @default(false)
+  userId    String?  @db.Uuid
+  paymentId String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("uploads")
+}
+
 model Banner {
   id         String    @id @default(uuid()) @db.Uuid
   titleAr    String

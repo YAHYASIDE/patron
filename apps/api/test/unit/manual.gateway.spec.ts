@@ -1,4 +1,4 @@
-import { ManualTransferGateway } from '../../src/modules/payments/gateways/manual.gateway';
+import { ManualTransferGateway, isUsable, normalizeAccount } from '../../src/modules/payments/gateways/manual.gateway';
 
 describe('ManualTransferGateway', () => {
   let prisma: any;
@@ -9,13 +9,26 @@ describe('ManualTransferGateway', () => {
     gateway = new ManualTransferGateway(prisma);
   });
 
-  it('is offered only once the owner configured at least one account', async () => {
+  it('is offered only once the owner switched on an account with a number', async () => {
     prisma.systemSetting.findUnique.mockResolvedValueOnce(null);
     await expect(gateway.isEnabled()).resolves.toBe(false);
     prisma.systemSetting.findUnique.mockResolvedValueOnce({ value: [] });
     await expect(gateway.isEnabled()).resolves.toBe(false);
-    prisma.systemSetting.findUnique.mockResolvedValueOnce({ value: [{ id: 'a', method: 'Bankily' }] });
+    prisma.systemSetting.findUnique.mockResolvedValueOnce({ value: [{ id: 'a', method: 'Moov', accountNumber: '', enabled: false }] });
+    await expect(gateway.isEnabled()).resolves.toBe(false);
+    prisma.systemSetting.findUnique.mockResolvedValueOnce({ value: [{ id: 'a', method: 'Bankily', accountNumber: '22227268' }] });
     await expect(gateway.isEnabled()).resolves.toBe(true);
+  });
+
+  it('reads accounts saved before countries existed', () => {
+    const legacy = normalizeAccount({ id: 'a', method: 'Bankily', country: 'MR', accountName: 'X', accountNumber: '1' });
+    expect(legacy).toEqual({ id: 'a', method: 'Bankily', countries: ['MR'], accountName: 'X', accountNumber: '1', kind: 'mobile', enabled: true });
+    expect(normalizeAccount({ id: 'b', method: 'USDT', countries: ['XX'], kind: 'crypto', logo: 'usdt', enabled: false, instructions: 'TRC20' }))
+      .toEqual(expect.objectContaining({ countries: ['XX'], kind: 'crypto', logo: 'usdt', enabled: false, instructions: 'TRC20', accountNumber: '' }));
+    expect(normalizeAccount({}).countries).toEqual([]);
+    expect(isUsable(legacy)).toBe(true);
+    expect(isUsable({ ...legacy, accountNumber: '  ' })).toBe(false);
+    expect(isUsable({ ...legacy, enabled: false })).toBe(false);
   });
 
   it('never settles by itself: initiate asks the customer to act', async () => {

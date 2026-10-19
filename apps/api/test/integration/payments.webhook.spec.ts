@@ -22,7 +22,7 @@ describe('Payment capture idempotency', () => {
       orderValue: { inc: jest.fn() },
       webhooksTotal: { inc: jest.fn() },
     };
-    payments = new PaymentsService(prisma, {} as any, new OutboxService(prisma), metrics, { record: jest.fn() } as any, {} as any);
+    payments = new PaymentsService(prisma, {} as any, new OutboxService(prisma), metrics, { record: jest.fn() } as any, {} as any, {} as any);
   });
 
   afterAll(() => prisma.$disconnect());

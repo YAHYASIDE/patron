@@ -32,6 +32,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ShopModule } from './modules/shop/shop.module';
 import { BannersModule } from './modules/banners/banners.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { ProvidersModule } from './modules/providers/providers.module';
@@ -79,6 +80,7 @@ import { optInTier } from './common/guards/throttle-tiers';
     PaymentsModule,
     ShopModule,
     BannersModule,
+    UploadsModule,
     ProvidersModule,
     NotificationsModule,
     FxModule,

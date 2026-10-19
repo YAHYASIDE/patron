@@ -1,9 +1,11 @@
 import {
-  Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Put, Req, UseInterceptors,
+  Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Put, Req, Res, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { imageInterceptor, sendImage } from '../uploads/uploads.controller';
+import { IncomingFile } from '../uploads/uploads.service';
 
 import { PaymentsService } from './payments.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -46,9 +48,22 @@ export class PaymentsController {
     return this.payments.manualInstructions();
   }
 
+  @ApiOperation({ summary: 'Attach a screenshot of a manual transfer (required before reporting it)' })
+  @ApiConsumes('multipart/form-data')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(200) @Post(':id/proof')
+  @UseInterceptors(imageInterceptor())
+  attachProof(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: IncomingFile,
+  ) {
+    return this.payments.attachProof(id, userId, file);
+  }
+
   @ApiOperation({
     summary: 'Report a manual transfer',
-    description: 'The customer submits the transaction reference; staff then approve or reject the payment.',
+    description: 'The customer gives the number they paid from (the receipt is already attached); staff then approve or reject.',
   })
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(200) @Post(':id/transfer')
@@ -121,9 +136,16 @@ export class PaymentsAdminController {
     return this.payments.rejectManual(id, dto.reason, actorId);
   }
 
+  /** The customer's receipt, private to staff. */
+  @RequirePermissions('payments.read') @Get(':id/proof')
+  async proof(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+    sendImage(res, await this.payments.proof(id), 'private, no-store');
+  }
+
+  /** Every account, switched-off ones included. */
   @RequirePermissions('settings.manage') @Get('manual-accounts')
   manualAccounts() {
-    return this.payments.manualInstructions();
+    return this.payments.manualInstructions(true);
   }
 
   @RequirePermissions('settings.manage') @Put('manual-accounts')
