@@ -46,6 +46,9 @@ services:
     dockerfilePath: apps/api/Dockerfile
     dockerContext: apps/api
     branch: claude/patron-monorepo-setup-1o2gl7
+    # deploy only after every GitHub check on the commit passed (CI, the
+    # browser checkout test, CodeQL), so a broken change never reaches customers
+    autoDeployTrigger: checksPass
     healthCheckPath: /api/v1/health/live
     buildFilter:
       paths:
@@ -116,6 +119,9 @@ services:
     dockerfilePath: apps/admin/Dockerfile
     dockerContext: apps/admin
     branch: claude/patron-monorepo-setup-1o2gl7
+    # deploy only after every GitHub check on the commit passed (CI, the
+    # browser checkout test, CodeQL), so a broken change never reaches customers
+    autoDeployTrigger: checksPass
     healthCheckPath: /login
     buildFilter:
       paths:
@@ -145,6 +151,9 @@ services:
     dockerfilePath: apps/storefront/Dockerfile
     dockerContext: apps/storefront
     branch: claude/patron-monorepo-setup-1o2gl7
+    # deploy only after every GitHub check on the commit passed (CI, the
+    # browser checkout test, CodeQL), so a broken change never reaches customers
+    autoDeployTrigger: checksPass
     healthCheckPath: /
     buildFilter:
       paths:
