@@ -2,7 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, Min, ValidateNested,
 } from 'class-validator';
-import { PaymentGateway } from '@prisma/client';
+import { PaymentGateway, RefundStatus } from '@prisma/client';
 
 export class InitiatePaymentDto {
   @IsUUID() orderId!: string;
@@ -15,6 +15,14 @@ export class RequestRefundDto {
   @IsOptional() @IsNumber({ maxDecimalPlaces: 4 }) @Min(0.0001) amount?: number;
   @IsString() @Length(3, 500) reason!: string;
   @IsOptional() toWallet?: boolean;
+}
+
+export class RejectRefundDto {
+  @IsString() @Length(3, 500) reason!: string;
+}
+
+export class RefundsQueryDto {
+  @IsOptional() @IsEnum(RefundStatus) status?: RefundStatus;
 }
 
 export class AdjustWalletDto {

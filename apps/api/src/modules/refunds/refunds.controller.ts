@@ -1,11 +1,10 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { RefundStatus } from '@prisma/client';
 
 import { RefundsService } from './refunds.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
-import { RequestRefundDto } from '../payments/dto/payment.dto';
+import { RefundsQueryDto, RejectRefundDto, RequestRefundDto } from '../payments/dto/payment.dto';
 
 /**
  * Lives in RefundsModule rather than PaymentsModule.
@@ -24,8 +23,8 @@ export class RefundsController {
   constructor(private readonly refunds: RefundsService) {}
 
   @RequirePermissions('payments.read') @Get()
-  findAll(@Query('status') status?: RefundStatus) {
-    return this.refunds.findAll(status);
+  findAll(@Query() query: RefundsQueryDto) {
+    return this.refunds.findAll(query.status);
   }
 
   @RequirePermissions('payments.refund') @Post()
@@ -34,12 +33,13 @@ export class RefundsController {
   }
 
   @RequirePermissions('payments.refund') @HttpCode(200) @Post(':id/process')
-  process(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+  process(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') actorId: string) {
     return this.refunds.process(id, actorId);
   }
 
   @RequirePermissions('payments.refund') @HttpCode(200) @Post(':id/reject')
-  reject(@Param('id') id: string, @Body('reason') reason: string, @CurrentUser('id') actorId: string) {
-    return this.refunds.reject(id, actorId, reason);
+  // a validated body, not @Body('reason'): a raw field skips validation and may arrive as an array
+  reject(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RejectRefundDto, @CurrentUser('id') actorId: string) {
+    return this.refunds.reject(id, actorId, dto.reason);
   }
 }

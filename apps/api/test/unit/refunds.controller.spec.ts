@@ -16,7 +16,7 @@ describe('RefundsController', () => {
   });
 
   it('lists refunds filtered by status', async () => {
-    await controller.findAll(RefundStatus.REQUESTED);
+    await controller.findAll({ status: RefundStatus.REQUESTED });
     expect(refunds.findAll).toHaveBeenCalledWith(RefundStatus.REQUESTED);
   });
 
@@ -38,8 +38,18 @@ describe('RefundsController', () => {
   });
 
   it('rejects a refund with a reason', async () => {
-    // controller signature is reject(id, reason, actorId)
-    await controller.reject('ref1', 'not eligible', 'admin');
+    await controller.reject('ref1', { reason: 'not eligible' }, 'admin');
     expect(refunds.reject).toHaveBeenCalledWith('ref1', 'admin', 'not eligible');
+  });
+
+  it('validates the reject body and the status filter instead of trusting raw fields', async () => {
+    const { validate } = await import('class-validator');
+    const { plainToInstance } = await import('class-transformer');
+    const { RejectRefundDto, RefundsQueryDto } = await import('../../src/modules/payments/dto/payment.dto');
+    const errs = async (cls: any, body: object) => (await validate(plainToInstance(cls, body))).map((e) => e.property);
+    expect(await errs(RejectRefundDto, { reason: ['a', 'b', 'c'] })).toEqual(['reason']);
+    expect(await errs(RejectRefundDto, { reason: 'not eligible' })).toEqual([]);
+    expect(await errs(RefundsQueryDto, { status: ['REQUESTED'] })).toEqual(['status']);
+    expect(await errs(RefundsQueryDto, {})).toEqual([]);
   });
 });
