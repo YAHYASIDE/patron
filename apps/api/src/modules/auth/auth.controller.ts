@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Ip, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Ip, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -9,7 +9,7 @@ import { AuthUser, CurrentUser } from '../../common/decorators/current-user.deco
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import {
   ChangePasswordDto, ForgotPasswordDto, LoginDto, PhoneLoginDto, PhoneStartDto, RefreshDto,
-  RegisterDto, RequestPhoneCodeDto, ResetPasswordDto, VerifyCodeDto,
+  RegisterDto, RequestPhoneCodeDto, ResetPasswordDto, SetPasswordDto, VerifyCodeDto,
 } from './dto/auth.dto';
 
 @ApiTags('auth')
@@ -33,18 +33,18 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   register(@Body() dto: RegisterDto, @Req() req: Request, @Ip() ip: string) {
-    return this.auth.register(dto, this.meta(req, ip));
+    return this.auth.register(dto, this.meta(req, ip, dto.deviceInfo));
   }
 
   @ApiOperation({
-    summary: 'Log in with email and password',
+    summary: 'Log in with an email or a phone number and a password',
     description:
-      'Argon2id-verified. Returns a token pair. Failed attempts count toward the ' +
-      'lockout threshold.',
+      '`identifier` is an email or an E.164 number (`email` still works). Argon2id-verified. ' +
+      'Failures count per (identifier, IP) and per IP, never against the account everywhere.',
   })
   @ApiResponse({ status: 200, description: 'Authenticated; token pair returned.' })
-  @ApiResponse({ status: 401, description: 'Invalid email or password.' })
-  @ApiResponse({ status: 403, description: 'Account blocked/inactive, or too many failed attempts.' })
+  @ApiResponse({ status: 401, description: 'INVALID_CREDENTIALS.' })
+  @ApiResponse({ status: 403, description: 'Account blocked/inactive, or TOO_MANY_ATTEMPTS (with retryAfter).' })
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(200)
@@ -170,10 +170,70 @@ export class AuthController {
   }
 
   @ApiOperation({
-    summary: 'Request a password-reset code',
-    description: 'Always returns the same response whether or not the email exists, to avoid account enumeration.',
+    summary: 'Send the email-verification code again',
+    description: 'One per cooldown (429 RESEND_COOLDOWN with retryAfter). EMAIL_NOT_CONFIGURED when email is off.',
   })
-  @ApiResponse({ status: 200, description: 'Reset code sent if the email is registered.' })
+  @ApiResponse({ status: 200, description: '{ status: SENT | VERIFIED }.' })
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @HttpCode(200)
+  @Post('verify-email/resend')
+  resendEmailCode(@CurrentUser('id') userId: string) {
+    return this.auth.resendEmailCode(userId);
+  }
+
+  @ApiOperation({
+    summary: 'Add a first password (WhatsApp-number accounts)',
+    description: 'Only once the number (or email) is verified; then POST /auth/login accepts the number + password.',
+  })
+  @ApiResponse({ status: 200, description: 'Password set.' })
+  @ApiResponse({ status: 400, description: 'PASSWORD_ALREADY_SET.' })
+  @ApiResponse({ status: 403, description: 'VERIFY_FIRST.' })
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @HttpCode(200)
+  @Post('password')
+  setPassword(@CurrentUser('id') userId: string, @Body() dto: SetPasswordDto, @Req() req: Request, @Ip() ip: string) {
+    return this.auth.setPassword(userId, dto, this.meta(req, ip));
+  }
+
+  // ─────────────── Sessions & devices ───────────────
+
+  @ApiOperation({ summary: 'My signed-in devices', description: 'The device asking is marked `current`.' })
+  @ApiBearerAuth()
+  @Get('sessions')
+  sessions(@CurrentUser() user: AuthUser) {
+    return this.auth.listSessions(user.id, user.sessionId);
+  }
+
+  @ApiOperation({ summary: 'Sign out every device except this one' })
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @Post('sessions/revoke-others')
+  revokeOtherSessions(@CurrentUser() user: AuthUser, @Req() req: Request, @Ip() ip: string) {
+    return this.auth.revokeOtherSessions(user.id, user.sessionId, this.meta(req, ip));
+  }
+
+  @ApiOperation({ summary: 'Sign out one device', description: 'Its refresh token stops working and its access token is refused at once.' })
+  @ApiResponse({ status: 404, description: 'SESSION_NOT_FOUND.' })
+  @ApiBearerAuth()
+  @Delete('sessions/:id')
+  revokeSession(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+    @Ip() ip: string,
+  ) {
+    return this.auth.revokeSession(userId, id, this.meta(req, ip));
+  }
+
+  @ApiOperation({
+    summary: 'Request a password-reset code by email or by phone',
+    description:
+      '`identifier` is an email or an E.164 number. Always the same response whether or not an ' +
+      'account exists. EMAIL_NOT_CONFIGURED (by email) depends on server settings only.',
+  })
+  @ApiResponse({ status: 200, description: 'Reset code sent if the account exists.' })
   @Public()
   @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @HttpCode(200)
@@ -184,16 +244,16 @@ export class AuthController {
 
   @ApiOperation({
     summary: 'Reset the password with a code',
-    description: 'Consumes the reset code and revokes every existing session.',
+    description: 'Only after proving the code sent to that email or number; revokes every existing session.',
   })
   @ApiResponse({ status: 200, description: 'Password reset; all sessions revoked.' })
-  @ApiResponse({ status: 400, description: 'Invalid or expired code.' })
+  @ApiResponse({ status: 400, description: 'INVALID_CODE or CODE_ATTEMPTS_EXCEEDED.' })
   @Public()
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @HttpCode(200)
   @Post('reset-password')
-  resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.auth.resetPassword(dto);
+  resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request, @Ip() ip: string) {
+    return this.auth.resetPassword(dto, this.meta(req, ip));
   }
 }
 
