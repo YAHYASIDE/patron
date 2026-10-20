@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx jest --config test/jest-unit.json)",
+      "Bash(npx jest --config test/jest-unit.json *)",
+      "Bash(npm run lint:check)",
+      "Bash(npx tsc --noEmit -p tsconfig.json)",
+      "Bash(pg_isready)",
+      "Bash(pg_isready *)",
+      "Bash(redis-cli ping)",
+      "Bash(node --test tools/discovery/test/*.test.mjs tools/ai-team/test/*.test.mjs)",
+      "Bash(npx eslint \"{src,test}/**/*.ts\" --max-warnings 0)",
+      "mcp__github__actions_list",
+      "mcp__github__get_job_logs",
+      "mcp__github__actions_get",
+      "mcp__github__pull_request_read",
+      "mcp__Claude_Code_Remote__read_documentation"
+    ]
+  }
+}
