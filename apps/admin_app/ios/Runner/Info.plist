@@ -7,7 +7,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Patron Admin</string>
+	<string>Patron الإدارة</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>يستعمل Face ID لفتح جلسة الإدارة المحفوظة.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
