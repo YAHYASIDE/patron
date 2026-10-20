@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: translate(
       lang,
-      'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.',
+      'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، ونسلّمها لك بعد تأكيد الدفع. أسعار واضحة ودفع آمن.',
     ),
     applicationName: 'patron',
     // installable app (public/manifest.webmanifest, icons from public/icons/*.svg)
