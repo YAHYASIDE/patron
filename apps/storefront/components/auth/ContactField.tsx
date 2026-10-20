@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import PhoneField from '@/components/PhoneField';
 import { DEFAULT_COUNTRY, nationalNumberProblem, toE164 } from '@/lib/countries';
 import { useT } from '@/lib/i18n';
+import { isEmail } from '@/lib/email';
 
 export const authField =
   'surface-2 hairline w-full rounded-xl border px-3.5 py-3 text-[16px] outline-none transition focus:border-teal';
@@ -35,7 +36,7 @@ export default function ContactField({
       onChange({ value: toE164(country, number), problem: nationalNumberProblem(country, number) });
     } else {
       const v = email.trim().toLowerCase();
-      onChange({ value: v, problem: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : t('تحقّق من البريد الإلكتروني.') });
+      onChange({ value: v, problem: isEmail(v) ? null : t('تحقّق من البريد الإلكتروني.') });
     }
     // onChange is a fresh closure each render; the inputs are what matter
     // eslint-disable-next-line react-hooks/exhaustive-deps

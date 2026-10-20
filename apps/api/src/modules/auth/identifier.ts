@@ -1,9 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Destination } from './codes.service';
+import { isEmail } from '../../common/validation/email';
 
 export const E164 = /^\+[1-9]\d{7,14}$/;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * What a customer typed to name their account: an email or an E.164 number.
@@ -13,7 +13,7 @@ export function parseIdentifier(raw: string | undefined | null): Destination {
   const value = (raw ?? '').trim();
   if (value.includes('@')) {
     const email = value.toLowerCase();
-    if (EMAIL.test(email) && email.length <= 254) return { kind: 'email', to: email };
+    if (isEmail(email)) return { kind: 'email', to: email };
   } else {
     const phone = value.replace(/[\s\-().]/g, '').replace(/^00/, '+');
     if (E164.test(phone)) return { kind: 'phone', to: phone };

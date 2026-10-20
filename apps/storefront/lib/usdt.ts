@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, BASE, getAccess, request } from './api';
 import { getLang, tNow } from './i18n';
+import { isEmail } from '@/lib/email';
 
 // ─────────────── types (the API's shapes) ───────────────
 
@@ -322,7 +323,7 @@ export function checkBinanceId(input: string): AddressCheck {
   const raw = input.trim();
   if (!raw) return { ok: false, code: 'USDT_BINANCE_ID_REQUIRED', message: tNow('اكتب معرّف Binance.') };
   if (/^\d{6,12}$/.test(raw)) return { ok: true };
-  if (raw.includes('@') ? /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(raw) : /^\+\d{8,15}$/.test(raw.replace(/[\s-]/g, ''))) return { ok: true };
+  if (raw.includes('@') ? isEmail(raw, { max: 120, tld: true }) : /^\+\d{8,15}$/.test(raw.replace(/[\s-]/g, ''))) return { ok: true };
   return {
     ok: false,
     code: 'USDT_BINANCE_ID_INVALID',

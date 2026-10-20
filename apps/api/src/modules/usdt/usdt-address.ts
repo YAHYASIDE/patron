@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { UsdtNetwork } from '@prisma/client';
 import { keccak256 } from './keccak';
+import { isEmail } from '../../common/validation/email';
 
 /**
  * Destination checks for USDT. USDT sent to an address on the wrong chain is
@@ -147,7 +148,7 @@ export function validateBinanceId(input: string | null | undefined): CheckResult
   if (/^\d{6,12}$/.test(raw)) return { ok: true, value: raw };
   if (raw.includes('@')) {
     const email = raw.toLowerCase();
-    if (email.length <= 120 && /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(email)) return { ok: true, value: email };
+    if (isEmail(email, { max: 120, tld: true })) return { ok: true, value: email };
     return { ok: false, code: 'USDT_BINANCE_ID_INVALID', message: 'This e-mail address is not valid' };
   }
   const phone = raw.replace(/[\s-]/g, '');
