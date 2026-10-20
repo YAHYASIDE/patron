@@ -21,6 +21,9 @@ const SORTS = [
 ] as const;
 type SortId = (typeof SORTS)[number]['id'];
 
+/** Typed text inside a sentence keeps its own direction (Latin in Arabic keeps the «» on the right sides). */
+const isolate = (s: string) => `⁨${s}⁩`;
+
 // a brand's price is its cheapest denomination ("from …")
 const from = (b: Brand) => parseFloat(b.products[0]?.sellPrice ?? '0');
 
@@ -147,7 +150,7 @@ function ProductsInner() {
             {offers && !search
               ? t('لا توجد عروض في هذا القسم الآن.')
               : search.trim()
-                ? t('لا نتائج لـ «{search}»', { search: search.trim() })
+                ? t('لا نتائج لـ «{search}»', { search: isolate(search.trim()) })
                 : t('لا يوجد ما يطابق «{search}». جرّب اسمًا آخر أو اختر قسمًا.', { search })}
           </p>
           {search.trim() && (
