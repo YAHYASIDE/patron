@@ -60,10 +60,10 @@ const dict: Dict = {
     'جارٍ المعالجة…': 'Traitement…',
     'متابعة إلى التحويل': 'Continuer vers le virement',
     'ادفع الآن': 'Payez maintenant',
-    'بالضغط على «ادفع الآن» فأنت توافق على الشروط.':
-      'En cliquant sur « Payez maintenant », vous acceptez les conditions.',
+    'بالمتابعة فأنت توافق على': 'En continuant, vous acceptez les',
+    'شروط المتجر': 'conditions de la boutique',
     'رصيد المحفظة': 'Solde du portefeuille',
-    'تحويل (بنكيلي، مصرفي، أورنج موني، Binance…)': 'Virement (Bankily, Masrvi, Orange Money, Binance…)',
+    'تحويل عبر تطبيق الدفع أو البنك': 'Virement par application de paiement ou banque',
     'بطاقة بنكية': 'Carte bancaire',
     'رصيد محفظتك غير كافٍ.': 'Le solde de votre portefeuille est insuffisant.',
     'انتهت مهلة الدفع لهذا الطلب. أنشئ طلبًا جديدًا.':
@@ -82,8 +82,7 @@ const dict: Dict = {
     'تعذّر فتح صفحة الدفع بالبطاقة الآن. حاول بعد قليل أو ادفع بالتحويل.':
       "Impossible d'ouvrir la page de paiement par carte pour le moment. Réessayez dans un instant ou payez par virement.",
     'وصلنا تحويلك، بانتظار تأكيد المتجر': 'Virement reçu, en attente de confirmation par la boutique',
-    'نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.':
-      'Nous vérifions la réception du montant, puis nous vous livrons votre commande ici. Actualisez la page plus tard pour voir le code.',
+    'نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا، ويصلك إشعار عند التسليم.': 'Nous vérifions la réception du montant puis livrons votre commande ici ; vous serez notifié à la livraison.',
     تحديث: 'Actualiser',
     'تصحيح بيانات التحويل': 'Corriger les informations du virement',
     'ادفع لإتمام الطلب': 'Payez pour finaliser la commande',
@@ -122,7 +121,7 @@ const dict: Dict = {
     'تغيير الصورة': "Changer l'image",
     'أرفق لقطة شاشة للتحويل': "Joindre une capture d'écran du virement",
     'تظهر فيها العملية والمبلغ': "Montrant l'opération et le montant",
-    'رقم العملية (اختياري) / Transaction ID': 'N° de transaction (facultatif)',
+    'رقم العملية (اختياري)': 'N° de transaction (facultatif)',
     'جارٍ الإرسال…': 'Envoi…',
     'أرسلت المبلغ': "J'ai envoyé le montant",
     رجوع: 'Retour',
@@ -130,6 +129,9 @@ const dict: Dict = {
     'تم استلام الطلب': 'Commande reçue',
     'تم تأكيد الدفع': 'Paiement confirmé',
     'نراجع تحويلك': 'Nous vérifions votre virement',
+    'مرّت 15 دقيقة فحدّثنا السعر. راجع الإجمالي ثم أكمل.': 'Après 15 minutes, nous avons actualisé le prix. Vérifiez le total puis continuez.',
+    'تعذّر إتمام الدفع. افتح صفحة الطلب لتدفع بطريقة أخرى، أو راسلنا على واتساب.':
+      "Le paiement n'a pas abouti. Ouvrez la page de la commande pour payer autrement, ou écrivez-nous sur WhatsApp.",
     'بانتظار الدفع': 'En attente de paiement',
     'نؤكّده خلال وقت قصير': 'Confirmation sous peu',
     'سُلّم جزء من الطلب': 'Commande livrée en partie',
@@ -139,7 +141,7 @@ const dict: Dict = {
     'إن كنت دفعت، راسلنا على واتساب لنعيد لك المبلغ.':
       'Si vous avez déjà payé, écrivez-nous sur WhatsApp pour être remboursé.',
     'تعذّر تنفيذ الطلب': "La commande n'a pas pu être traitée",
-    'سنتواصل معك، أو راسلنا على واتساب.': 'Nous allons vous contacter, ou écrivez-nous sur WhatsApp.',
+    'لم نستطع تسليمه تلقائيًا. سنسلّمه يدويًا أو نعيد لك المبلغ كاملًا، ولا داعي للدفع مرة أخرى.': 'Nous n\'avons pas pu la livrer automatiquement. Nous la livrerons à la main ou vous rembourserons entièrement ; inutile de payer à nouveau.',
     'أُعيد المبلغ': 'Commande remboursée',
     'أعدنا لك قيمة هذا الطلب.': 'Nous vous avons remboursé le montant de cette commande.',
   },
@@ -202,9 +204,10 @@ const dict: Dict = {
     'جارٍ المعالجة…': 'Processing…',
     'متابعة إلى التحويل': 'Continue to transfer',
     'ادفع الآن': 'Pay now',
-    'بالضغط على «ادفع الآن» فأنت توافق على الشروط.': 'By clicking “Pay now”, you agree to the terms.',
+    'بالمتابعة فأنت توافق على': 'By continuing, you agree to the',
+    'شروط المتجر': 'shop terms',
     'رصيد المحفظة': 'Wallet balance',
-    'تحويل (بنكيلي، مصرفي، أورنج موني، Binance…)': 'Transfer (Bankily, Masrvi, Orange Money, Binance…)',
+    'تحويل عبر تطبيق الدفع أو البنك': 'Transfer by payment app or bank',
     'بطاقة بنكية': 'Bank card',
     'رصيد محفظتك غير كافٍ.': 'Your wallet balance is too low.',
     'انتهت مهلة الدفع لهذا الطلب. أنشئ طلبًا جديدًا.':
@@ -222,8 +225,7 @@ const dict: Dict = {
     'تعذّر فتح صفحة الدفع بالبطاقة الآن. حاول بعد قليل أو ادفع بالتحويل.':
       "Couldn't open the card payment page right now. Try again shortly or pay by transfer.",
     'وصلنا تحويلك، بانتظار تأكيد المتجر': 'Transfer received, waiting for the shop to confirm',
-    'نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.':
-      'We check that the money has arrived, then deliver your order here. Refresh the page later to see the code.',
+    'نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا، ويصلك إشعار عند التسليم.': 'We check that the money arrived, then deliver your order here; you will be notified when it is delivered.',
     تحديث: 'Refresh',
     'تصحيح بيانات التحويل': 'Correct the transfer details',
     'ادفع لإتمام الطلب': 'Pay to complete your order',
@@ -261,7 +263,7 @@ const dict: Dict = {
     'تغيير الصورة': 'Change image',
     'أرفق لقطة شاشة للتحويل': 'Attach a screenshot of the transfer',
     'تظهر فيها العملية والمبلغ': 'Showing the transaction and the amount',
-    'رقم العملية (اختياري) / Transaction ID': 'Transaction ID (optional)',
+    'رقم العملية (اختياري)': 'Transaction ID (optional)',
     'جارٍ الإرسال…': 'Sending…',
     'أرسلت المبلغ': "I've sent the money",
     رجوع: 'Back',
@@ -269,6 +271,9 @@ const dict: Dict = {
     'تم استلام الطلب': 'Order received',
     'تم تأكيد الدفع': 'Payment confirmed',
     'نراجع تحويلك': "We're checking your transfer",
+    'مرّت 15 دقيقة فحدّثنا السعر. راجع الإجمالي ثم أكمل.': 'After 15 minutes we refreshed the price. Check the total, then continue.',
+    'تعذّر إتمام الدفع. افتح صفحة الطلب لتدفع بطريقة أخرى، أو راسلنا على واتساب.':
+      "The payment didn't go through. Open the order page to pay another way, or message us on WhatsApp.",
     'بانتظار الدفع': 'Awaiting payment',
     'نؤكّده خلال وقت قصير': "We'll confirm it shortly",
     'سُلّم جزء من الطلب': 'Part of the order delivered',
@@ -278,7 +283,7 @@ const dict: Dict = {
     'إن كنت دفعت، راسلنا على واتساب لنعيد لك المبلغ.':
       "If you already paid, message us on WhatsApp and we'll refund you.",
     'تعذّر تنفيذ الطلب': "The order couldn't be fulfilled",
-    'سنتواصل معك، أو راسلنا على واتساب.': "We'll get in touch, or message us on WhatsApp.",
+    'لم نستطع تسليمه تلقائيًا. سنسلّمه يدويًا أو نعيد لك المبلغ كاملًا، ولا داعي للدفع مرة أخرى.': 'We could not deliver it automatically. We will deliver it by hand or refund you in full; there is no need to pay again.',
     'أُعيد المبلغ': 'Refunded',
     'أعدنا لك قيمة هذا الطلب.': "We've refunded the amount of this order.",
   },

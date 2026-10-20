@@ -523,6 +523,7 @@ export type ReportPayMethod = {
 export type ReportSummary = {
   range: { from: string; to: string };
   totals: {
+    /** Net sales: refunds and paid lines that failed or were cancelled are already taken off. */
     revenue: string;
     cost: string;
     profit: string;
@@ -532,11 +533,14 @@ export type ReportSummary = {
     averageOrder: string;
   };
   losses: {
+    /** Already taken off the sales: shown for the record, never a loss on top. */
     refunds: string;
     refundCount: number;
     belowCost: { productId: string; sku: string; nameAr: string; units: number; loss: string }[];
     belowCostTotal: string;
-    failedOrCancelled: { count: number; value: string };
+    /** Paid orders/lines that failed or were cancelled and are not refunded yet: owed, not lost. */
+    owed: { count: number; value: string };
+    /** The only real loss: what was sold under its cost (= belowCostTotal). */
     total: string;
   };
   today: {
@@ -544,7 +548,10 @@ export type ReportSummary = {
     cost: string;
     profit: string;
     orders: number;
+    /** Money that actually came in today; the wallet is not in it (see walletUsed). */
     cashByMethod: { method: string; gateway: ReportPayGateway; logo: string | null; amount: string; orders: number }[];
+    /** Paid today from wallet balances received earlier: not new cash. */
+    walletUsed: { amount: string; orders: number };
   };
   byMethod: ReportPayMethod[];
   topCustomers: {

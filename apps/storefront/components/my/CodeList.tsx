@@ -48,7 +48,7 @@ export default function CodeList({ values, product }: { values: Revealed[]; prod
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   onClick={() => copy(i, r.value)}
-                  className="surface inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold"
+                  className="surface inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-bold"
                 >
                   {copied === i ? <CheckIcon size={14} className="text-ok" /> : null}
                   {copied === i ? t('تم النسخ') : t('نسخ')}

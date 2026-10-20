@@ -13,7 +13,10 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       <Header />
       <WakeBanner />
       <VerifyBanner />
-      <main className="flex-1">
+      {/* at least a screen tall: the footer starts below the fold, so content
+          arriving after the catalogue loads never pushes a visible footer down */}
+      {/* and room at the bottom on phones, so the WhatsApp button never sits on the last line */}
+      <main className="min-h-[100svh] flex-1 pb-20 lg:pb-0">
         <AuthGate>{children}</AuthGate>
       </main>
       <Footer />

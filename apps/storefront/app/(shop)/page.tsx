@@ -75,10 +75,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* where the visitor left off, then what sells */}
-      <BrandRow title={t('شاهدتها مؤخرًا')} icon={<HistoryIcon size={20} />} brands={recent} />
-      <BrandRow title={t('الأكثر مبيعًا هذا الشهر')} icon={<TrendIcon size={20} />} brands={best} />
-
       {/* the brands the owner wants seen first, in their order */}
       <section className="mx-auto max-w-page px-4 pt-7">
         <h2 className="text-xl font-extrabold">{t('الأكثر طلبًا')}</h2>
@@ -89,8 +85,24 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* where the visitor left off, then what sells: below the owner's list, so
+          rows that arrive after their own request never push it down */}
+      <BrandRow title={t('شاهدتها مؤخرًا')} icon={<HistoryIcon size={20} />} brands={recent} />
+      <BrandRow title={t('الأكثر مبيعًا هذا الشهر')} icon={<TrendIcon size={20} />} brands={best} />
+
       {/* everything else, one column per section */}
       <div className="mx-auto mt-10 grid max-w-page items-start gap-4 px-4 lg:grid-cols-2">
+        {loading &&
+          Array.from({ length: 4 }).map((_, i) => (
+            <section key={i} aria-hidden className="surface rounded-2xl p-4 shadow-card sm:p-5">
+              <div className="h-6 w-1/3 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
+              <div className="mt-4 grid grid-cols-4 gap-x-2.5 gap-y-4">
+                {Array.from({ length: PER_SECTION }).map((__, j) => (
+                  <BrandTileSkeleton key={j} />
+                ))}
+              </div>
+            </section>
+          ))}
         {sections.map(({ section, brands: list }) => (
           <section key={section.id} className="surface rounded-2xl p-4 shadow-card sm:p-5">
             <div className="flex items-baseline justify-between gap-3">

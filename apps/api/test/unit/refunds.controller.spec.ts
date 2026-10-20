@@ -33,8 +33,8 @@ describe('RefundsController', () => {
   });
 
   it('processes a refund by id with the acting admin', async () => {
-    await controller.process('ref1', 'admin');
-    expect(refunds.process).toHaveBeenCalledWith('ref1', 'admin');
+    await controller.process('ref1', { reference: 'BK-7781' }, 'admin');
+    expect(refunds.process).toHaveBeenCalledWith('ref1', 'admin', 'BK-7781');
   });
 
   it('rejects a refund with a reason', async () => {

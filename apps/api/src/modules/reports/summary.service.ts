@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { MANUAL_ACCOUNTS_KEY, ManualAccount, normalizeAccount } from '../payments/gateways/manual.gateway';
 import { ReportSummaryQueryDto } from './dto/summary.dto';
+import { COUNTED_ITEM, NET_JOINS, NET_REVENUE, PAID_ORDER as PAID } from './sales-sql';
 
 const DAY_MS = 86_400_000;
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
@@ -11,14 +12,6 @@ const usd = (v: Prisma.Decimal) => v.toFixed(2);
 const pct = (part: Prisma.Decimal, whole: Prisma.Decimal) =>
   whole.gt(0) ? part.div(whole).mul(100).toDecimalPlaces(1).toNumber() : 0;
 
-/**
- * A paid order, exactly as InsightsService counts one so the reports page and
- * the dashboard home agree: it counts on the day it was paid, and failed,
- * refunded and cancelled orders are not sales.
- */
-const PAID = Prisma.sql`o."status" NOT IN ('PENDING_PAYMENT', 'CANCELLED', 'FAILED', 'REFUNDED')`;
-/** Items whose frozen cost counts: everything not failed, refunded or cancelled. */
-const COUNTED_ITEM = Prisma.sql`i."status" NOT IN ('FAILED', 'REFUNDED', 'CANCELLED')`;
 /** An item line sold under its cost by more than half a cent (fx rounding is not a loss). */
 const BELOW_COST = Prisma.sql`i."unitCost" * i."quantity" - i."lineTotal" / o."fxRate" > 0.005`;
 
@@ -34,7 +27,7 @@ type ProductRow = {
   productId: string; sku: string; nameAr: string; units: number; revenue: string; profit: string;
   belowUnits: number; belowLoss: string;
 };
-type LossRow = { refunds: string; refundCount: number; failedCount: number; failedValue: string };
+type LossRow = { refunds: string; refundCount: number; owedCount: number; owedValue: string };
 
 export interface PayMethod {
   method: string;
@@ -109,9 +102,14 @@ export class ReportSummaryService {
       cost: usd(tCost),
       profit: usd(tRevenue.minus(tCost)),
       orders: t?.orders ?? 0,
-      cashByMethod: this.label(todayMethods, logos).map((m) => ({
-        method: m.method, gateway: m.gateway, logo: m.logo, amount: m.revenue, orders: m.orders,
-      })),
+      // money that actually came in today; a wallet payment spends a balance received earlier
+      cashByMethod: this.label(todayMethods, logos)
+        .filter((m) => m.gateway !== 'WALLET')
+        .map((m) => ({ method: m.method, gateway: m.gateway, logo: m.logo, amount: m.revenue, orders: m.orders })),
+      walletUsed: (() => {
+        const w = this.label(todayMethods, logos).find((m) => m.gateway === 'WALLET');
+        return { amount: w?.revenue ?? '0.00', orders: w?.orders ?? 0 };
+      })(),
     };
 
     // ── losses ──
@@ -120,7 +118,7 @@ export class ReportSummaryService {
       .sort((a, b) => D(b.belowLoss).cmp(D(a.belowLoss)))
       .map((p) => ({ productId: p.productId, sku: p.sku, nameAr: p.nameAr, units: p.belowUnits, loss: usd(D(p.belowLoss)) }));
     const belowTotal = products.reduce((s, p) => s.plus(p.belowLoss), D(0));
-    const l = losses[0] ?? { refunds: '0', refundCount: 0, failedCount: 0, failedValue: '0' };
+    const l = losses[0] ?? { refunds: '0', refundCount: 0, owedCount: 0, owedValue: '0' };
 
     return {
       range: { from, to },
@@ -134,12 +132,15 @@ export class ReportSummaryService {
         averageOrder: usd(orders > 0 ? revenue.div(orders) : D(0)),
       },
       losses: {
+        // already taken off the sales: shown so the owner sees what went back, never subtracted twice
         refunds: usd(D(l.refunds)),
         refundCount: l.refundCount,
         belowCost: belowCost.slice(0, 20),
         belowCostTotal: usd(belowTotal),
-        failedOrCancelled: { count: l.failedCount, value: usd(D(l.failedValue)) },
-        total: usd(D(l.refunds).plus(belowTotal).plus(l.failedValue)),
+        // paid but not delivered and not refunded yet: money the customers are owed
+        owed: { count: l.owedCount, value: usd(D(l.owedValue)) },
+        // the only real loss: what was sold under its cost
+        total: usd(belowTotal),
       },
       today,
       byMethod: this.label(methods, logos).map((m) => ({ ...m, share: pct(D(m.revenue), revenue) })),
@@ -165,10 +166,11 @@ export class ReportSummaryService {
     return this.prisma.$queryRaw<DayRow[]>`
       SELECT date_trunc('day', o."paidAt") AS day,
              COUNT(*)::int AS orders,
-             COALESCE(SUM(o."totalBase"), 0)::text AS revenue,
+             COALESCE(SUM(${NET_REVENUE}), 0)::text AS revenue,
              COALESCE(SUM(c.cost), 0)::text AS cost,
              COALESCE(SUM(c.delivered), 0)::int AS delivered
       FROM "orders" o
+      ${NET_JOINS}
       LEFT JOIN LATERAL (
         SELECT SUM(i."unitCost" * i."quantity") AS cost,
                SUM(i."quantity") FILTER (WHERE i."status" = 'DELIVERED') AS delivered
@@ -196,8 +198,9 @@ export class ReportSummaryService {
              MIN(p."gateway"::text) AS gateway,
              MIN(NULLIF(BTRIM(p."rawResponse"->'transfer'->>'method'), '')) AS name,
              COUNT(*)::int AS orders,
-             COALESCE(SUM(o."totalBase"), 0)::text AS revenue
+             COALESCE(SUM(${NET_REVENUE}), 0)::text AS revenue
       FROM "orders" o
+      ${NET_JOINS}
       LEFT JOIN LATERAL (
         SELECT y."gateway", y."rawResponse"
         FROM "payments" y
@@ -207,7 +210,7 @@ export class ReportSummaryService {
       ) p ON TRUE
       WHERE o."paidAt" >= ${from} AND o."paidAt" < ${to} AND ${PAID}
       GROUP BY 1
-      ORDER BY SUM(o."totalBase") DESC, COUNT(*) DESC
+      ORDER BY SUM(${NET_REVENUE}) DESC, COUNT(*) DESC
     `;
   }
 
@@ -219,11 +222,12 @@ export class ReportSummaryService {
     }>>`
       SELECT u."id", u."fullName", u."phone", u."country",
              COUNT(*)::int AS orders,
-             SUM(o."totalBase")::text AS spent,
-             SUM(o."totalBase" - COALESCE(c.cost, 0))::text AS profit,
+             SUM(${NET_REVENUE})::text AS spent,
+             SUM(${NET_REVENUE} - COALESCE(c.cost, 0))::text AS profit,
              MAX(o."paidAt") AS "lastOrderAt"
       FROM "orders" o
       JOIN "users" u ON u."id" = o."userId"
+      ${NET_JOINS}
       LEFT JOIN LATERAL (
         SELECT SUM(i."unitCost" * i."quantity") AS cost
         FROM "order_items" i
@@ -231,7 +235,7 @@ export class ReportSummaryService {
       ) c ON TRUE
       WHERE o."paidAt" >= ${from} AND o."paidAt" < ${to} AND ${PAID}
       GROUP BY u."id"
-      ORDER BY SUM(o."totalBase") DESC, COUNT(*) DESC
+      ORDER BY SUM(${NET_REVENUE}) DESC, COUNT(*) DESC
       LIMIT 10
     `;
   }
@@ -259,19 +263,21 @@ export class ReportSummaryService {
 
   private countries(from: Date, to: Date) {
     return this.prisma.$queryRaw<Array<{ country: string | null; orders: number; revenue: string }>>`
-      SELECT u."country", COUNT(*)::int AS orders, COALESCE(SUM(o."totalBase"), 0)::text AS revenue
+      SELECT u."country", COUNT(*)::int AS orders, COALESCE(SUM(${NET_REVENUE}), 0)::text AS revenue
       FROM "orders" o
       JOIN "users" u ON u."id" = o."userId"
+      ${NET_JOINS}
       WHERE o."paidAt" >= ${from} AND o."paidAt" < ${to} AND ${PAID}
       GROUP BY u."country"
-      ORDER BY SUM(o."totalBase") DESC
+      ORDER BY SUM(${NET_REVENUE}) DESC
     `;
   }
 
   /**
-   * Money given back (refunds processed in the period) and paid orders that
-   * ended failed or cancelled, net of what was already refunded on them so
-   * nothing is counted twice.
+   * Money given back in the period (refunds processed; already taken off the
+   * sales above, shown for the record), and what customers are still owed:
+   * paid orders, or lines of them, that failed or were cancelled and are not
+   * refunded yet.
    */
   private losses(from: Date, to: Date) {
     return this.prisma.$queryRaw<LossRow[]>`
@@ -279,12 +285,17 @@ export class ReportSummaryService {
                WHERE r."status" = 'PROCESSED' AND r."processedAt" >= ${from} AND r."processedAt" < ${to})::text AS refunds,
              (SELECT COUNT(*) FROM "refunds" r
                WHERE r."status" = 'PROCESSED' AND r."processedAt" >= ${from} AND r."processedAt" < ${to})::int AS "refundCount",
-             COUNT(o."id")::int AS "failedCount",
-             COALESCE(SUM(GREATEST(o."totalBase" - COALESCE((
-               SELECT SUM(r."amountBase") FROM "refunds" r WHERE r."orderId" = o."id" AND r."status" = 'PROCESSED'
-             ), 0), 0)), 0)::text AS "failedValue"
+             COUNT(o."id") FILTER (WHERE owed.value > 0.005)::int AS "owedCount",
+             COALESCE(SUM(owed.value) FILTER (WHERE owed.value > 0.005), 0)::text AS "owedValue"
       FROM "orders" o
-      WHERE o."paidAt" >= ${from} AND o."paidAt" < ${to} AND o."status" IN ('FAILED', 'CANCELLED')
+      ${NET_JOINS}
+      CROSS JOIN LATERAL (
+        SELECT CASE
+                 WHEN o."status" IN ('FAILED', 'CANCELLED') THEN o."totalBase" - COALESCE(rf.refunded, 0)
+                 ELSE COALESCE(fl.owed, 0) - COALESCE(rf.refunded, 0)
+               END AS value
+      ) owed
+      WHERE o."paidAt" >= ${from} AND o."paidAt" < ${to} AND o."status" <> 'REFUNDED'
     `;
   }
 

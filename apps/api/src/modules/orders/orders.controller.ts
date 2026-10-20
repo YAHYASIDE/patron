@@ -76,7 +76,7 @@ export class OrdersController {
   }
 
   @Get(':id')
-  findOne(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  findOne(@CurrentUser('id') userId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.orders.findOne(id, userId);
   }
 
@@ -108,8 +108,14 @@ export class OrdersAdminController {
     return this.orders.findAllAdmin(query);
   }
 
+  /** What needs the owner now: failed or late deliveries, transfers waiting, payments taken twice. */
+  @RequirePermissions('orders.read') @Get('attention')
+  attention() {
+    return this.orders.attention();
+  }
+
   @RequirePermissions('orders.read') @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.orders.findOneAdmin(id);
   }
 

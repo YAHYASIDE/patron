@@ -371,29 +371,49 @@ describe('OrdersService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('cancels the batch and releases each distinct coupon once', async () => {
-      prisma.order.findMany.mockResolvedValue([
-        { id: 'a', couponId: 'c1' },
-        { id: 'b', couponId: 'c1' },
-        { id: 'c', couponId: null },
-      ]);
+    const stale = [
+      { id: 'a', userId: 'u1', couponId: 'c1' },
+      { id: 'b', userId: 'u2', couponId: 'c1' },
+      { id: 'c', userId: 'u3', couponId: null },
+    ];
+
+    beforeEach(() => {
+      prisma.order.findMany.mockResolvedValue(stale.map(({ id }) => ({ id })));
+      tx.$queryRaw = jest.fn().mockResolvedValue(stale.map(({ id }) => ({ id })));
+      tx.order.findMany = jest.fn().mockResolvedValue(stale);
       tx.order.updateMany = jest.fn().mockResolvedValue({ count: 3 });
+    });
+
+    it('cancels the batch, gives each order its coupon use back and tells each customer', async () => {
       const res = await service.expireUnpaid(30);
-      expect(tx.order.updateMany).toHaveBeenCalled();
+
+      expect(tx.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['a', 'b', 'c'] } } }));
       expect(tx.orderItem.updateMany).toHaveBeenCalled();
-      // c1 released once despite appearing twice; null skipped
-      expect(tx.coupon.update).toHaveBeenCalledTimes(1);
+      // one use back per order that held the coupon, none for the order without one
+      expect(tx.coupon.update).toHaveBeenCalledTimes(2);
+      expect(outbox.emit).toHaveBeenCalledTimes(3);
+      expect(outbox.emit).toHaveBeenCalledWith(tx, expect.objectContaining({ eventType: 'order.cancelled', payload: expect.objectContaining({ orderId: 'a', userId: 'u1' }) }));
       expect(res).toBe(3);
     });
 
-    it('never expires an order whose customer reported a manual transfer (staff are reviewing it)', async () => {
-      prisma.order.findMany.mockResolvedValue([{ id: 'a', couponId: null }]);
-      tx.order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    it('never expires an order under review, nor one whose payment moved inside the window', async () => {
       await service.expireUnpaid(30);
 
-      const guard = { payments: { none: { gateway: 'MANUAL', status: 'AUTHORIZED' } } };
-      expect(prisma.order.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining(guard));
-      expect(tx.order.updateMany.mock.calls[0][0].where).toEqual(expect.objectContaining(guard)); // and at write time
+      const where = prisma.order.findMany.mock.calls[0][0].where;
+      expect(where.payments).toEqual({
+        none: { OR: [{ gateway: 'MANUAL', status: 'AUTHORIZED' }, { updatedAt: { gte: expect.any(Date) } }] },
+      });
+      // and the same guard again at write time, under the row locks
+      expect(tx.order.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining({ payments: where.payments }));
+    });
+
+    it('cancels nothing when every order was paid while the sweep waited for the locks', async () => {
+      tx.$queryRaw.mockResolvedValue([]);
+      tx.order.findMany.mockResolvedValue([]);
+
+      await expect(service.expireUnpaid(30)).resolves.toBe(0);
+      expect(tx.order.updateMany).not.toHaveBeenCalled();
+      expect(outbox.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -504,18 +524,89 @@ describe('OrdersService', () => {
     });
   });
 
+  describe('attention', () => {
+    it('lists failed and late deliveries, waiting transfers and duplicate payments, with how long each has waited', async () => {
+      const paidAt = new Date(Date.now() - 42 * 60_000);
+      prisma.order.findMany = jest.fn()
+        .mockResolvedValueOnce([{ id: 'o1', orderNumber: 'PTN-1', paidAt, items: [{ lastError: 'no_provider' }] }])
+        .mockResolvedValueOnce([{ id: 'o2', orderNumber: 'PTN-2', paidAt }]);
+      prisma.order.count = jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+      prisma.payment = {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([{ id: 'p1', amount: 40, currency: 'MRU', updatedAt: paidAt, order: { id: 'o3' } }])
+          .mockResolvedValueOnce([{ id: 'p2', gateway: 'STRIPE', amount: 40, currency: 'MRU', createdAt: paidAt, order: { id: 'o4' } }]),
+        count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1),
+        groupBy: jest.fn().mockResolvedValue([]),
+      };
+
+      const res = await service.attention(15);
+
+      expect(res.total).toBe(4);
+      expect(res.failed.items[0]).toEqual(expect.objectContaining({ id: 'o1', minutes: 42, error: 'no_provider' }));
+      expect(res.lateDelivery.items[0].minutes).toBe(42);
+      expect(res.waitingTransfers.items[0]).toEqual(expect.objectContaining({ paymentId: 'p1', minutes: 42 }));
+      expect(res.duplicatePayments.items[0]).toEqual(expect.objectContaining({ paymentId: 'p2', gateway: 'STRIPE' }));
+      // a waiting transfer counts only after the threshold
+      const transferWhere = prisma.payment.findMany.mock.calls[0][0].where;
+      expect(transferWhere).toMatchObject({ gateway: 'MANUAL', status: 'AUTHORIZED' });
+      expect(transferWhere.updatedAt.lt.getTime()).toBeLessThanOrEqual(Date.now() - 15 * 60_000 + 1000);
+    });
+
+    it('also lists an order settled twice before the guard existed, but not its first payment or one already refunded', async () => {
+      prisma.order.findMany = jest.fn().mockResolvedValue([]);
+      prisma.order.count = jest.fn().mockResolvedValue(0);
+      prisma.payment = {
+        groupBy: jest.fn().mockResolvedValue([{ orderId: 'o9' }]),
+        findMany: jest.fn()
+          // the settled payments of the order taken twice, oldest first
+          .mockResolvedValueOnce([
+            { id: 'first', orderId: 'o9', status: 'CAPTURED' },
+            { id: 'second', orderId: 'o9', status: 'CAPTURED' },
+            { id: 'third', orderId: 'o9', status: 'REFUNDED' },
+          ])
+          .mockResolvedValue([]),
+        count: jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1),
+      };
+
+      const res = await service.attention(15);
+
+      const duplicateWhere = prisma.payment.findMany.mock.calls[2][0].where;
+      expect(duplicateWhere.OR).toEqual([{ failureCode: 'duplicate_payment', status: 'FAILED' }, { id: { in: ['second'] } }]);
+      expect(res.duplicatePayments.count).toBe(1);
+    });
+  });
+
   describe('findOneAdmin', () => {
     it('exposes the reported transfer and review, never a raw gateway payload', async () => {
       prisma.order.findUnique.mockResolvedValue({
         ...makeOrder(),
         user: { id: 'u1', email: 'a@b.c', fullName: 'A', phone: null },
         payments: [{ id: 'p1', gateway: 'MANUAL', status: 'AUTHORIZED', rawResponse: { transfer: { reference: 'TX1' }, secret: 'x' } }],
+        refunds: [],
       });
       const res: any = await service.findOneAdmin('o1');
       expect(res.user.email).toBe('a@b.c');
       expect(res.payments[0]).toEqual(expect.objectContaining({ transfer: { reference: 'TX1' }, review: null }));
       expect(res.payments[0].rawResponse).toBeUndefined();
       expect(JSON.stringify(res)).not.toContain('secret');
+      // not paid yet: nothing to refund
+      expect(res.refundable).toBe('0');
+    });
+
+    it('says how much can still be refunded, after refunds that were not rejected', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        ...makeOrder(),
+        total: new Prisma.Decimal('40'),
+        payments: [{ id: 'p1', gateway: 'MANUAL', status: 'PARTIALLY_REFUNDED', rawResponse: null }],
+        refunds: [
+          { id: 'r1', amount: new Prisma.Decimal('10'), status: 'PROCESSED' },
+          { id: 'r2', amount: new Prisma.Decimal('5'), status: 'REQUESTED' },
+          { id: 'r3', amount: new Prisma.Decimal('30'), status: 'REJECTED' },
+        ],
+      });
+      const res: any = await service.findOneAdmin('o1');
+      expect(res.refundable).toBe('25');
+      expect(res.refundGateway).toBe('MANUAL');
     });
 
     it('throws NotFound for an unknown order', async () => {

@@ -177,7 +177,9 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
       method,
       headers,
       body: form ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
-      cache: 'no-store',
+      // the public catalogue may come from the browser cache (the API keeps it a minute);
+      // anything about the customer always goes to the server
+      cache: method === 'GET' && !auth && path.startsWith('/catalog/') ? 'default' : 'no-store',
     },
     method === 'GET',
   );

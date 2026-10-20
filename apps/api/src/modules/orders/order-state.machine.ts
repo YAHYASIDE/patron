@@ -8,7 +8,9 @@ import { OrderItemStatus, OrderStatus } from '@prisma/client';
  */
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING_PAYMENT: ['PAID', 'CANCELLED', 'FAILED'],
-  PAID: ['PROCESSING', 'REFUNDED', 'CANCELLED'],
+  // a paid order whose delivery failed outright, or only in part, says so
+  // instead of sitting at PAID with nobody told
+  PAID: ['PROCESSING', 'REFUNDED', 'CANCELLED', 'FAILED', 'PARTIALLY_COMPLETED'],
   PROCESSING: ['COMPLETED', 'PARTIALLY_COMPLETED', 'FAILED'],
   PARTIALLY_COMPLETED: ['COMPLETED', 'REFUNDED', 'FAILED'],
   COMPLETED: ['REFUNDED'],

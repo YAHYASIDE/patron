@@ -25,7 +25,17 @@ describe('CustomersAdminService', () => {
       },
     };
     prisma = {
-      user: { findFirst: jest.fn().mockResolvedValue(user) },
+      user: {
+        findFirst: jest.fn().mockResolvedValue(user),
+        findMany: jest.fn().mockResolvedValue([{ id: 'staff1', fullName: 'Owner' }]),
+      },
+      wallet: { findMany: jest.fn().mockResolvedValue([{ currencyCode: 'MRU', balance: new Prisma.Decimal('470') }]) },
+      walletTransaction: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 't2', type: 'REFUND', amount: new Prisma.Decimal('10'), createdById: null },
+          { id: 't1', type: 'ADMIN_ADJUSTMENT', amount: new Prisma.Decimal('500'), createdById: 'staff1' },
+        ]),
+      },
       order: {
         findMany: jest.fn().mockResolvedValue([{ id: 'o1', orderNumber: 'PTN-1' }]),
         count: jest.fn().mockResolvedValue(3),
@@ -53,6 +63,14 @@ describe('CustomersAdminService', () => {
       const select = prisma.user.findFirst.mock.calls[0][0].select;
       expect(select).not.toHaveProperty('passwordHash');
       expect(select).not.toHaveProperty('twoFaSecretEnc');
+    });
+
+    it('shows the wallet balances and the ledger behind them, with who adjusted by hand', async () => {
+      const res: any = await service.findOne('u1');
+      expect(res.wallets).toEqual([{ currencyCode: 'MRU', balance: new Prisma.Decimal('470') }]);
+      expect(res.ledger.map((l: any) => [l.id, l.by])).toEqual([['t2', null], ['t1', 'Owner']]);
+      expect(res.ledger[0]).not.toHaveProperty('createdById');
+      expect(prisma.walletTransaction.findMany.mock.calls[0][0]).toMatchObject({ where: { userId: 'u1' }, orderBy: { createdAt: 'desc' }, take: 30 });
     });
 
     it('reports zero spend for a customer who never paid', async () => {

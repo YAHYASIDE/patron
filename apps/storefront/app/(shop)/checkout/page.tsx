@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isAuthed, shop, ApiError } from '@/lib/api';
-import { cart } from '@/lib/cart';
+import { cart, lineName } from '@/lib/cart';
 import { useCart } from '@/lib/hooks';
 import { money } from '@/lib/format';
 import type { Order, Quote } from '@/lib/types';
@@ -206,6 +206,18 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // a price holds 15 minutes: a customer who lingers gets today's price again, quietly, instead of an error
+  useEffect(() => {
+    if (!quote?.expiresAt || step !== 'review') return;
+    const left = new Date(quote.expiresAt).getTime() - Date.now() - 20_000;
+    const timer = setTimeout(() => {
+      setFixes((f) => [...f, tNow('مرّت 15 دقيقة فحدّثنا السعر. راجع الإجمالي ثم أكمل.')]);
+      buildQuote(applied ?? undefined);
+    }, Math.max(left, 0));
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote?.id, step]);
+
   // keep the choice valid as the offer changes (a coupon can make the wallet enough, or not)
   useEffect(() => {
     if (usable && !usable.includes(gateway)) setGateway(usable.includes('WALLET') ? 'WALLET' : (usable[0] ?? ''));
@@ -238,11 +250,20 @@ export default function CheckoutPage() {
       cart.clear();
       setStep('done');
     } catch (err) {
+      // the price ran out before the order was placed: price the cart again and let the customer confirm
+      if (!created && err instanceof ApiError && err.code === 'QUOTE_EXPIRED') {
+        setFixes((f) => [...f, tNow('مرّت 15 دقيقة فحدّثنا السعر. راجع الإجمالي ثم أكمل.')]);
+        await buildQuote(applied ?? undefined);
+        return;
+      }
+      // never the server's English: what the customer can do about it, in their language
       const msg =
         err instanceof ApiError
           ? err.code === 'INSUFFICIENT_FUNDS' || /funds|رصيد/i.test(err.message)
             ? tNow('رصيد محفظتك غير كافٍ لإتمام الدفع. اختر وسيلة دفع أخرى أو اشحن محفظتك.')
-            : err.message
+            : err.status === 0
+              ? err.message
+              : tNow('تعذّر إتمام الدفع. افتح صفحة الطلب لتدفع بطريقة أخرى، أو راسلنا على واتساب.')
           : tNow('تعذّر إتمام الدفع.');
       setError(msg);
       // the order exists: its page lets the customer pay another way
@@ -343,7 +364,7 @@ export default function CheckoutPage() {
                 {items.map((it) => (
                   <div key={cart.keyOf(it)} className="flex items-start justify-between gap-3 py-3">
                     <div className="min-w-0">
-                      <div className="text-[15px] font-bold">{it.nameAr}</div>
+                      <div className="text-[15px] font-bold">{lineName(it, lang)}</div>
                       <div className="text-xs text-muted">{t('الكمية: {n}', { n: it.quantity })}</div>
                     </div>
                     <div className="tnum font-bold">{money(parseFloat(it.unitPrice) * it.quantity, it.currency)}</div>
@@ -434,7 +455,7 @@ export default function CheckoutPage() {
               <button
                 type="button"
                 onClick={() => setCouponOpen(true)}
-                className="text-xs font-semibold text-teal hover:underline"
+                className="-my-2 min-h-10 py-2 text-xs font-semibold text-teal hover:underline"
               >
                 {t('لديك كود خصم؟')}
               </button>
@@ -516,7 +537,12 @@ export default function CheckoutPage() {
             >
               {step === 'working' ? t('جارٍ المعالجة…') : gateway === 'MANUAL' ? t('متابعة إلى التحويل') : t('ادفع الآن')}
             </button>
-            <p className="mt-3 text-center text-xs text-muted">{t('بالضغط على «ادفع الآن» فأنت توافق على الشروط.')}</p>
+            <p className="mt-3 text-center text-xs text-muted">
+              {t('بالمتابعة فأنت توافق على')}{' '}
+              <Link href="/terms" className="font-bold underline">
+                {t('شروط المتجر')}
+              </Link>
+            </p>
           </div>
         </div>
       </div>

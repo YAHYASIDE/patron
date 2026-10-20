@@ -80,13 +80,25 @@ describe('FulfilmentProcessor', () => {
       expect(engine.fulfilItem).not.toHaveBeenCalledWith('i1');
     });
 
+    it('leaves code-stock items that stock could not cover for staff, instead of failing them', async () => {
+      prisma.order.findUniqueOrThrow.mockResolvedValue({
+        status: 'PAID',
+        items: [{ id: 'i1', status: 'PENDING', product: { delivery: 'CODE_POOL' } }],
+      });
+
+      const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
+
+      expect(result).toEqual({ fromStock: 0, processed: 0 });
+      expect(engine.fulfilItem).not.toHaveBeenCalled();
+    });
+
     it('fulfils only PENDING/FAILED items then syncs order status', async () => {
       prisma.order.findUniqueOrThrow.mockResolvedValue({
         status: 'PAID',
         items: [
-          { id: 'i1', status: 'PENDING' },
-          { id: 'i2', status: 'DELIVERED' },
-          { id: 'i3', status: 'FAILED' },
+          { id: 'i1', status: 'PENDING', product: { delivery: 'AUTO_PROVIDER' } },
+          { id: 'i2', status: 'DELIVERED', product: { delivery: 'AUTO_PROVIDER' } },
+          { id: 'i3', status: 'FAILED', product: { delivery: 'AUTO_PROVIDER' } },
         ],
       });
 
@@ -102,7 +114,7 @@ describe('FulfilmentProcessor', () => {
     it('processes a PROCESSING order too (retry after partial delivery)', async () => {
       prisma.order.findUniqueOrThrow.mockResolvedValue({
         status: 'PROCESSING',
-        items: [{ id: 'i1', status: 'PENDING' }],
+        items: [{ id: 'i1', status: 'PENDING', product: { delivery: 'AUTO_PROVIDER' } }],
       });
 
       const result = await processor.process(job(JOBS.FULFIL_ORDER, { orderId: 'o1' }));
@@ -124,7 +136,7 @@ describe('FulfilmentProcessor', () => {
     it('isolates a single failing item — logs it and still syncs the order', async () => {
       prisma.order.findUniqueOrThrow.mockResolvedValue({
         status: 'PAID',
-        items: [{ id: 'i1', status: 'PENDING' }, { id: 'i2', status: 'PENDING' }],
+        items: [{ id: 'i1', status: 'PENDING', product: { delivery: 'AUTO_PROVIDER' } }, { id: 'i2', status: 'PENDING', product: { delivery: 'AUTO_PROVIDER' } }],
       });
       engine.fulfilItem.mockRejectedValueOnce(new Error('provider 500')).mockResolvedValue({ ok: true });
       const errSpy = jest.spyOn((processor as any).logger, 'error').mockImplementation(() => undefined);

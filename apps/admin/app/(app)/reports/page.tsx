@@ -171,7 +171,11 @@ export default function ReportsPage() {
           aria-busy={loading}
         >
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-            <Kpi label="المبيعات" value={money(t.revenue)} hint={`${t.orders} طلب مدفوع`} />
+            <Kpi
+              label="المبيعات"
+              value={money(t.revenue)}
+              hint={`صافي بعد الاسترجاع · ${t.orders} طلب مدفوع`}
+            />
             <Kpi label="التكلفة" value={money(t.cost)} hint="ما دفعته في المنتجات" />
             <Kpi
               label="الربح"
@@ -180,10 +184,10 @@ export default function ReportsPage() {
               hint="المبيعات ناقص التكلفة"
             />
             <Kpi
-              label="الخسائر"
+              label="خسائر تحت التكلفة"
               value={money(data.losses.total)}
               tone={n(data.losses.total) > 0 ? 'bad' : undefined}
-              hint="استرجاع وبيع تحت التكلفة وطلبات فاشلة"
+              hint="ما بعته بأقل مما كلّفك"
             />
             <Kpi
               label="الهامش"
@@ -197,7 +201,10 @@ export default function ReportsPage() {
             />
           </div>
 
-          <Card title="المبيعات والربح يومًا بيوم" hint="مرّر إصبعك على الرسم لترى أرقام كل يوم.">
+          <Card
+            title="المبيعات والربح يومًا بيوم"
+            hint="المبيعات صافي بعد الاسترجاع. مرّر إصبعك على الرسم لترى أرقام كل يوم."
+          >
             {points.length < 2 ? (
               <Empty>الرسم يظهر عند اختيار أكثر من يوم. أرقام اليوم في البطاقات أعلاه.</Empty>
             ) : t.orders === 0 ? (
@@ -245,8 +252,8 @@ export default function ReportsPage() {
               <Methods rows={data.byMethod} />
             </Card>
             <Card
-              title="الخسائر"
-              hint="ما خسرته أو أعدته في هذه الفترة."
+              title="خسائر البيع تحت التكلفة"
+              hint="ما بعته بأقل مما كلّفك، وما زلت مدينًا به للزبائن، وما أعدته لهم."
               aside={
                 <span
                   className={`tnum text-lg font-extrabold ${n(data.losses.total) > 0 ? 'text-bad' : 'text-muted'}`}

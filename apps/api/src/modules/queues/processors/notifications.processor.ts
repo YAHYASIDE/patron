@@ -39,6 +39,20 @@ export class NotificationsProcessor extends WorkerHost {
         variables.currency = order.currency;
       }
     }
+    // a refund names its own amount and where the money went
+    if (data?.amount !== undefined && data?.currency) {
+      variables.amount = `${Number(data.amount)} ${String(data.currency)}`;
+      const where = REFUND_DESTINATIONS[String(data.destination)] ?? REFUND_DESTINATIONS.card;
+      variables.destinationAr = where.ar;
+      variables.destinationEn = where.en;
+      variables.destinationFr = where.fr;
+    }
     return variables;
   }
 }
+
+const REFUND_DESTINATIONS: Record<string, { ar: string; en: string; fr: string }> = {
+  wallet: { ar: 'إلى رصيد محفظتك في المتجر', en: 'to your store wallet', fr: 'sur votre portefeuille de la boutique' },
+  transfer: { ar: 'بتحويل إلى حسابك الذي دفعت منه', en: 'by transfer to the account you paid from', fr: 'par virement sur le compte qui a payé' },
+  card: { ar: 'إلى بطاقتك', en: 'to your card', fr: 'sur votre carte' },
+};
