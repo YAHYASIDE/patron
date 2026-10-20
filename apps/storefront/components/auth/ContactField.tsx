@@ -99,7 +99,8 @@ export function PasswordInput({
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-semibold">{label}</span>
-      <span className="relative block">
+      {/* left-to-right like the password itself, so the toggle sits at its end */}
+      <span dir="ltr" className="relative block">
         <input
           type={shown ? 'text' : 'password'}
           dir="ltr"

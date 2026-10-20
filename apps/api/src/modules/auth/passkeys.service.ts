@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TokenService } from './token.service';
 import { RequestMeta } from './auth.service';
+import { describeDevice } from './device';
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
 
@@ -125,7 +126,8 @@ export class PasskeysService {
           publicKey: Buffer.from(credential.publicKey),
           counter: BigInt(credential.counter),
           transports: credential.transports ?? [],
-          deviceName: body.deviceName?.trim() || meta.deviceInfo || null,
+          // named after the phone it lives on, so the list reads «iPhone · Safari»
+          deviceName: body.deviceName?.trim() || meta.deviceInfo || describeDevice(meta.userAgent) || null,
         },
         select: { id: true, deviceName: true, createdAt: true, lastUsedAt: true },
       });

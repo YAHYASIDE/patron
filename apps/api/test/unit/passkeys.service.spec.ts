@@ -101,6 +101,13 @@ describe('PasskeysService', () => {
       expect(prisma.auditLog.create.mock.calls[0][0].data).toMatchObject({ action: 'auth.passkey_added', entityId: 'pk-new' });
     });
 
+    it('names the passkey after the phone when the client sends no label', async () => {
+      prisma.webAuthnChallenge.findUnique.mockResolvedValue(challenge({ userId: 'u1', purpose: 'register' }));
+      wa.verifyRegistrationResponse.mockResolvedValue({ verified: true, registrationInfo: { credential: { id: 'c', publicKey: new Uint8Array(), counter: 0 } } } as any);
+      await service.verifyRegistration('u1', { challengeId: 'ch1', response: {} }, { ip: '1.1.1.1', userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/126.0 Mobile Safari/537.36' });
+      expect(prisma.passkey.create.mock.calls[0][0].data).toMatchObject({ deviceName: 'Android · Chrome', transports: [] });
+    });
+
     it('refuses a response that does not verify', async () => {
       prisma.webAuthnChallenge.findUnique.mockResolvedValue(challenge({ userId: 'u1', purpose: 'register' }));
       wa.verifyRegistrationResponse.mockRejectedValue(new Error('Unexpected origin'));
