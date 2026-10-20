@@ -1506,42 +1506,51 @@ model Agent {
 
 /// One commission per order at most (orderId is unique), so it can never be counted twice.
 model Commission {
-  id         String           @id @default(uuid()) @db.Uuid
-  agentId    String           @db.Uuid
-  agent      Agent            @relation(fields: [agentId], references: [id], onDelete: Restrict)
-  orderId    String           @unique @db.Uuid
-  order      Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  id                String           @id @default(uuid()) @db.Uuid
+  agentId           String           @db.Uuid
+  agent             Agent            @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  orderId           String           @unique @db.Uuid
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
   /// Net order value the commission was computed on (base currency).
-  basis      Decimal          @db.Decimal(14, 4)
-  amount     Decimal          @db.Decimal(14, 4)
-  currency   String           @db.Char(3)
+  basis             Decimal          @db.Decimal(14, 4)
+  amount            Decimal          @db.Decimal(14, 4)
+  currency          String           @db.Char(3)
   /// The rule at the time: { type, value }.
-  rule       Json
-  status     CommissionStatus @default(PENDING)
-  payoutId   String?          @db.Uuid
-  payout     AgentPayout?     @relation(fields: [payoutId], references: [id], onDelete: SetNull)
-  voidReason String?
-  earnedAt   DateTime?
-  paidAt     DateTime?
-  voidedAt   DateTime?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  rule              Json
+  status            CommissionStatus @default(PENDING)
+  payoutId          String?          @db.Uuid
+  payout            AgentPayout?     @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  voidReason        String?
+  earnedAt          DateTime?
+  paidAt            DateTime?
+  voidedAt          DateTime?
+  /// A PAID commission whose order was refunded afterwards: what the agent owes back
+  /// (cumulative). The paid amount stays as it was paid; the clawback is shown beside it.
+  clawbackAmount    Decimal?         @db.Decimal(14, 4)
+  /// How much of the clawback later payouts already deducted.
+  clawbackRecovered Decimal?         @db.Decimal(14, 4)
+  clawbackReason    String?
+  clawbackAt        DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([agentId, status])
   @@map("commissions")
 }
 
 model AgentPayout {
-  id          String       @id @default(uuid()) @db.Uuid
-  agentId     String       @db.Uuid
-  agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Restrict)
-  amount      Decimal      @db.Decimal(14, 4)
-  currency    String       @db.Char(3)
-  reference   String?
-  note        String?
-  paidById    String?      @db.Uuid
-  createdAt   DateTime     @default(now())
-  commissions Commission[]
+  id               String       @id @default(uuid()) @db.Uuid
+  agentId          String       @db.Uuid
+  agent            Agent        @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  amount           Decimal      @db.Decimal(14, 4)
+  currency         String       @db.Char(3)
+  reference        String?
+  note             String?
+  paidById         String?      @db.Uuid
+  /// Open clawbacks taken off this payout (amount = commissions paid − this).
+  clawbackDeducted Decimal?     @db.Decimal(14, 4)
+  createdAt        DateTime     @default(now())
+  commissions      Commission[]
 
   @@index([agentId, createdAt])
   @@map("agent_payouts")
