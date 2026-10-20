@@ -21,14 +21,15 @@ export function run({ root }) {
     const path = rel(root, file);
     const src = read(file);
     const code = stripComments(src);
+    // matched on a copy with string contents blanked, so 'it.only(' inside a string does not count
+    const bare = stripComments(src, { blankStrings: true });
     const lineOf = lineIndex(src);
-    for (const m of code.matchAll(PATTERN)) {
-      // `function fit(` or `.fit(` is a helper, not the test API
-      const before = code.slice(Math.max(0, m.index - 9), m.index);
-      if (/function\s+$/.test(before)) continue;
+    for (const m of bare.matchAll(PATTERN)) {
+      // the test API always takes a name first: `fit(20)` or `function fit(` is a helper
+      const open = m.index + m[0].length - 1;
+      if (!/^\s*['"`]/.test(code.slice(open + 1, open + 200))) continue;
       const fn = m[1] ? `${m[1]}.${m[2]}` : m[3];
       const focused = m[2] === 'only' || m[3] === 'fit' || m[3] === 'fdescribe';
-      const open = m.index + m[0].length - 1;
       const args = code.slice(open + 1, skipBalanced(code, open, '(', ')') - 1);
       const testName = firstString(args.slice(0, 300)) ?? '(unnamed)';
       const line = lineOf(m.index);

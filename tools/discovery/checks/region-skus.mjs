@@ -62,6 +62,11 @@ export function run({ root }) {
   const out = [];
   for (const [region, list] of byRegion) {
     const brands = [...new Set(list.map((x) => x.brand))];
+    // one evidence line per brand: where it starts and every SKU of it
+    const evidence = brands.map((brand) => {
+      const skus = list.filter((x) => x.brand === brand);
+      return { type: 'file', ref: skus[0].ref, detail: skus.map((x) => x.sku).join(', ') };
+    });
     out.push(
       discovery(name, region, {
         kind: 'opportunity',
@@ -70,7 +75,7 @@ export function run({ root }) {
           `منتجات حزمة الكتالوج ${brands.join('، ')} تعمل فقط مع حسابات ${region}، ` +
           'ولا توجد قاعدة ProductMarketRule أو ملاحظة سوق تخصّها، فلا يعرف المتجر هل يعرضها لزبائن موريتانيا ومالي والجزائر والنيجر وبأي تنبيه. ' +
           'هذا تقدير من اسم SKU؛ صلاحيتها في كل دولة تحتاج بحثًا.',
-        evidence: list.slice(0, 12).map((x) => ({ type: 'file', ref: x.ref, detail: x.sku })),
+        evidence: evidence.slice(0, 20),
         confidence: 60,
         verified: false,
         severity: 'LOW',

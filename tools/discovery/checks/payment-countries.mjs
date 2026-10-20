@@ -43,6 +43,47 @@ function entriesIn(src) {
   return entries;
 }
 
+/** Top-level `( ... )` rows of a SQL VALUES list, each split into its values: [{ values, index }]. */
+function sqlRows(text) {
+  const rows = [];
+  let depth = 0;
+  let start = -1;
+  let cur = '';
+  let vals = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'") {
+      let j = i + 1;
+      while (j < text.length && !(text[j] === "'" && text[j + 1] !== "'")) j += text[j] === "'" ? 2 : 1;
+      if (depth >= 1) cur += text.slice(i, j + 1);
+      i = j;
+      continue;
+    }
+    if (c === '(') {
+      depth++;
+      if (depth === 1) {
+        start = i;
+        cur = '';
+        vals = [];
+        continue;
+      }
+    } else if (c === ')') {
+      depth--;
+      if (depth === 0) {
+        vals.push(cur.trim());
+        rows.push({ values: vals, index: start });
+        continue;
+      }
+    } else if (c === ',' && depth === 1) {
+      vals.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    if (depth >= 1) cur += c;
+  }
+  return rows.map((r) => ({ ...r, values: r.values.map((v) => (/^'.*'$/s.test(v) ? v.slice(1, -1).replace(/''/g, "'") : v)) }));
+}
+
 /** SQL rows `INSERT INTO "market_payment_methods" (...) VALUES ('ML', 'bankily', ...)`. */
 function sqlMarketMethods(src) {
   const entries = [];
@@ -53,8 +94,8 @@ function sqlMarketMethods(src) {
     const ni = cols.indexOf('name');
     if (ci === -1 || ki === -1) continue;
     const valuesAt = stmt.index + stmt[0].indexOf(stmt[2]);
-    for (const row of stmt[2].matchAll(/\(([^()]*)\)/g)) {
-      const vals = [...row[1].matchAll(/'((?:''|[^'])*)'|([^,\s][^,]*)/g)].map((v) => (v[1] ?? v[2]).trim());
+    for (const row of sqlRows(stmt[2])) {
+      const vals = row.values;
       entries.push({
         id: vals[ki],
         method: ni === -1 ? '' : vals[ni],

@@ -72,8 +72,11 @@ function skipRegex(src, i) {
   return j;
 }
 
-/** The source with every comment replaced by spaces (newlines kept), strings and regexes untouched. */
-export function stripComments(src) {
+/**
+ * The source with every comment replaced by spaces (newlines kept), regexes untouched, and string
+ * literals untouched, or with their contents blanked too when `blankStrings` is set.
+ */
+export function stripComments(src, { blankStrings = false } = {}) {
   const out = src.split('');
   let i = 0;
   let prev = ''; // last significant code character (or keyword) seen
@@ -91,7 +94,9 @@ export function stripComments(src) {
       continue;
     }
     if (c === '"' || c === "'" || c === '`') {
-      i = skipString(src, i);
+      const end = skipString(src, i);
+      if (blankStrings) for (let k = i + 1; k < end - 1; k++) if (src[k] !== '\n') out[k] = ' ';
+      i = end;
       prev = 'str';
       continue;
     }
