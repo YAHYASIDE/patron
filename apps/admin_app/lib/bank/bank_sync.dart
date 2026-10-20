@@ -48,15 +48,21 @@ class BankSync extends ChangeNotifier {
   Timer? _timer;
   bool _started = false;
 
+  /// True once the saved queue is loaded; nothing is pulled or sent before,
+  /// so an early call can never overwrite the stored queue.
+  bool _ready = false;
+
   Future<void> start() async {
-    if (_started) return;
+    if (_started) return sync(); // e.g. signed in again: send what waited.
     _started = true;
     await _queue.load();
+    _ready = true;
     _queueSub = _queue.changes.listen((_) => notifyListeners());
+    notifyListeners();
     if (!supported) return;
+    await refreshState();
     _eventSub = _platform.events.listen((_) => unawaited(sync()));
     _timer = Timer.periodic(tick, (_) => unawaited(sync()));
-    await refreshState();
     await sync();
   }
 
@@ -112,6 +118,7 @@ class BankSync extends ChangeNotifier {
 
   /// Pulls what the listener stored, then uploads what is due.
   Future<void> sync({bool force = false}) async {
+    if (!_ready) return;
     await pull();
     if (_canUpload()) await _queue.flush(force: force);
   }
@@ -119,9 +126,11 @@ class BankSync extends ChangeNotifier {
   /// Copies the listener's stored notices into the queue, then lets the
   /// listener forget them. The listener only forgets after the queue saved.
   Future<int> pull() async {
-    if (!supported) return 0;
+    if (!supported || !_ready) return 0;
     List<CapturedNotice> pending;
     try {
+      // Fresh selection every time: an app the owner just unticked is not queued.
+      config = await _platform.getConfig();
       pending = await _platform.fetchPending();
     } on Object catch (_) {
       return 0;
@@ -166,6 +175,7 @@ class BankSync extends ChangeNotifier {
       );
 
   Future<void> retry(String localId) async {
+    if (!_ready) return;
     await _queue.retry(localId);
     if (_canUpload()) await _queue.flush();
   }
@@ -187,11 +197,20 @@ class BankSync extends ChangeNotifier {
 
   String get deviceId => _deviceId();
 
-  @override
-  void dispose() {
+  /// Stops the timer and listeners; [start] picks everything up again.
+  void stop() {
     _timer?.cancel();
     _eventSub?.cancel();
     _queueSub?.cancel();
+    _timer = null;
+    _eventSub = null;
+    _queueSub = null;
+    _started = false;
+  }
+
+  @override
+  void dispose() {
+    stop();
     super.dispose();
   }
 }

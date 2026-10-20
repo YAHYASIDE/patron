@@ -21,9 +21,8 @@ class _ShellState extends State<Shell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final bank = Services.of(context).bank;
-      // Uploads anything the listener collected while we were signed out.
-      bank.start().then((_) => bank.sync());
+      // Loads the queue and uploads anything the listener collected meanwhile.
+      Services.of(context).bank.start();
     });
   }
 

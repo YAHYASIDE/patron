@@ -95,7 +95,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Text('تنبيهات الفريق', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  Flexible(
+                    child: Text('تنبيهات الفريق',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  ),
                   const SizedBox(width: 8),
                   if (n.unread > 0) Badge(label: Text('${n.unread}'), backgroundColor: Brand.bad),
                   const Spacer(),

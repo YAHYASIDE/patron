@@ -15,6 +15,7 @@ import 'package:patron_admin/auth/token_store.dart';
 import 'package:patron_admin/bank/bank_sync.dart';
 import 'package:patron_admin/bank/listener_channel.dart';
 import 'package:patron_admin/bank/notice_queue.dart';
+import 'package:patron_admin/screens/bank_reading_screen.dart';
 import 'package:patron_admin/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -37,10 +38,15 @@ class FakeBiometric implements BiometricGate {
 
 /// The iOS / non-Android case: the bank-reading feature is hidden.
 class NoListener implements BankListenerPlatform {
+  NoListener({this.android = false});
+
+  /// Pretend to be the Android listener (access granted, nothing captured).
+  final bool android;
+
   @override
-  bool get supported => false;
+  bool get supported => android;
   @override
-  Future<bool> isAccessGranted() async => false;
+  Future<bool> isAccessGranted() async => android;
   @override
   Future<void> openAccessSettings() async {}
   @override
@@ -56,7 +62,8 @@ class NoListener implements BankListenerPlatform {
   @override
   Future<List<AppInfo>> describeApps(List<String> packages) async => const [];
   @override
-  Future<List<AppInfo>> suggestApps() async => const [];
+  Future<List<AppInfo>> suggestApps() async =>
+      android ? const [AppInfo(packageName: 'com.example.bank', label: 'Example Bank', installed: true)] : const [];
   @override
   Stream<void> get events => const Stream<void>.empty();
 }
@@ -105,7 +112,7 @@ Future<http.Response> fakeApi(http.Request req) async {
   return _json({'statusCode': 404, 'error': 'Not Found'}, 404);
 }
 
-Future<AppServices> buildServices({TokenPair? saved, FakeBiometric? biometric}) async {
+Future<AppServices> buildServices({TokenPair? saved, FakeBiometric? biometric, bool android = false}) async {
   SharedPreferences.setMockInitialValues({});
   final settings = AppSettings(await SharedPreferences.getInstance());
   final api = ApiClient(
@@ -115,7 +122,7 @@ Future<AppServices> buildServices({TokenPair? saved, FakeBiometric? biometric}) 
   );
   final session = SessionController(api: api, biometric: biometric ?? FakeBiometric(), settings: settings);
   final bank = BankSync(
-    platform: NoListener(),
+    platform: NoListener(android: android),
     api: api,
     queue: NoticeQueue(store: MemoryQueueStore(), send: BankSync.senderFor(api, () => 'android-test')),
     deviceId: () => 'android-test',
@@ -211,5 +218,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(services.session.state, SessionState.signedIn);
     expect(find.text('ما يحتاج انتباهك'), findsOneWidget);
+  });
+
+  testWidgets('Android: bank reading setup fits a 360 px phone', (tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final services = await buildServices(
+      saved: TokenPair(accessToken: 'a-${Random().nextInt(99)}', refreshToken: 'r-${Random().nextInt(99)}'),
+      biometric: FakeBiometric(available: false),
+      android: true,
+    );
+    await tester.pumpWidget(PatronAdminApp(services: services));
+    await services.session.init();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('إشعارات البنك').last);
+    await tester.pumpAndSettle();
+    // Off by default, even with access granted.
+    expect(find.text('قراءة إشعارات البنك متوقفة'), findsOneWidget);
+
+    await tester.tap(find.text('قراءة إشعارات البنك متوقفة'));
+    await tester.pumpAndSettle();
+    expect(find.text('إذن الوصول إلى الإشعارات'), findsOneWidget);
+    // A suggestion is offered but not ticked.
+    await tester.scrollUntilVisible(
+      find.byType(CheckboxListTile),
+      200,
+      scrollable: find.descendant(of: find.byType(BankReadingScreen), matching: find.byType(Scrollable)).first,
+    );
+    final tile = tester.widget<CheckboxListTile>(find.byType(CheckboxListTile));
+    expect(tile.value, isFalse);
+    expect(find.text('Example Bank'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    services.bank.stop(); // the once-a-minute sync timer
   });
 }

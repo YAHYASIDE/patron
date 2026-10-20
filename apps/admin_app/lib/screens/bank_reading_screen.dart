@@ -172,9 +172,10 @@ class _BankReadingScreenState extends State<BankReadingScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text('قائمة الإرسال على الهاتف',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                    const Spacer(),
+                    Expanded(
+                      child: Text('قائمة الإرسال على الهاتف',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    ),
                     if (queue.any((q) => q.state != QueueState.pending))
                       TextButton(onPressed: bank.queue.clearDone, child: const Text('مسح المرسل')),
                   ],
@@ -265,7 +266,10 @@ class _Step extends StatelessWidget {
                           : Text('$number', style: const TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                     const SizedBox(width: 10),
-                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    Expanded(
+                      child: Text(title,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
