@@ -151,7 +151,8 @@ describe('TokenService', () => {
   });
 
   describe('sessions & devices', () => {
-    const t = (min: number) => new Date(Date.now() - min * 60_000);
+    const NOW = Date.now();
+    const t = (min: number) => new Date(NOW - min * 60_000);
 
     it('lists one row per device, the current first, with when it first signed in', async () => {
       prisma.refreshToken.findMany.mockResolvedValue([
