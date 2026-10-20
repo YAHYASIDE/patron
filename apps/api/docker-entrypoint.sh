@@ -27,5 +27,13 @@ if [ "${CATALOG_PACK:-false}" = "true" ]; then
   node dist/catalog-pack-runner.js || echo "[entrypoint] WARNING: catalog pack failed; starting API anyway"
 fi
 
+# A staging copy (render.staging.yaml) must never show the shop's real
+# receiving numbers: replace them with test values once. If it fails the API
+# stays down, so a test shop never starts with real numbers.
+if [ "${STAGING:-false}" = "true" ]; then
+  echo "[entrypoint] staging: replacing receiving numbers with test values…"
+  node dist/staging-guard-runner.js
+fi
+
 echo "[entrypoint] starting API…"
 exec node dist/main
