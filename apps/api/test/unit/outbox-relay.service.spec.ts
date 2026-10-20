@@ -103,6 +103,20 @@ describe('OutboxRelay', () => {
       },
     );
 
+    it("hands every published event to the owner's notices, and a refunded order is not an unknown route", async () => {
+      const staffEvents = { onOutboxEvent: jest.fn().mockResolvedValue(undefined) };
+      const withStaff = new OutboxRelay(outbox, fulfilment, notifications, staffEvents as any);
+      outbox.claimBatch.mockResolvedValue([
+        { id: 'e20', eventType: 'order.failed', payload: { orderId: 'o1', userId: 'u1' }, attempts: 0 },
+        { id: 'e21', eventType: 'order.refunded', payload: { orderId: 'o1', userId: 'u1' }, attempts: 0 },
+      ]);
+      await (withStaff as any).tick();
+      expect(staffEvents.onOutboxEvent).toHaveBeenCalledWith('order.failed', expect.objectContaining({ orderId: 'o1' }));
+      expect(staffEvents.onOutboxEvent).toHaveBeenCalledWith('order.refunded', expect.objectContaining({ orderId: 'o1' }));
+      expect(outbox.markPublished).toHaveBeenCalledWith('e21');
+      expect(notifications.add).toHaveBeenCalledTimes(1);
+    });
+
     it('treats order.created as a published no-op (kept for the audit trail)', async () => {
       outbox.claimBatch.mockResolvedValue([
         { id: 'e2', eventType: 'order.created', payload: { orderId: 'o1' }, attempts: 0 },

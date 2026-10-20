@@ -1,10 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { QUEUES, JOBS, FULFILMENT_JOB_OPTS, DEFAULT_JOB_OPTS } from './queue.constants';
+import { StaffEventsService } from '../staff-notifications/staff-events.service';
 
 /**
  * The fields the routing switch reads. Outbox payloads are Json in the
@@ -64,6 +65,8 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
     private outbox: OutboxService,
     @InjectQueue(QUEUES.FULFILMENT) private fulfilment: Queue,
     @InjectQueue(QUEUES.NOTIFICATIONS) private notifications: Queue,
+    // the owner's notices (order to deliver, failed order…) come from the same events
+    @Optional() private staffEvents?: StaffEventsService,
   ) {}
 
   onModuleInit() {
@@ -134,9 +137,15 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
       case 'order.processing':
         break; // nothing to do yet; kept for the audit trail
 
+      case 'order.refunded':
+        break; // the customer hears about it from refund.processed; staff notices close below
+
       default:
         this.logger.warn(`No route for outbox event type "${eventType}"`);
     }
+
+    // never throws: a notice must not hold back the customer's event
+    await this.staffEvents?.onOutboxEvent(eventType, payload);
   }
 
   /**

@@ -283,6 +283,19 @@ describe('RefundsService', () => {
     });
   });
 
+  describe("the owner's refund.pending notice", () => {
+    it('is raised when a refund is requested and closed when it is rejected', async () => {
+      const staffEvents = { refundRequested: jest.fn(), refundClosed: jest.fn() };
+      const withStaff = new RefundsService(prisma, wallet, gateways, outbox, staffEvents as any);
+      prisma.refund.create.mockResolvedValueOnce({ id: 'ref9', amount: new Prisma.Decimal('30'), currency: 'USD' });
+      await expect(withStaff.request('ord1', 30, 'partial', 'admin')).resolves.toMatchObject({ id: 'ref9' });
+      expect(staffEvents.refundRequested).toHaveBeenCalledWith({ refundId: 'ref9', orderId: 'ord1', orderNumber: 'ORD-1000', amount: '30', currency: 'USD' });
+
+      await expect(withStaff.reject('ref9', 'admin', 'no')).resolves.toMatchObject({ status: 'REJECTED' });
+      expect(staffEvents.refundClosed).toHaveBeenCalledWith('ref9');
+    });
+  });
+
   describe('findAll', () => {
     it('filters by status when provided', async () => {
       await service.findAll(RefundStatus.REQUESTED);
