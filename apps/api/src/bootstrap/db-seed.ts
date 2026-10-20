@@ -63,6 +63,15 @@ const PERMISSIONS: Array<[string, string, string]> = [
 
   ['settings.manage', 'system', 'Change platform settings'],
   ['audit.read', 'system', 'Read audit logs'],
+
+  ['usdt.read', 'usdt', 'View USDT orders'],
+  ['usdt.manage', 'usdt', 'Review, approve, send and reject USDT orders'],
+  ['agents.manage', 'agents', 'Manage agents, commission rules and payouts'],
+  ['agents.self', 'agents', 'An agent: see their own referrals and commissions'],
+  ['staff.notifications', 'system', 'Read the staff notification inbox'],
+  ['bank.review', 'payments', 'Review bank notifications read by the admin phone'],
+  ['backup.manage', 'system', 'Download, schedule and verify backups'],
+  ['recovery.review', 'users', 'Review account recovery requests'],
 ];
 
 const ROLE_PERMISSIONS: Record<string, string[] | '*'> = {
@@ -75,16 +84,20 @@ const ROLE_PERMISSIONS: Record<string, string[] | '*'> = {
     'providers.read', 'providers.write',
     'coupons.manage', 'banners.manage', 'notifications.send',
     'reports.read', 'reports.export', 'audit.read',
+    'usdt.read', 'usdt.manage', 'agents.manage', 'staff.notifications', 'bank.review', 'recovery.review',
   ],
   support: [
     'users.read', 'catalog.read',
     'orders.read', 'orders.retry',
     'payments.read', 'notifications.send',
+    'staff.notifications', 'recovery.review',
   ],
   finance: [
     'orders.read', 'payments.read', 'payments.refund', 'wallet.adjust',
     'providers.read', 'reports.read', 'reports.export',
+    'usdt.read', 'staff.notifications', 'bank.review',
   ],
+  agent: ['agents.self'],
   customer: [],
 };
 

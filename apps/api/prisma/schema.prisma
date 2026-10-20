@@ -102,6 +102,8 @@ enum VerificationPurpose {
   PASSWORD_RESET
   TWO_FACTOR
   PHONE_LOGIN
+  /// A reset the owner opened after checking who the customer is (support-assisted recovery).
+  ACCOUNT_RECOVERY
 }
 
 enum QuoteStatus {
@@ -168,12 +170,21 @@ model User {
   refreshTokens      RefreshToken[]
   verifications      VerificationToken[]
   auditLogs          AuditLog[]
-  refundsRequested   Refund[]            @relation("RefundRequester")
-  refundsProcessed   Refund[]            @relation("RefundProcessor")
+  refundsRequested   Refund[]                 @relation("RefundRequester")
+  refundsProcessed   Refund[]                 @relation("RefundProcessor")
   savedInputs        SavedInput[]
   favorites          Favorite[]
   priceWatches       PriceWatch[]
   reviews            Review[]
+  passkeys           Passkey[]
+  recoveryRequests   AccountRecoveryRequest[] @relation("RecoveryRequester")
+  recoveryReviews    AccountRecoveryRequest[] @relation("RecoveryReviewer")
+  usdtOrders         UsdtOrder[]              @relation("UsdtOrderCustomer")
+  usdtReviews        UsdtOrder[]              @relation("UsdtOrderReviewer")
+  agent              Agent?                   @relation("AgentUser")
+  /// The agent (مندوب) whose referral code brought this customer.
+  referredByAgentId  String?                  @db.Uuid
+  referredByAgent    Agent?                   @relation("AgentReferrals", fields: [referredByAgentId], references: [id], onDelete: SetNull)
   supportTickets     SupportTicket[]
   storeEvents        StoreEvent[]
 
@@ -250,10 +261,14 @@ model RefreshToken {
   expiresAt  DateTime
   revokedAt  DateTime?
   replacedBy String?   @db.Uuid
+  /// One id per signed-in device, kept across rotations, so a session can be listed and signed out.
+  sessionId  String?   @db.Uuid
+  lastUsedAt DateTime?
 
   createdAt DateTime @default(now())
 
   @@index([userId, revokedAt])
+  @@index([sessionId])
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
@@ -614,6 +629,11 @@ model Order {
 
   /// Staff-only note on the order.
   adminNote String?
+
+  /// The agent credited for this order (the customer's referrer when it was placed).
+  agentId    String?     @db.Uuid
+  agent      Agent?      @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  commission Commission?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1292,4 +1312,354 @@ model StoreEvent {
 
   @@index([kind, createdAt])
   @@map("store_events")
+}
+
+// ═══════════════ PLATFORM V2 ═══════════════
+
+// ─── Accounts ───
+
+/// A WebAuthn credential: sign in with the phone's fingerprint or face. Only the public key is stored.
+model Passkey {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique // base64url
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]  @default([])
+  deviceName   String?
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+/// A WebAuthn challenge, valid for a few minutes and used once.
+model WebAuthnChallenge {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  purpose   String // register | login
+  challenge String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("webauthn_challenges")
+}
+
+enum RecoveryStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  COMPLETED
+}
+
+/// A customer who lost access asks support for help. Staff check ownership and open a
+/// reset sent to a contact the customer controls; staff never see or set the password.
+model AccountRecoveryRequest {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String?        @db.Uuid
+  user         User?          @relation("RecoveryRequester", fields: [userId], references: [id], onDelete: SetNull)
+  contact      String // the phone or email the customer typed
+  fullName     String
+  /// What the customer offers as proof (last order number, amount, date…).
+  proof        String
+  /// Where the reset goes once verified (a number or email the customer controls now).
+  newContact   String?
+  status       RecoveryStatus @default(PENDING)
+  reviewedById String?        @db.Uuid
+  reviewedBy   User?          @relation("RecoveryReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewNote   String?
+  reviewedAt   DateTime?
+  completedAt  DateTime?
+  ipAddress    String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("account_recovery_requests")
+}
+
+// ─── USDT ───
+
+enum UsdtNetwork {
+  TRC20
+  BEP20
+  ERC20
+}
+
+enum UsdtDelivery {
+  /// on-chain to a wallet address on the chosen network
+  ONCHAIN
+  /// internal Binance transfer to a Binance ID (UID), email or phone
+  BINANCE
+}
+
+enum UsdtOrderStatus {
+  NEW
+  AWAITING_PAYMENT
+  UNDER_REVIEW
+  READY_TO_SEND
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+/// A customer buying USDT. Nothing is ever sent automatically: staff check the payment,
+/// the address and the network, send by hand and record the TXID.
+model UsdtOrder {
+  id             String          @id @default(uuid()) @db.Uuid
+  number         String          @unique // USDT-20261020-000123
+  userId         String          @db.Uuid
+  user           User            @relation("UsdtOrderCustomer", fields: [userId], references: [id], onDelete: Restrict)
+  status         UsdtOrderStatus @default(NEW)
+  amountUsdt     Decimal         @db.Decimal(18, 6)
+  delivery       UsdtDelivery
+  network        UsdtNetwork?
+  address        String?
+  binanceId      String?
+  /// Price of one USDT in the paying currency, frozen when the order was made.
+  rate           Decimal         @db.Decimal(18, 6)
+  currency       String          @db.Char(3)
+  subtotal       Decimal         @db.Decimal(18, 4)
+  fee            Decimal         @db.Decimal(18, 4)
+  total          Decimal         @db.Decimal(18, 4)
+  paymentMethod  String?
+  payerPhone     String?
+  paymentRef     String?
+  proofUploadId  String?         @db.Uuid
+  txid           String?         @unique
+  rejectReason   String?
+  reviewedById   String?         @db.Uuid
+  reviewedBy     User?           @relation("UsdtOrderReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  idempotencyKey String?         @unique
+  expiresAt      DateTime?
+  paidAt         DateTime?
+  approvedAt     DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  events UsdtOrderEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("usdt_orders")
+}
+
+/// Every change to a USDT order, who made it and from which state.
+model UsdtOrderEvent {
+  id          String           @id @default(uuid()) @db.Uuid
+  usdtOrderId String           @db.Uuid
+  usdtOrder   UsdtOrder        @relation(fields: [usdtOrderId], references: [id], onDelete: Cascade)
+  actorId     String?          @db.Uuid
+  action      String
+  fromStatus  UsdtOrderStatus?
+  toStatus    UsdtOrderStatus?
+  note        String?
+  data        Json?
+  createdAt   DateTime         @default(now())
+
+  @@index([usdtOrderId, createdAt])
+  @@map("usdt_order_events")
+}
+
+// ─── Agents (المندوبون) ───
+
+enum CommissionType {
+  PERCENT
+  FIXED
+}
+
+enum CommissionStatus {
+  /// order paid, not yet completed
+  PENDING
+  /// order completed: owed to the agent
+  EARNED
+  PAID
+  /// order cancelled or refunded
+  VOID
+}
+
+model Agent {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @unique @db.Uuid
+  user            User           @relation("AgentUser", fields: [userId], references: [id], onDelete: Cascade)
+  code            String         @unique
+  isActive        Boolean        @default(true)
+  commissionType  CommissionType @default(PERCENT)
+  /// Percent of the order's net base-currency total, or a fixed base-currency amount per order.
+  commissionValue Decimal        @db.Decimal(14, 4)
+  note            String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  referrals   User[]        @relation("AgentReferrals")
+  orders      Order[]
+  commissions Commission[]
+  payouts     AgentPayout[]
+
+  @@map("agents")
+}
+
+/// One commission per order at most (orderId is unique), so it can never be counted twice.
+model Commission {
+  id         String           @id @default(uuid()) @db.Uuid
+  agentId    String           @db.Uuid
+  agent      Agent            @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  orderId    String           @unique @db.Uuid
+  order      Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  /// Net order value the commission was computed on (base currency).
+  basis      Decimal          @db.Decimal(14, 4)
+  amount     Decimal          @db.Decimal(14, 4)
+  currency   String           @db.Char(3)
+  /// The rule at the time: { type, value }.
+  rule       Json
+  status     CommissionStatus @default(PENDING)
+  payoutId   String?          @db.Uuid
+  payout     AgentPayout?     @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  voidReason String?
+  earnedAt   DateTime?
+  paidAt     DateTime?
+  voidedAt   DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([agentId, status])
+  @@map("commissions")
+}
+
+model AgentPayout {
+  id          String       @id @default(uuid()) @db.Uuid
+  agentId     String       @db.Uuid
+  agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  amount      Decimal      @db.Decimal(14, 4)
+  currency    String       @db.Char(3)
+  reference   String?
+  note        String?
+  paidById    String?      @db.Uuid
+  createdAt   DateTime     @default(now())
+  commissions Commission[]
+
+  @@index([agentId, createdAt])
+  @@map("agent_payouts")
+}
+
+// ─── Staff notifications ───
+
+enum StaffPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// The owner's inbox: new orders, pending payments, failures, refunds, support, errors, backups.
+/// dedupeKey keeps one live notice per subject; reminders bump remindCount instead of adding rows.
+model StaffNotification {
+  id             String        @id @default(uuid()) @db.Uuid
+  type           String
+  priority       StaffPriority @default(NORMAL)
+  title          String
+  body           String
+  link           String?
+  data           Json?
+  dedupeKey      String        @unique
+  entityType     String?
+  entityId       String?
+  readAt         DateTime?
+  readById       String?       @db.Uuid
+  resolvedAt     DateTime?
+  remindCount    Int           @default(0)
+  lastRemindedAt DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([resolvedAt, priority, createdAt])
+  @@index([type, createdAt])
+  @@map("staff_notifications")
+}
+
+/// Per staff member: which notification types they muted.
+model StaffNotificationPref {
+  userId String  @db.Uuid
+  type   String
+  muted  Boolean @default(true)
+
+  @@id([userId, type])
+  @@map("staff_notification_prefs")
+}
+
+// ─── Bank notifications (Android admin app) ───
+
+enum BankNoticeStatus {
+  NEW
+  SUGGESTED
+  CONFIRMED
+  IGNORED
+  DUPLICATE
+}
+
+/// A payment notification the owner's Android phone read from a chosen bank app.
+/// Evidence for the owner to review, never proof of payment: nothing is approved from it.
+model BankNotification {
+  id                 String           @id @default(uuid()) @db.Uuid
+  deviceId           String
+  sourceApp          String
+  title              String?
+  text               String
+  postedAt           DateTime
+  receivedAt         DateTime         @default(now())
+  amount             Decimal?         @db.Decimal(18, 4)
+  currency           String?          @db.Char(3)
+  reference          String?
+  sender             String?
+  /// 0–100: how sure the parser is about amount and reference.
+  confidence         Int              @default(0)
+  parser             String
+  status             BankNoticeStatus @default(NEW)
+  /// Same app, text and time from the phone: the same notification sent twice.
+  fingerprint        String           @unique
+  duplicateOfId      String?          @db.Uuid
+  suggestedPaymentId String?          @db.Uuid
+  matchedPaymentId   String?          @db.Uuid
+  reviewedById       String?          @db.Uuid
+  reviewedAt         DateTime?
+  reviewNote         String?
+
+  @@index([status, receivedAt])
+  @@index([reference])
+  @@map("bank_notifications")
+}
+
+// ─── Backups ───
+
+enum BackupStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// Every backup attempt and how it went.
+model BackupRun {
+  id            String       @id @default(uuid()) @db.Uuid
+  /// download | scheduled_daily | scheduled_weekly | manual_drive
+  trigger       String
+  /// download | google_drive
+  destination   String
+  status        BackupStatus @default(RUNNING)
+  encrypted     Boolean      @default(false)
+  sizeBytes     Int?
+  sha256        String?
+  remoteId      String?
+  counts        Json?
+  error         String?
+  triggeredById String?      @db.Uuid
+  startedAt     DateTime     @default(now())
+  finishedAt    DateTime?
+
+  @@index([startedAt])
+  @@map("backup_runs")
 }
