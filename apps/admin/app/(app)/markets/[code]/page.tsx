@@ -226,8 +226,8 @@ function MethodCard({
     <article className={`surface flex h-full flex-col gap-3 rounded-2xl p-4 shadow-card ${isStale(m.lastVerifiedAt) ? 'border-warn/40' : ''}`}>
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div dir="auto" className="font-bold">
-            {m.name}
+          <div className="font-bold">
+            <bdi>{m.name}</bdi>
           </div>
           <div className="text-xs text-muted">
             {METHOD_KIND[m.kind] ?? m.kind}
@@ -252,8 +252,8 @@ function MethodCard({
         </div>
         <div className="col-span-2 min-w-0">
           <dt className="text-[11px] text-muted">الرسوم (كما يذكرها المصدر)</dt>
-          <dd dir="auto" className="break-words font-semibold">
-            {m.fees || 'غير مذكورة'}
+          <dd className="break-words font-semibold">
+            <bdi>{m.fees || 'غير مذكورة'}</bdi>
           </dd>
         </div>
       </dl>

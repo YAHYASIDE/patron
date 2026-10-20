@@ -115,12 +115,15 @@ export function Sheet({
   subtitle,
   onClose,
   children,
+  footer,
   wide = false,
 }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
+  /** stays visible under the scrolling content (the main actions) */
+  footer?: React.ReactNode;
   wide?: boolean;
 }) {
   const id = useId();
@@ -151,6 +154,9 @@ export function Sheet({
           </button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && (
+          <div className="border-t border-[rgb(var(--line))] px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">{footer}</div>
+        )}
       </div>
     </div>
   );

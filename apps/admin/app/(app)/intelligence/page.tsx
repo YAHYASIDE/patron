@@ -102,18 +102,18 @@ function IntelligenceCenter() {
 
       {summary.error && <Notice text={summary.error} />}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 xl:grid-cols-6">
         {COUNT_CARDS.map((c) => (
           <button
             key={c.key}
             onClick={() => setParam('tab', c.tab)}
             aria-pressed={tab === c.tab}
             className={
-              'surface flex min-h-[84px] flex-col items-start justify-between rounded-2xl p-3.5 text-start shadow-card transition hover:border-teal/40 ' +
+              'surface flex min-h-[72px] flex-col items-start justify-between gap-1 rounded-2xl p-2.5 text-start shadow-card transition hover:border-teal/40 sm:min-h-[84px] sm:p-3.5 ' +
               (tab === c.tab ? 'ring-2 ring-teal/40' : '')
             }
           >
-            <span className="text-xs font-semibold text-muted">{c.label}</span>
+            <span className="text-[11px] font-semibold leading-tight text-muted sm:text-xs">{c.label}</span>
             <span className={`tnum text-2xl font-extrabold ${c.tone}`}>
               {summary.data ? num(summary.data.counts?.[c.key] ?? 0) : summary.loading ? '…' : '—'}
             </span>
@@ -232,7 +232,7 @@ function LastTests({ summary, loading }: { summary: IntelSummary | null; loading
             )}
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted">{loading ? 'جارٍ التحميل…' : 'لم تُسجَّل نتائج اختبارات بعد.'}</p>
+          <p className="mt-1 text-xs text-muted">{loading ? 'جارٍ التحميل…' : summary ? 'لم تُسجَّل نتائج اختبارات بعد.' : '—'}</p>
         )}
         {run?.summary && (
           <p dir="auto" className="mt-1 line-clamp-2 text-sm">
@@ -343,8 +343,8 @@ function DiscoveryRow({ d, onOpen }: { d: Discovery; onOpen: () => void }) {
         <VerifiedBadge verified={d.verified} />
         {st && <Chip label={st.label} cls={st.cls} />}
       </div>
-      <div dir="auto" className="font-bold leading-snug">
-        {d.title}
+      <div className="font-bold leading-snug">
+        <bdi>{d.title}</bdi>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
         <Confidence value={d.confidence} title="مدى الثقة في الاكتشاف" />

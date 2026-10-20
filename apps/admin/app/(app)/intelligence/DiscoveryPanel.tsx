@@ -53,6 +53,21 @@ export default function DiscoveryPanel({
     <Sheet
       wide
       onClose={onClose}
+      footer={
+        d &&
+        canDecide &&
+        actionsFor(d.status).length > 0 && (
+          <Decide
+            key={`${d.id}-${d.status}`}
+            id={d.id}
+            actions={actionsFor(d.status)}
+            onDone={() => {
+              reload();
+              onChanged();
+            }}
+          />
+        )
+      }
       title={d ? <span dir="auto">{d.title}</span> : 'تفاصيل الاكتشاف'}
       subtitle={
         d && (
@@ -150,17 +165,6 @@ export default function DiscoveryPanel({
             </Block>
           )}
 
-          {canDecide && (
-            <Decide
-              id={d.id}
-              actions={actionsFor(d.status)}
-              onDone={() => {
-                reload();
-                onChanged();
-              }}
-            />
-          )}
-
           <Block title="سجل القرارات">
             {d.decisions && d.decisions.length > 0 ? (
               <ol className="flex flex-col gap-2">
@@ -191,25 +195,22 @@ export default function DiscoveryPanel({
   );
 }
 
+/** The owner's buttons, pinned under the panel so they are reachable without scrolling on a phone. */
 function Decide({ id, actions, onDone }: { id: string; actions: DiscoveryAction[]; onDone: () => void }) {
   const [note, setNote] = useState('');
+  const [showNote, setShowNote] = useState(false);
   const [days, setDays] = useState(14);
   const [busy, setBusy] = useState<DiscoveryAction | null>(null);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
-
-  if (actions.length === 0) return null;
 
   async function act(action: DiscoveryAction) {
     setBusy(action);
     setError(null);
-    setDone(null);
     try {
       await decideDiscovery(id, action, note.trim() || undefined, days);
       setNote('');
       setAsking(false);
-      setDone(`سُجّل: ${ACTION_LABEL[action]}.`);
       onDone();
     } catch (e) {
       setError(friendlyError(e));
@@ -220,32 +221,41 @@ function Decide({ id, actions, onDone }: { id: string; actions: DiscoveryAction[
 
   const primary = actions[0];
   return (
-    <section className="surface-2 flex flex-col gap-3 rounded-2xl p-3.5">
-      <h3 className="text-sm font-bold">قرارك</h3>
-      <textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        rows={2}
-        maxLength={1000}
-        placeholder="ملاحظة (اختياري): لماذا، أو ما المطلوب…"
-        className="surface hairline w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal"
-      />
-      {actions.includes('defer') && (
-        <label className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
-          التأجيل لمدة
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="surface hairline min-h-10 rounded-xl border px-2 text-sm text-[rgb(var(--text))]"
-          >
-            {DEFER_CHOICES.map((n) => (
-              <option key={n} value={n}>
-                {n} يومًا
-              </option>
-            ))}
-          </select>
-        </label>
+    <section className="flex flex-col gap-2" aria-label="قرارك">
+      {showNote && (
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          maxLength={1000}
+          autoFocus
+          placeholder="ملاحظة (اختياري): لماذا، أو ما المطلوب…"
+          className="surface-2 hairline w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-teal"
+        />
       )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-muted">
+        {!showNote && (
+          <button type="button" onClick={() => setShowNote(true)} className="min-h-9 hover:text-[rgb(var(--text))]">
+            + ملاحظة
+          </button>
+        )}
+        {actions.includes('defer') && (
+          <label className="flex items-center gap-1.5">
+            مدة التأجيل
+            <select
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="surface-2 hairline min-h-9 rounded-lg border px-1.5 text-xs text-[rgb(var(--text))]"
+            >
+              {DEFER_CHOICES.map((n) => (
+                <option key={n} value={n}>
+                  {n} يومًا
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2">
         {actions.map((a) => (
           <button
@@ -253,7 +263,7 @@ function Decide({ id, actions, onDone }: { id: string; actions: DiscoveryAction[
             disabled={!!busy}
             onClick={() => (a === 'reject' ? setAsking(true) : act(a))}
             className={
-              'min-h-11 flex-1 rounded-xl px-4 text-sm font-bold transition disabled:opacity-50 sm:flex-none ' +
+              'min-h-11 flex-1 whitespace-nowrap rounded-xl px-3 text-sm font-bold transition disabled:opacity-50 sm:flex-none sm:px-4 ' +
               (a === primary
                 ? 'bg-teal text-white hover:bg-teal-deep'
                 : a === 'reject'
@@ -261,12 +271,11 @@ function Decide({ id, actions, onDone }: { id: string; actions: DiscoveryAction[
                   : 'surface border border-[rgb(var(--line))] hover:border-teal')
             }
           >
-            {busy === a ? 'جارٍ…' : a === 'defer' ? `تأجيل ${days} يومًا` : ACTION_LABEL[a]}
+            {busy === a ? 'جارٍ…' : ACTION_LABEL[a]}
           </button>
         ))}
       </div>
-      {error && <Notice text={error} />}
-      {done && <Notice text={done} tone="ok" />}
+      {error && !asking && <Notice text={error} />}
       {asking && (
         <ConfirmDialog
           title="رفض هذا الاكتشاف؟"
@@ -294,8 +303,8 @@ function TestResults({ value }: { value: unknown }) {
           {entries.map(([k, v]) => (
             <div key={k} className="surface-2 min-w-0 rounded-xl px-3 py-2">
               <dt className="text-[11px] text-muted">{TEST_KEY[k] ?? k}</dt>
-              <dd dir="auto" className="break-words text-sm font-semibold">
-                {show(v)}
+              <dd className="break-words text-sm font-semibold">
+                <bdi>{show(v)}</bdi>
               </dd>
             </div>
           ))}

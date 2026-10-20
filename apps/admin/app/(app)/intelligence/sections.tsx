@@ -65,7 +65,7 @@ export function AgentsSection({
           الفاحصات تعمل داخل التطبيق كل يوم؛ الوكلاء يرسلون تقاريرهم عند تشغيلهم. «قديم» يعني أنه لم يعمل منذ مدة.
         </p>
       </div>
-      {error && !summary && <Notice text={error} />}
+      {error && !summary && <p className="text-xs text-muted">تظهر هنا عندما يتوفّر الملخّص.</p>}
       {loading && !summary && <Skeleton rows={2} h="h-16" />}
       {summary && rows.length === 0 && <Empty>لم يعمل أي وكيل أو فاحص بعد.</Empty>}
       <ul className="grid gap-2.5 md:grid-cols-2">
@@ -154,12 +154,12 @@ export function DecisionLog({ reloadKey, onOpen }: { reloadKey: number; onOpen: 
                 </div>
                 {title &&
                   (discoveryId ? (
-                    <button onClick={() => onOpen(discoveryId)} dir="auto" className="text-start font-semibold text-teal hover:underline">
-                      {title}
+                    <button onClick={() => onOpen(discoveryId)} className="text-start font-semibold text-teal hover:underline">
+                      <bdi>{title}</bdi>
                     </button>
                   ) : (
-                    <span dir="auto" className="font-semibold">
-                      {title}
+                    <span className="font-semibold">
+                      <bdi>{title}</bdi>
                     </span>
                   ))}
                 <div className="flex flex-wrap gap-x-2 text-xs text-muted">
