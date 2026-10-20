@@ -2,11 +2,12 @@
 //
 // How the API guards work (apps/api/src/app.module.ts, src/common/guards): JwtAuthGuard and
 // PermissionsGuard are global. JwtAuthGuard lets @Public() routes through and requires a valid token
-// otherwise; PermissionsGuard reads @RequirePermissions(...) with getAllAndOverride([handler, class]),
-// so a method-level decorator replaces the class-level one, and an empty or missing list means
-// "any authenticated user". A route under `admin/` therefore needs @RequirePermissions (with at least
-// one permission) on the method or its class, or an explicit @Public() (token-guarded webhooks), or a
-// @Roles() check if one is ever added.
+// otherwise; PermissionsGuard reads @RequirePermissions(...) (all of) and @RequireAnyPermission(...)
+// (one of) with getAllAndOverride([handler, class]), each on its own, so a method-level decorator
+// replaces the class-level one of the same kind, and an empty or missing list means "any authenticated
+// user". A route under `admin/` therefore needs @RequirePermissions or @RequireAnyPermission (with at
+// least one permission) on the method or its class, or an explicit @Public() (token-guarded webhooks),
+// or a @Roles() check if one is ever added.
 import { join } from 'node:path';
 import { lineIndex, read, rel, walk } from '../lib/fs.mjs';
 import { firstString, parseClasses, stripComments } from '../lib/source.mjs';
@@ -15,7 +16,7 @@ import { discovery } from '../lib/discovery.mjs';
 export const name = 'admin-route-no-permission';
 
 const ROUTE_DECORATORS = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete', 'All', 'Head', 'Options', 'Search']);
-const GUARDS = new Set(['RequirePermissions', 'Public', 'Roles']);
+const PERMISSION_DECORATORS = ['RequirePermissions', 'RequireAnyPermission'];
 
 const trimSlashes = (p) => p.replace(/^\/+|\/+$/g, '');
 const joinPath = (a, b) => [trimSlashes(a), trimSlashes(b)].filter(Boolean).join('/');
@@ -33,11 +34,17 @@ function protection(classDecorators, methodDecorators) {
   const find = (list, n) => list.find((d) => d.name === n);
   if (find(methodDecorators, 'Public') || find(classDecorators, 'Public')) return 'guarded';
   if (find(methodDecorators, 'Roles') || find(classDecorators, 'Roles')) return 'guarded';
-  // method-level @RequirePermissions overrides the class one, even when empty
-  const perms = find(methodDecorators, 'RequirePermissions') ?? find(classDecorators, 'RequirePermissions');
-  if (perms && /\S/.test(perms.args ?? '')) return 'guarded';
+  // a method-level permission decorator overrides the class one of the same kind, even when empty
+  const perms = PERMISSION_DECORATORS.map((n) => find(methodDecorators, n) ?? find(classDecorators, n)).filter(Boolean);
+  if (perms.some((p) => /\S/.test(p.args ?? ''))) return 'guarded';
   if (find(methodDecorators, 'UseGuards') || find(classDecorators, 'UseGuards')) return 'custom';
-  return perms ? 'empty' : 'open';
+  return perms.length ? 'empty' : 'open';
+}
+
+/** The name of the (empty) permission decorator in effect, for the message. */
+function emptyDecorator(classDecorators, methodDecorators) {
+  const has = (n) => [...methodDecorators, ...classDecorators].some((d) => d.name === n);
+  return PERMISSION_DECORATORS.find(has) ?? PERMISSION_DECORATORS[0];
 }
 
 export function run({ root }) {
@@ -65,7 +72,7 @@ export function run({ root }) {
         const custom = state === 'custom';
         const reason =
           state === 'empty'
-            ? '@RequirePermissions() بلا أي صلاحية، وهو يعادل عدم وجوده'
+            ? `@${emptyDecorator(cls.decorators, method.decorators)}() بلا أي صلاحية، وهو يعادل عدم وجوده`
             : custom
               ? 'لا يوجد @RequirePermissions ولا @Public، يوجد @UseGuards مخصّص لم يُفحص'
               : 'لا يوجد @RequirePermissions ولا @Public ولا @Roles على الدالة أو الصنف';

@@ -1,23 +1,15 @@
 import {
-  Body, Controller, ForbiddenException, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post,
+  Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import {
   CreateMarketDto, LinkAccountDto, MarketDecisionDto, UpdateMarketDto, UpsertMethodsDto, UpsertRulesDto,
 } from './dto/markets.dto';
 import { MarketsService } from './markets.service';
-
-/** Either permission may read the markets (the guard's metadata means "all of"). */
-export const MARKET_READERS = ['markets.manage', 'intelligence.read'];
-
-export function assertCanReadMarkets(user: AuthUser | undefined) {
-  if (user && (user.roles.includes('super_admin') || MARKET_READERS.some((p) => user.permissions.includes(p)))) return;
-  throw new ForbiddenException(`Missing permission(s): one of ${MARKET_READERS.join(', ')}`);
-}
 
 /** What the store reads: enabled countries and their approved product rules. */
 @ApiTags('markets')
@@ -49,9 +41,8 @@ export class MarketsAdminController {
   constructor(private markets: MarketsService) {}
 
   @ApiOperation({ summary: 'Every country with its review counts (markets.manage or intelligence.read)' })
-  @Get()
-  list(@CurrentUser() user: AuthUser) {
-    assertCanReadMarkets(user);
+  @RequireAnyPermission('markets.manage', 'intelligence.read') @Get()
+  list() {
     return this.markets.list();
   }
 
@@ -78,9 +69,8 @@ export class MarketsAdminController {
   }
 
   @ApiOperation({ summary: 'A country with its methods, rules and the owner\'s accounts serving it (numbers masked)' })
-  @Get(':code')
-  detail(@Param('code') code: string, @CurrentUser() user: AuthUser) {
-    assertCanReadMarkets(user);
+  @RequireAnyPermission('markets.manage', 'intelligence.read') @Get(':code')
+  detail(@Param('code') code: string) {
     return this.markets.detail(code);
   }
 

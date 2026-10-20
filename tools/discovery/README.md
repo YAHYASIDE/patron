@@ -17,7 +17,7 @@ Without `--out` the JSON goes to stdout. Exit code: 0 = ran (findings or not), 1
 | Check | Fingerprint | Severity / kind | Verified |
 |---|---|---|---|
 | `.only` / `fit` / `.skip` / `xit` / `xdescribe` in test files under `apps/` | `focused-test:<file>:<call>:<hash of test name>` | HIGH (focused), LOW (skipped) / test | yes |
-| Admin routes (`admin/...`) with no `@RequirePermissions(...)`, `@Public()` or `@Roles()` on the method or class (an empty `@RequirePermissions()` counts as none) | `admin-route-no-permission:<VERB> /<path>` | HIGH / security | yes |
+| Admin routes (`admin/...`) with no `@RequirePermissions(...)`, `@RequireAnyPermission(...)`, `@Public()` or `@Roles()` on the method or class (an empty one counts as none) | `admin-route-no-permission:<VERB> /<path>` | HIGH / security | yes |
 | API modules that no file in `apps/api/test/unit` imports (placeholder modules skipped) | `module-without-unit-test:<module>` | LOW / quality | yes |
 | Store texts missing from the fr/en dictionaries, or with different `{placeholders}` | `i18n-missing:<file>`, `i18n-placeholders:<file>` | LOW, MEDIUM / ux | yes |
 | TODO / FIXME / HACK comments in `apps/*/{src,app,lib}` (one per file) | `todo-marker:<file>` | LOW / quality | yes |

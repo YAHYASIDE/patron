@@ -1,13 +1,13 @@
 import { randomUUID } from 'crypto';
-import { ForbiddenException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import { IS_PUBLIC_KEY } from '../../src/common/decorators/public.decorator';
-import { PERMISSIONS_KEY } from '../../src/common/decorators/require-permissions.decorator';
-import {
-  MarketsAdminController, MarketsPublicController, assertCanReadMarkets,
-} from '../../src/modules/markets/markets.controller';
+import { ANY_PERMISSIONS_KEY, PERMISSIONS_KEY } from '../../src/common/decorators/require-permissions.decorator';
+import { PermissionsGuard } from '../../src/common/guards/permissions.guard';
+import { MarketsAdminController, MarketsPublicController } from '../../src/modules/markets/markets.controller';
 import {
   CreateMarketDto, LinkAccountDto, MarketDecisionDto, UpdateMarketDto, UpsertMethodsDto, UpsertRulesDto,
 } from '../../src/modules/markets/dto/markets.dto';
@@ -33,20 +33,28 @@ describe('Markets controllers', () => {
   const pub = new MarketsPublicController(svc as never);
   const id = randomUUID();
 
-  it('reading needs markets.manage or intelligence.read; super_admin always passes', () => {
-    expect(() => assertCanReadMarkets(user(['markets.manage']))).not.toThrow();
-    expect(() => assertCanReadMarkets(user(['intelligence.read']))).not.toThrow();
-    expect(() => assertCanReadMarkets(user([], ['super_admin']))).not.toThrow();
-    expect(() => assertCanReadMarkets(user(['orders.read'], ['support']))).toThrow(ForbiddenException);
-    expect(() => assertCanReadMarkets(undefined)).toThrow(ForbiddenException);
-    expect(() => admin.list(user(['orders.read'], ['customer']))).toThrow(ForbiddenException);
-    expect(() => admin.detail('ML', user([], ['customer']))).toThrow(ForbiddenException);
+  it('reading needs markets.manage or intelligence.read, enforced by the guard; super_admin always passes', () => {
+    // the real guard on the real route metadata, as the global APP_GUARD runs it
+    const guard = new PermissionsGuard(new Reflector());
+    const canRead = (handler: object, u: unknown) =>
+      guard.canActivate({
+        switchToHttp: () => ({ getRequest: () => ({ user: u }) }),
+        getHandler: () => handler,
+        getClass: () => MarketsAdminController,
+      } as unknown as ExecutionContext);
+    for (const handler of [MarketsAdminController.prototype.list, MarketsAdminController.prototype.detail]) {
+      expect(canRead(handler, user(['intelligence.read'], ['support']))).toBe(true);
+      expect(canRead(handler, user(['markets.manage']))).toBe(true);
+      expect(canRead(handler, user([], ['super_admin']))).toBe(true);
+      expect(() => canRead(handler, user(['orders.read'], ['support']))).toThrow(ForbiddenException);
+      expect(() => canRead(handler, user([], ['customer']))).toThrow(ForbiddenException);
+      expect(() => canRead(handler, undefined)).toThrow(ForbiddenException);
+    }
   });
 
   it('passes each call to the service with the acting staff member', async () => {
-    const reader = user(['intelligence.read']);
-    await admin.list(reader);
-    await admin.detail('ML', reader);
+    await admin.list();
+    await admin.detail('ML');
     expect(svc.detail).toHaveBeenCalledWith('ML');
     await admin.create({ code: 'BF' } as never, 'actor');
     expect(svc.create).toHaveBeenCalledWith({ code: 'BF' }, 'actor');
@@ -74,7 +82,10 @@ describe('Markets controllers', () => {
     for (const fn of [
       admin.create, admin.update, admin.upsertMethods, admin.upsertRules, admin.decideMethod, admin.decideRule, admin.linkAccount,
     ]) expect(meta(PERMISSIONS_KEY, fn)).toEqual(['markets.manage']);
-    expect(meta(IS_PUBLIC_KEY, admin.list)).toBeUndefined();
+    for (const fn of [admin.list, admin.detail]) {
+      expect(meta(IS_PUBLIC_KEY, fn)).toBeUndefined();
+      expect(meta(ANY_PERMISSIONS_KEY, fn)).toEqual(['markets.manage', 'intelligence.read']);
+    }
   });
 });
 

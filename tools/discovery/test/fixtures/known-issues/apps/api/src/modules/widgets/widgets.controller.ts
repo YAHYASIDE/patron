@@ -2,7 +2,7 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
-import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { WidgetsService } from './widgets.service';
 
 @Controller('admin/widgets')
@@ -25,6 +25,18 @@ export class WidgetsAdminController {
   @RequirePermissions() @Post('import')
   import(@Body() body: unknown) {
     return this.widgets.import(body);
+  }
+
+  // guarded: any one of the listed permissions is enough
+  @RequireAnyPermission('widgets.read', 'widgets.manage') @Get('summary')
+  summary() {
+    return [];
+  }
+
+  // KNOWN ISSUE: an empty @RequireAnyPermission() is no requirement either
+  @RequireAnyPermission() @Get('stats')
+  stats() {
+    return [];
   }
 
   @Public() @Post('hook')
