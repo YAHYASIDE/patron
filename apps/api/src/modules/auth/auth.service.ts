@@ -13,6 +13,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
 import { countryFromPhone } from '../../common/reference/phone-country';
 import { TokenService, TokenPair } from './token.service';
+import { applyReferral } from '../agents/referrals';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -72,6 +73,7 @@ export class AuthService {
           wallets: { create: { currencyCode: currency } },
         },
       });
+      await applyReferral(tx, created.id, dto.ref);
 
       await tx.auditLog.create({
         data: {
@@ -183,7 +185,7 @@ export class AuthService {
       if (!dto.fullName?.trim()) {
         throw new BadRequestException({ message: 'Enter your full name', error: 'NAME_REQUIRED' });
       }
-      const created = await this.createPhoneCustomer(dto.phone, dto.fullName.trim(), dto.locale, meta);
+      const created = await this.createPhoneCustomer(dto.phone, dto.fullName.trim(), dto.locale, meta, dto.ref);
       return { status: 'SIGNED_IN', ...(await this.tokens.issue(created.id, null, { ip: meta.ip, deviceInfo: meta.deviceInfo })) };
     }
 
@@ -256,7 +258,7 @@ export class AuthService {
     return { message: 'Phone verified' };
   }
 
-  private async createPhoneCustomer(phone: string, fullName: string, locale: string | undefined, meta: RequestMeta) {
+  private async createPhoneCustomer(phone: string, fullName: string, locale: string | undefined, meta: RequestMeta, ref?: string) {
     const customerRole = await this.prisma.role.findUnique({ where: { name: 'customer' } });
     if (!customerRole) throw new BadRequestException('Customer role missing — run the seed');
     const currency = this.config.get<string>('currency.base') ?? 'USD';
@@ -275,6 +277,7 @@ export class AuthService {
           wallets: { create: { currencyCode: currency } },
         },
       });
+      await applyReferral(tx, created.id, ref);
       await tx.auditLog.create({
         data: {
           userId: created.id, action: 'auth.register_phone', entityType: 'User', entityId: created.id,

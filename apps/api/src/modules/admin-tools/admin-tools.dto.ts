@@ -17,6 +17,17 @@ export class UpdateCustomerDto {
   tags?: string[];
 }
 
+/** VIP thresholds for the customer segments; 0 turns a rule off. */
+export class SegmentSettingsDto {
+  /** VIP from this much spent, in the base currency. */
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000000)
+  vipSpendBase!: number;
+
+  /** VIP from this many paid orders. */
+  @Type(() => Number) @IsInt() @Min(0) @Max(100000)
+  vipOrders!: number;
+}
+
 export class OrderNoteDto {
   @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(1000)
   note!: string | null;

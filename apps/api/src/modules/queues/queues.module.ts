@@ -20,6 +20,7 @@ import { FxModule } from '../fx/fx.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { CustomerModule } from '../customer/customer.module';
+import { AgentsModule } from '../agents/agents.module';
 
 /**
  * In production the workers run as a separate process (`npm run start:worker`)
@@ -63,6 +64,7 @@ import { CustomerModule } from '../customer/customer.module';
     ReportsModule,
     MaintenanceModule,
     CustomerModule,
+    AgentsModule, // its queue: the relay hands it order events
   ],
   providers: [
     OutboxRelay,

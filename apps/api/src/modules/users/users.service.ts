@@ -6,6 +6,7 @@ import { CryptoService } from '../../common/crypto/crypto.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { AdminUpdateUserDto, BlockUserDto, CreateUserDto, QueryUsersDto, UpdateUserDto } from './dto/user.dto';
 import { toAuditJson } from '../../common/audit/audit.service';
+import { readSegmentSettings, segmentsOf, segmentWhere } from '../admin-tools/customer-segments';
 
 const PUBLIC_FIELDS = {
   id: true, email: true, phone: true, fullName: true, avatarUrl: true,
@@ -21,7 +22,11 @@ export class UsersService {
   constructor(private prisma: PrismaService, private crypto: CryptoService) {}
 
   async findAll(query: QueryUsersDto) {
+    // segments only mean something for customers: staff lists skip the settings read
+    const segments = query.role === 'customer' || query.segment ? await readSegmentSettings(this.prisma) : null;
+    const now = new Date();
     const where: Prisma.UserWhereInput = {
+      ...(query.segment && segments && { AND: [await segmentWhere(this.prisma, query.segment, segments, now)] }),
       deletedAt: null,
       ...(query.isActive !== undefined && { isActive: query.isActive }),
       ...(query.isBlocked !== undefined && { isBlocked: query.isBlocked }),
@@ -61,14 +66,20 @@ export class UsersService {
     const byUser = new Map(spent.map((s) => [s.userId, s]));
 
     return paginate(
-      data.map(({ roles, _count, ...u }) => ({
-        ...u,
-        roles: roles.map((r) => r.role),
-        ordersCount: _count.orders,
-        paidOrders: byUser.get(u.id)?._count._all ?? 0,
-        totalSpentBase: byUser.get(u.id)?._sum.totalBase ?? new Prisma.Decimal(0),
-        lastOrderAt: byUser.get(u.id)?._max.createdAt ?? null,
-      })),
+      data.map(({ roles, _count, ...u }) => {
+        const stats = {
+          paidOrders: byUser.get(u.id)?._count._all ?? 0,
+          totalSpentBase: byUser.get(u.id)?._sum.totalBase ?? new Prisma.Decimal(0),
+          lastOrderAt: byUser.get(u.id)?._max.createdAt ?? null,
+        };
+        return {
+          ...u,
+          roles: roles.map((r) => r.role),
+          ordersCount: _count.orders,
+          ...stats,
+          ...(segments && { segments: segmentsOf({ createdAt: u.createdAt, ...stats }, segments, now) }),
+        };
+      }),
       total,
       query,
     );

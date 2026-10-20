@@ -25,6 +25,9 @@ export class RegisterDto {
 
   @ApiPropertyOptional({ enum: ['ar', 'en', 'fr'] })
   @IsOptional() @IsIn(['ar', 'en', 'fr']) locale?: string;
+
+  @ApiPropertyOptional({ example: 'K7MXQ2', description: 'Referral code from a ?ref= link; kept only for a new account' })
+  @IsOptional() @IsString() @Length(0, 24) ref?: string;
 }
 
 const E164 = /^\+[1-9]\d{7,14}$/;
@@ -45,6 +48,9 @@ export class PhoneStartDto {
 
   @ApiPropertyOptional({ example: 'iPhone 15 · Safari' })
   @IsOptional() @IsString() @Length(0, 120) deviceInfo?: string;
+
+  @ApiPropertyOptional({ example: 'K7MXQ2', description: 'Referral code from a ?ref= link; kept only for a new account' })
+  @IsOptional() @IsString() @Length(0, 24) ref?: string;
 }
 
 export class PhoneLoginDto {

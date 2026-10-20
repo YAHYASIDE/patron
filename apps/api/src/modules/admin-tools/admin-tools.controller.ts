@@ -6,8 +6,8 @@ import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import {
-  AuditQueryDto, BroadcastDto, BulkPriceDto, CreateCouponDto, ExportOrdersQueryDto, OrderNoteDto, UpdateCouponDto,
-  UpdateCustomerDto, WhatsappTemplatesDto,
+  AuditQueryDto, BroadcastDto, BulkPriceDto, CreateCouponDto, ExportOrdersQueryDto, OrderNoteDto, SegmentSettingsDto,
+  UpdateCouponDto, UpdateCustomerDto, WhatsappTemplatesDto,
 } from './admin-tools.dto';
 import { CustomersAdminService } from './customers-admin.service';
 import { DataExportService } from './data-export.service';
@@ -30,6 +30,17 @@ function attach(res: Response, contentType: string, filename: string) {
 @Controller('admin/customers')
 export class CustomersAdminController {
   constructor(private customers: CustomersAdminService) {}
+
+  @ApiOperation({ summary: 'VIP thresholds for the customer segments' })
+  @RequirePermissions('users.read') @Get('segments/settings')
+  segmentSettings() {
+    return this.customers.segmentSettings();
+  }
+
+  @RequirePermissions('users.write') @Put('segments/settings')
+  setSegmentSettings(@Body() dto: SegmentSettingsDto, @CurrentUser('id') actorId: string) {
+    return this.customers.setSegmentSettings(dto, actorId);
+  }
 
   @ApiOperation({ summary: 'A customer with stats, notes, tags and latest orders' })
   @RequirePermissions('users.read') @Get(':id')

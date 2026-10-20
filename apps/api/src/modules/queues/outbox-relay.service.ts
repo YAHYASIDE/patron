@@ -1,10 +1,12 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { QUEUES, JOBS, FULFILMENT_JOB_OPTS, DEFAULT_JOB_OPTS } from './queue.constants';
+import { AGENTS_QUEUE, SYNC_COMMISSION_JOB } from '../agents/commissions.processor';
+import { COMMISSION_EVENTS } from '../agents/commissions.service';
 
 /**
  * The fields the routing switch reads. Outbox payloads are Json in the
@@ -64,6 +66,8 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
     private outbox: OutboxService,
     @InjectQueue(QUEUES.FULFILMENT) private fulfilment: Queue,
     @InjectQueue(QUEUES.NOTIFICATIONS) private notifications: Queue,
+    // agents: order events keep each order's commission in step (agents/commissions.service.ts)
+    @Optional() @InjectQueue(AGENTS_QUEUE) private agents?: Queue,
   ) {}
 
   onModuleInit() {
@@ -108,6 +112,15 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
   private async publish(event: { id: string; eventType: string; payload: Prisma.JsonValue }) {
     const eventType = event.eventType;
     const payload = toOutboxPayload(event.payload);
+
+    if (this.agents && payload.orderId && COMMISSION_EVENTS.has(eventType)) {
+      // one job per event; the sync re-reads the order, so a repeat is harmless
+      await this.agents.add(
+        SYNC_COMMISSION_JOB,
+        { orderId: payload.orderId, eventType },
+        { ...DEFAULT_JOB_OPTS, jobId: `commission-${event.id}` },
+      );
+    }
 
     switch (eventType) {
       case 'order.paid':
