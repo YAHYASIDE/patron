@@ -1,0 +1,226 @@
+{
+  "code": "MR",
+  "researchedAt": "2026-10-20",
+  "country": {
+    "nameAr": "موريتانيا",
+    "nameFr": "Mauritanie",
+    "nameEn": "Mauritania",
+    "currency": "MRU",
+    "currencies": ["MRU"],
+    "languages": ["ar", "fr"],
+    "dialCode": "+222",
+    "numberFormat": {
+      "nationalDigits": 8,
+      "regex": "^[234][0-9]{7}$",
+      "display": "+222 XX XX XX XX",
+      "note": "Closed 8-digit plan (AB PQ MC DU) in force since 1 January 2011 per the ARE communication published by the ITU (30.VI.2010); the annex lists mobile ranges starting 2 (Chinguitel), 3 (Mattel) and 4 (Mauritel), but the FR/EN tables are not fully consistent. ARE 2025-2026 interconnection catalogues still use +222 + 8 digits. Not fetched (network blocked); search results only."
+    },
+    "notes": "Constitution of 1991 (revised 2017), article 6: Arabic is the official language; Arabic, Pulaar, Soninké and Wolof are national languages. 'fr' is listed for the store because French is widely used in business and on bank/operator sites, but it is NOT an official language (no official source for its usage). Currency: ouguiya, code MRU since the 1 January 2018 redenomination (replaced MRO), issued by the Banque Centrale de Mauritanie.",
+    "sources": [
+      { "url": "https://bcm.mr/", "title": "Accueil", "publisher": "Banque Centrale de Mauritanie", "accessedAt": "2026-10-20" },
+      { "url": "http://www.bcm.mr/communique-de-presse-deuxieme-edition-de-l-exposition-museale-sur-l-ouguiya-485", "title": "Banque Centrale de Mauritanie - البنك المركزي الموريتاني", "publisher": "Banque Centrale de Mauritanie", "accessedAt": "2026-10-20" },
+      { "url": "https://www.itu.int/dms_pub/itu-t/oth/02/02/T02020000870001PDFF.pdf", "title": "Mauritanie (indicatif de pays +222) Communication du 30.VI.2010", "publisher": "ITU (communication of ARE)", "accessedAt": "2026-10-20" },
+      { "url": "https://are.mr/pdfs/MauritelCatalogueInterco2025-2026.pdf", "title": "SOCIETE MAURITANIENNE DES TELECOMMUNICATIONS MAURITEL SA", "publisher": "Autorité de Régulation (ARE)", "accessedAt": "2026-10-20" },
+      { "url": "https://www.primature.gov.mr/sites/default/files/2021-05/Constitution_consolidefr.pdf", "title": "Constitution consolidefr", "publisher": "Primature de Mauritanie", "accessedAt": "2026-10-20" }
+    ]
+  },
+  "methods": [
+    {
+      "key": "bankily-mr",
+      "name": "Bankily",
+      "provider": "Banque Populaire de Mauritanie (BPM)",
+      "kind": "mobile",
+      "currency": "MRU",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.bankily.mr/reseau-commercant/", "title": "Réseau commerçant - Bankily", "publisher": "Bankily (BPM)", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bankily.mr/tarif/", "title": "Tarif - Bankily", "publisher": "Bankily (BPM)", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bankily.mr/cest-quoi-bankily/", "title": "C'est Quoi Bankily ? - Bankily", "publisher": "Bankily (BPM)", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bpm.mr/fr/Bankily", "title": "Bankily - BPM Mauritanie", "publisher": "Banque Populaire de Mauritanie", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bpm.mr/actualites/Communiqu%C3%A9-de-presse-:-Aujourd%E2%80%99hui-la-famille-bankily-s%E2%80%99agrandit-avec-l%E2%80%99interop%C3%A9rabilit%C3%A9", "title": "Aujourd'hui la famille bankily s'agrandit avec l'interopérabilité", "publisher": "Banque Populaire de Mauritanie", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Mauritania only (MR). A merchant registers in the Bankily network and gets a merchant code / QR. Search extract says merchant payment is free (payer side); merchant-side fees and onboarding documents not found: read the Tarif page. BPM says other mobile banks can pay Bankily merchants via GIMTEL interoperability (limit stated in the release not recorded until read)."
+    },
+    {
+      "key": "masrvi-mr",
+      "name": "Masrvi",
+      "provider": "BMCI (Banque Mauritanienne pour le Commerce International)",
+      "kind": "mobile",
+      "currency": "MRU",
+      "fees": null,
+      "sources": [
+        { "url": "https://bmci.mr/masrvi-lance-une-interface-revolutionnaire-et-une-mise-a-jour-complete-de-son-service-technique-et-promet-des-surprises/?lang=en", "title": "Masrvi lance une interface révolutionnaire et une mise à jour complète de son service technique et promet des surprises", "publisher": "BMCI", "accessedAt": "2026-10-20" },
+        { "url": "https://bmci.mr/masrivi/CONDITIONS_fr.html", "title": "Conditions", "publisher": "BMCI", "accessedAt": "2026-10-20" },
+        { "url": "https://bmci.mr/presentation-de-la-bmci/?lang=en", "title": "Presentation of the BMCI - The Mauritanian Bank for International Trade - BMCI", "publisher": "BMCI", "accessedAt": "2026-10-20" },
+        { "url": "https://cnbcafrica.com/2021/mauritanian-bank-for-international-trade-launches-digital-bank-masrvi-powered-by-tagpay", "title": "Mauritanian Bank for International Trade launches digital bank Masrvi powered by TagPay", "publisher": "CNBC Africa", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Mauritania only (MR). Correction to the brief: Masrvi belongs to BMCI, not BMI (BMI's wallet is Sedad). BMCI lists merchant payments among Masrvi functions; merchant onboarding, fees and whether a business account is required were not found on an official page. A vendor blog (not used as a source) claims integration needs a BMCI merchant agreement."
+    },
+    {
+      "key": "sedad-mr",
+      "name": "Sedad Bank",
+      "provider": "BMI (Banque Mauritanienne de l'Investissement)",
+      "kind": "mobile",
+      "currency": "MRU",
+      "fees": null,
+      "sources": [
+        { "url": "https://bmi.mr/fr/sedad-page/", "title": "SEDAD Page - BMI", "publisher": "BMI", "accessedAt": "2026-10-20" },
+        { "url": "https://bmi.mr/fr/sedad-services-interface/", "title": "SEDAD", "publisher": "BMI", "accessedAt": "2026-10-20" },
+        { "url": "https://bmi.mr/fr/sedad_privacy-2/", "title": "Conditions Générales d'Utilisation de Mobile Banking « Sedad Bank» - BMI", "publisher": "BMI", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Mauritania only (MR). BMI says customers can pay at shops that have a SEDAD account and buy online with SEDAD; so the merchant needs its own SEDAD (merchant) account. Merchant fees, onboarding documents and any e-commerce API were not found. BMI is an Islamic bank."
+    },
+    {
+      "key": "click-mr",
+      "name": "Click (CLICKpay)",
+      "provider": "BNM (Banque Nationale de Mauritanie)",
+      "kind": "mobile",
+      "currency": "MRU",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.click.mr/", "title": "Click", "publisher": "Banque Nationale de Mauritanie", "accessedAt": "2026-10-20" },
+        { "url": "https://www.click.mr/faq", "title": "Foire aux questions - Click", "publisher": "Banque Nationale de Mauritanie", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bnm.mr/la-banque", "title": "La Banque", "publisher": "Banque Nationale de Mauritanie", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Mauritania only (MR). BNM's mobile money, launched 2022; CLICKpay pays partner merchants by QR. Search extract says payment is free for the customer; how a merchant becomes a CLICK partner, merchant fees and requirements were not found. Contact BNM."
+    },
+    {
+      "key": "moov-money-mr",
+      "name": "Moov Money (Mauritanie)",
+      "provider": "Moov Money (listed by BCM as payment institution)",
+      "kind": "mobile",
+      "currency": "MRU",
+      "fees": null,
+      "sources": [
+        { "url": "https://fintech.bcm.mr/fr/list-acteur/", "title": "Fintech - Acteurs clés de l'écosystème", "publisher": "Banque Centrale de Mauritanie", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 15,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked). Only evidence: the search extract of the BCM fintech portal names Moov Money among payment institutions. Not researched on the provider's site; merchant offer unknown. Recorded only so the owner can decide whether to research it; do not approve on this evidence."
+    },
+    {
+      "key": "bank-transfer-mr",
+      "name": "Virement bancaire (banque en Mauritanie)",
+      "provider": "Banques agréées par la BCM",
+      "kind": "bank",
+      "currency": "MRU",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.bcm.mr/page/etablissements-agrees/826", "title": "Établissements agréés", "publisher": "Banque Centrale de Mauritanie", "accessedAt": "2026-10-20" },
+        { "url": "https://fintech.bcm.mr/fr/infrastructure-paiement/", "title": "Fintech - Infrastructure de paiement", "publisher": "Banque Centrale de Mauritanie", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked). Generic method: needs a bank account in Mauritania (business account depends on the bank). Fees depend on the bank; none recorded. The BCM page describes licensed banks and payment institutions but the full list was not seen."
+    }
+  ],
+  "rules": [
+    {
+      "scope": "brand", "ref": "gc-apple-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة آبل الأمريكية تعمل فقط على حساب Apple مسجّل في الولايات المتحدة. (مصدر Apple لم يُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.apple.com/en-us/108285", "title": "If you can't redeem your Apple Gift Card or App Store & iTunes Gift Card", "publisher": "Apple Support", "accessedAt": "2026-10-20" },
+        { "url": "https://support.apple.com/en-us/118205", "title": "Availability of Apple Media Services", "publisher": "Apple Support", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-gplay-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة جوجل بلاي تُستعمل فقط في بلد وعملة الشراء: تحتاج حساب Google Play أمريكي. (لم تُفتح الصفحة، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.google.com/googleplay/answer/3422734?hl=en", "title": "About Google Play gift cards & where to buy them", "publisher": "Google Play Help", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-psn-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "قسيمة بلايستيشن يجب أن تطابق بلد الحساب: تحتاج حساب PSN أمريكي. لم نؤكد وجود متجر PSN لموريتانيا. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.playstation.com/en-us/support/account/check-account-country-region/", "title": "How to check your account's country/region on PlayStation (US)", "publisher": "PlayStation", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-xbox-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "رموز إكس بوكس تُستعمل في بلد الشراء: تحتاج حساب Microsoft أمريكي. قائمة دول Xbox لم تُفتح. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.xbox.com/en-ME/help/subscriptions-billing/manage-subscriptions/ensure-xbox-subscription-is-valid-for-your-country", "title": "Making sure your XBOX digital subscription is valid for your country or region", "publisher": "Xbox Support", "accessedAt": "2026-10-20" },
+        { "url": "https://xbox.com/en-CA/live/regions", "title": "Xbox Supported Countries & Regions", "publisher": "Xbox", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-steam", "availability": "AVAILABLE",
+      "note": "حسب صفحة Steam تُحوَّل قيمة البطاقة إلى عملة محفظة الحساب أينما اشتُريت. (الصفحة لم تُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://store.steampowered.com/account/redeemwalletcode", "title": "Redeem a Steam Gift Card or Wallet Code", "publisher": "Valve / Steam", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-netflix-us", "availability": "UNKNOWN",
+      "note": "نتفلكس تشترط أن تطابق عملة البطاقة (دولار) عملة فاتورة الحساب. لم نتحقق من عملة فوترة نتفلكس في موريتانيا. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://help.netflix.com/en/node/59987", "title": "Can't redeem Netflix gift card", "publisher": "Netflix Help Center", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "sub-nflx", "availability": "UNKNOWN",
+      "note": "نتفلكس تقول إنها متاحة في أكثر من 190 دولة، لكن لم نجد قائمة رسمية تذكر موريتانيا. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://about.netflix.com/en/news/netflix-is-now-available-around-the-world?data1=v2", "title": "Netflix Is Now Available Around the World", "publisher": "Netflix", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-spotify-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة سبوتيفاي تعمل فقط على حساب من بلد الشراء (أمريكا). وتقول سبوتيفاي إنها توقفت عن بيع بطاقات جديدة. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.spotify.com/us/article/gift-cards/", "title": "Spotify gift cards", "publisher": "Spotify Support", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "sub-spotify", "availability": "AVAILABLE",
+      "note": "سبوتيفاي تذكر موريتانيا ضمن الدول المتاحة. إن سُلِّم الاشتراك برمز مقيد ببلد فيجب أن يطابق بلد الحساب. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.spotify.com/us/article/where-spotify-is-available/", "title": "Where is Spotify available?", "publisher": "Spotify Support", "accessedAt": "2026-10-20" },
+        { "url": "https://newsroom.spotify.com/2021-02-22/spotify-expands-international-footprint-bringing-audio-to-80-new-markets/", "title": "Spotify Expands International Footprint, Bringing Audio to 80+ New Markets", "publisher": "Spotify Newsroom", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "free-fire", "availability": "UNKNOWN",
+      "note": "الشحن بمعرّف اللاعب؛ لم نجد مصدرًا رسميًا لخادم موريتانيا أو قيود منطقة لدى Garena. يُرجَّح أنه يعمل لكن غير مؤكد.",
+      "sources": [
+        { "url": "https://ffsupport.garena.com/hc/en-us/articles/4412920947866-Free-Fire-Customer-Service-Teams", "title": "Free Fire Customer Service Teams", "publisher": "Garena", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 15, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "pubg-mobile", "availability": "AVAILABLE",
+      "note": "متجر Midasbuy الرسمي يذكر موريتانيا ضمن مناطق الشحن. الشحن بمعرّف اللاعب. (الصفحة لم تُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.midasbuy.com/ot/pubg", "title": "Midasbuy Top-Up Center", "publisher": "Midasbuy (Tencent)", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-amazon-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة أمازون الأمريكية تُصرف فقط على amazon.com ولا تنتقل لمتجر بلد آخر. الشحن إلى موريتانيا غير متحقق منه. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GNG9PXYZUMQT72QK", "title": "Amazon.com Balance and Amazon.com Gift Card Terms and Conditions", "publisher": "Amazon", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    }
+  ]
+}

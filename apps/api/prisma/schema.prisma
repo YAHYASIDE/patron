@@ -1672,3 +1672,207 @@ model BackupRun {
   @@index([startedAt])
   @@map("backup_runs")
 }
+
+// ═══════════════ MARKETS & INTELLIGENCE ═══════════════
+
+// ─── Markets: each country has its own currency, languages, payment methods and product rules ───
+
+enum MarketReviewStatus {
+  /// found by research (an agent or staff), not yet seen by the owner
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  DEFERRED
+  /// approved AND linked to a usable receiving account the owner set up (payment methods only)
+  ACTIVE
+}
+
+enum ProductAvailability {
+  AVAILABLE
+  UNAVAILABLE
+  /// works only with an account from a given region (e.g. a US gift card)
+  REGION_ACCOUNT_REQUIRED
+  UNKNOWN
+}
+
+/// A country the shop serves or is studying. Disabled until the owner turns it on.
+model MarketCountry {
+  code             String    @id @db.Char(2) // ISO 3166-1 alpha-2
+  nameAr           String
+  nameFr           String
+  nameEn           String
+  /// the default paying currency, then any other accepted ones
+  currency         String    @db.Char(3)
+  currencies       String[]  @default([])
+  languages        String[]  @default([])
+  dialCode         String
+  enabled          Boolean   @default(false)
+  notes            String?
+  /// when research last looked at this country (payment methods, rules)
+  lastResearchedAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  methods      MarketPaymentMethod[]
+  productRules ProductMarketRule[]
+
+  @@map("market_countries")
+}
+
+/// A payment method that exists in a country, as research found it. Never offered to customers by
+/// itself: the owner approves it, sets up a receiving account in Payment methods, then links it.
+model MarketPaymentMethod {
+  id             String             @id @default(uuid()) @db.Uuid
+  countryCode    String             @db.Char(2)
+  country        MarketCountry      @relation(fields: [countryCode], references: [code], onDelete: Cascade)
+  /// stable key, e.g. orange-money-ml
+  key            String
+  name           String
+  provider       String?
+  /// mobile_money | bank | card | crypto | cash
+  kind           String
+  currency       String?            @db.Char(3)
+  /// documented fees, as the source states them (text, not computed)
+  fees           String?
+  /// research caveats the owner must see (e.g. "page not fetched, seen in search results only")
+  note           String?
+  /// [{ url, title, publisher, accessedAt }]
+  sources        Json               @default("[]")
+  /// 0–100: how sure the research is that this method exists and works for receiving money
+  confidence     Int                @default(0)
+  status         MarketReviewStatus @default(PENDING_REVIEW)
+  lastVerifiedAt DateTime
+  verifiedBy     String
+  /// the owner's manual account (payments.manual_accounts id) once linked
+  accountId      String?
+  decisionById   String?            @db.Uuid
+  decisionAt     DateTime?
+  decisionNote   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([countryCode, key])
+  @@index([status])
+  @@map("market_payment_methods")
+}
+
+/// Whether a product, brand or category works in a country.
+model ProductMarketRule {
+  id             String              @id @default(uuid()) @db.Uuid
+  countryCode    String              @db.Char(2)
+  country        MarketCountry       @relation(fields: [countryCode], references: [code], onDelete: Cascade)
+  /// product (sku) | brand (brand key) | category (slug)
+  scope          String
+  ref            String
+  availability   ProductAvailability @default(UNKNOWN)
+  note           String?
+  sources        Json                @default("[]")
+  confidence     Int                 @default(0)
+  status         MarketReviewStatus  @default(PENDING_REVIEW)
+  lastVerifiedAt DateTime
+  verifiedBy     String
+  decisionById   String?             @db.Uuid
+  decisionAt     DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([countryCode, scope, ref])
+  @@index([status])
+  @@map("product_market_rules")
+}
+
+// ─── Discovery engine ───
+
+enum DiscoveryStatus {
+  NEW
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  DEFERRED
+  IN_PROGRESS
+  DONE
+}
+
+enum DiscoverySeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+/// Something an agent, a scanner or CI found: a bug, a risk, an unready product, an opportunity.
+/// One row per subject (fingerprint): seeing it again bumps seenCount instead of adding a row.
+model Discovery {
+  id            String            @id @default(uuid()) @db.Uuid
+  fingerprint   String            @unique
+  /// bug | security | performance | ux | market | product | payment | data | opportunity | test
+  kind          String
+  title         String
+  description   String
+  /// [{ type: code|test|log|url|db|metric|ci, ref, detail }]
+  evidence      Json              @default("[]")
+  /// 0–100
+  confidence    Int               @default(50)
+  /// false = a hypothesis to check, true = reproduced / confirmed
+  verified      Boolean           @default(false)
+  severity      DiscoverySeverity @default(MEDIUM)
+  impact        String
+  proposal      String
+  status        DiscoveryStatus   @default(NEW)
+  /// who found it: discovery-engine, market-scout, qa-tester…
+  source        String
+  testResults   Json?
+  branch        String?
+  prUrl         String?
+  seenCount     Int               @default(1)
+  firstSeenAt   DateTime          @default(now())
+  lastSeenAt    DateTime          @default(now())
+  deferredUntil DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  decisions DiscoveryDecision[]
+
+  @@index([status, severity])
+  @@index([kind, status])
+  @@map("discoveries")
+}
+
+/// The owner's (or staff's) decision log on discoveries.
+model DiscoveryDecision {
+  id          String    @id @default(uuid()) @db.Uuid
+  discoveryId String    @db.Uuid
+  discovery   Discovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  /// approve | reject | defer | reopen | start | done
+  action      String
+  note        String?
+  actorId     String?   @db.Uuid
+  actorLabel  String
+  createdAt   DateTime  @default(now())
+
+  @@index([discoveryId, createdAt])
+  @@map("discovery_decisions")
+}
+
+/// One run of an agent, a scanner or the CI analysis.
+model AgentRun {
+  id          String    @id @default(uuid()) @db.Uuid
+  agent       String
+  /// manual | schedule | ci | app
+  trigger     String
+  /// RUNNING | SUCCEEDED | FAILED
+  status      String
+  summary     String?
+  discoveries Int       @default(0)
+  testsPassed Int?
+  testsFailed Int?
+  commit      String?
+  branch      String?
+  details     Json?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([agent, startedAt])
+  @@map("agent_runs")
+}

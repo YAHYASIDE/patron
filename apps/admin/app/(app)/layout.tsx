@@ -19,7 +19,14 @@ type NavGroup = { id: string; label: string | null; items: NavItem[] };
  * one holding the current page is always open.
  */
 const NAV: NavGroup[] = [
-  { id: 'home', label: null, items: [{ href: '/', label: 'لوحة القيادة', icon: 'grid' }] },
+  {
+    id: 'home',
+    label: null,
+    items: [
+      { href: '/', label: 'لوحة القيادة', icon: 'grid' },
+      { href: '/intelligence', label: 'مركز الذكاء والتطوير', icon: 'bulb' },
+    ],
+  },
   {
     id: 'ops',
     label: 'التشغيل',
@@ -39,6 +46,7 @@ const NAV: NavGroup[] = [
       { href: '/usdt', label: 'طلبات USDT', icon: 'coins' },
       { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
       { href: '/currencies', label: 'أسعار الصرف', icon: 'exchange' },
+      { href: '/markets', label: 'الدول والأسواق', icon: 'pin' },
     ],
   },
   {

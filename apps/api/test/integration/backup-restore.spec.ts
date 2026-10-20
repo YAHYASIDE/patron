@@ -141,6 +141,29 @@ describe('Backup and restore', () => {
     await prisma.bankNotification.create({
       data: { deviceId: 'phone-1', sourceApp: 'bankily', text: 'Vous avez reçu 420 MRU', postedAt: new Date(), amount: 420, currency: 'MRU', parser: 'bankily', fingerprint: 'fp-1' },
     });
+    // markets and the intelligence center: a country with a researched method and rule, a discovery
+    // with the owner's decision, and an agent run
+    await prisma.marketCountry.create({
+      data: {
+        code: 'ML', nameAr: 'مالي', nameFr: 'Mali', nameEn: 'Mali', currency: 'XOF', currencies: ['XOF', 'USD'], languages: ['fr'],
+        dialCode: '223', enabled: true, lastResearchedAt: new Date(),
+      },
+    });
+    await prisma.marketPaymentMethod.create({
+      data: {
+        countryCode: 'ML', key: 'orange-money-ml', name: 'Orange Money', kind: 'mobile', currency: 'XOF', confidence: 90,
+        sources: [{ url: 'https://example.test/om', title: 'Orange Money', accessedAt: '2026-10-01' }],
+        status: 'APPROVED', lastVerifiedAt: new Date(), verifiedBy: 'market-scout', decisionById: owner.id, decisionAt: new Date(),
+      },
+    });
+    await prisma.productMarketRule.create({
+      data: { countryCode: 'ML', scope: 'brand', ref: 'gc-apple-us', availability: 'REGION_ACCOUNT_REQUIRED', lastVerifiedAt: new Date(), verifiedBy: 'market-scout' },
+    });
+    const discovery = await prisma.discovery.create({
+      data: { fingerprint: 'market.research-needed:SN', kind: 'market', title: 't', description: 'd', impact: 'i', proposal: 'p', source: 'markets' },
+    });
+    await prisma.discoveryDecision.create({ data: { discoveryId: discovery.id, action: 'defer', actorId: owner.id, actorLabel: 'owner' } });
+    await prisma.agentRun.create({ data: { agent: 'scanner:market-staleness', trigger: 'app', status: 'SUCCEEDED', finishedAt: new Date() } });
     await prisma.staffNotification.create({ data: { type: 'order.paid', title: 'طلب', body: 'جديد', dedupeKey: 'left-out' } });
     await prisma.backupRun.create({ data: { trigger: 'download', destination: 'download', status: 'SUCCEEDED' } });
     return { owner, customer, agent };
@@ -169,6 +192,10 @@ describe('Backup and restore', () => {
     // …a new one is migrated (which seeds a currency, a rate and a setting of its own)
     await prisma.currency.create({ data: { code: 'XOF', nameAr: 'فرنك', nameEn: 'CFA', symbol: 'F', decimals: 0 } });
     await prisma.systemSetting.create({ data: { key: 'payments.manual_note', value: 'default' } });
+    // …the countries the markets migration seeds (the backup's own replace them)
+    await prisma.marketCountry.create({
+      data: { code: 'ML', nameAr: 'مالي', nameFr: 'Mali', nameEn: 'Mali', currency: 'XOF', dialCode: '223', enabled: false },
+    });
     // …and its own roles and permissions: the same customer role and orders.read (other ids), plus
     // what newer migrations add and this backup predates: the agent role and backup.manage
     await prisma.role.create({
@@ -195,7 +222,11 @@ describe('Backup and restore', () => {
     expect(after.counts).toMatchObject({ favorite: 1, savedInput: 1, priceWatch: 1 });
     expect(after.counts).toMatchObject({
       passkey: 1, accountRecoveryRequest: 1, usdtOrder: 1, usdtOrderEvent: 2, agent: 1, agentPayout: 1, commission: 1, bankNotification: 1,
+      marketCountry: 1, marketPaymentMethod: 1, productMarketRule: 1, discovery: 1, discoveryDecision: 1, agentRun: 1,
     });
+    // the backup's country (enabled, researched) replaced the one the migration seeded; the owner's decision survived
+    expect(await prisma.marketCountry.findUniqueOrThrow({ where: { code: 'ML' } })).toMatchObject({ enabled: true, currencies: ['XOF', 'USD'] });
+    expect(await prisma.marketPaymentMethod.findFirstOrThrow()).toMatchObject({ status: 'APPROVED', key: 'orange-money-ml' });
     // the secret settings stayed behind; every other row came back, plus the newer role and permission
     expect(after.counts).toEqual({
       ...before.counts,

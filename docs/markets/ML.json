@@ -1,0 +1,211 @@
+{
+  "code": "ML",
+  "researchedAt": "2026-10-20",
+  "country": {
+    "nameAr": "مالي",
+    "nameFr": "Mali",
+    "nameEn": "Mali",
+    "currency": "XOF",
+    "currencies": ["XOF"],
+    "languages": ["fr", "bm"],
+    "dialCode": "+223",
+    "numberFormat": {
+      "nationalDigits": 8,
+      "regex": "^[0-9]{8}$",
+      "display": "+223 XX XX XX XX",
+      "note": "Closed 8-digit plan per the AMRTP communication published by the ITU (6.III.2018). Mobile prefixes per operator were not confirmed (search extract garbled), so the regex does not restrict the first digit. Page not fetched (network blocked); seen in search results only."
+    },
+    "notes": "Languages: the 2023 Constitution makes the national languages official and French the working language (articles not fetched, search results only). 'bm' (Bambara) is listed as the most common national language for the store; the Constitution text does not name the 13 national languages in the extract seen. XOF (franc CFA) issued by BCEAO for the 8 UMOA states including Mali.",
+    "sources": [
+      { "url": "https://www.bceao.int/fr/content/presentation-de-lumoa", "title": "UMOA", "publisher": "BCEAO", "accessedAt": "2026-10-20" },
+      { "url": "https://www.bceao.int/fr/content/histoire-du-franc-cfa", "title": "Franc CFA", "publisher": "BCEAO", "accessedAt": "2026-10-20" },
+      { "url": "https://www.itu.int/dms_pub/itu-t/oth/02/02/T02020000830004PDFF.pdf", "title": "Mali (indicatif de pays +223) Communication du 6.III.2018", "publisher": "ITU (communication of AMRTP)", "accessedAt": "2026-10-20" },
+      { "url": "https://axl.cefan.ulaval.ca/afrique/mali-const-2023.htm", "title": "République du Mali", "publisher": "Université Laval (CEFAN)", "accessedAt": "2026-10-20" },
+      { "url": "https://telquel.ma/instant-t/2023/07/24/mali-le-francais-retrograde-en-langue-de-travail-dans-la-nouvelle-constitution_1822837/", "title": "Mali : le français rétrogradé en langue de travail dans la nouvelle Constitution", "publisher": "TelQuel", "accessedAt": "2026-10-20" }
+    ]
+  },
+  "methods": [
+    {
+      "key": "orange-money-ml",
+      "name": "Orange Money Mali (paiement marchand Sarali)",
+      "provider": "Orange Mali / Orange Finances Mobiles Mali",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.orangemali.com/fr/paiement/le-paiement-marchand-sarali.html", "title": "Le paiement marchand: Sarali", "publisher": "Orange Mali", "accessedAt": "2026-10-20" },
+        { "url": "https://www.orangemali.com/fr/1018/1056/sarali-plus-18136.html", "title": "Sarali plus", "publisher": "Orange Mali", "accessedAt": "2026-10-20" },
+        { "url": "https://www.orangemali.com/fr/services-financiers/rapido.html", "title": "Rapido", "publisher": "Orange Mali", "accessedAt": "2026-10-20" },
+        { "url": "https://www.orangemali.com/fr/assistance/conditions-specifiques-orange-money.html", "title": "Conditions spécifiques Orange Money", "publisher": "Orange Mali", "accessedAt": "2026-10-20" },
+        { "url": "https://developer.orange.com/apis/om-webpay", "title": "Orange Money Web Payment / M Payment (1.0) API", "publisher": "Orange Developer", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bceao.int/sites/default/files/inline-files/5%20-%20Liste%20Mali_2026.pdf", "title": "5 - Liste Mali_2026", "publisher": "BCEAO", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. The official domain found is orangemali.com (orange.ml did not appear). Receiving needs an Orange Money MERCHANT account (Sarali), which requires an identified Orange Money account; Rapido is for legal entities only. The Sarali plus search extract mentions a 1% collection fee: not recorded until the owner reads the page. OM Web Pay (online API) lists Mali, page old. BCEAO Mali list names Orange Finances Mobiles Mali as e-money institution."
+    },
+    {
+      "key": "moov-money-ml",
+      "name": "Moov Money Mali (paiement marchand SANI)",
+      "provider": "Moov Africa Malitel",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.moov-africa.ml/particulier/mobile/Pages/MoovMoney.aspx", "title": "Moov Money", "publisher": "Moov Africa Malitel", "accessedAt": "2026-10-20" },
+        { "url": "https://www.moov-africa.ml/particulier/Moov-Money/Pages/Services-de-paiement.aspx", "title": "Services de paiement", "publisher": "Moov Africa Malitel", "accessedAt": "2026-10-20" },
+        { "url": "https://www.moov-africa.ml/particulier/Moov-Money/Pages/Pr%C3%A9sentation.aspx", "title": "PRÉSENTATION MOOV MONEY", "publisher": "Moov Africa Malitel", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Merchant payment is called SANI (merchant code or QR). The search extract says SANI is free for the paying customer; the merchant-side fee and the merchant onboarding documents were not found. A merchant code/account is needed to receive. Check moov-africa.ml or a Moov agency."
+    },
+    {
+      "key": "wave-ml",
+      "name": "Wave Mali",
+      "provider": "Wave SA (Mali), e-money issued with UBA Mali",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.wave.com/fr/terms_uba_ml/", "title": "Conditions Générales d'Utilisation « Wave", "publisher": "Wave", "accessedAt": "2026-10-20" },
+        { "url": "https://www.wave.com/en/terms_orabank_linking_ml/", "title": "Terms and Conditions", "publisher": "Wave", "accessedAt": "2026-10-20" },
+        { "url": "https://www.wave.com/fr/business/", "title": "Augmentez votre portée et vos revenus avec Wave Business", "publisher": "Wave", "accessedAt": "2026-10-20" },
+        { "url": "https://status.wave.com/", "title": "Wave Mobile Money Status", "publisher": "Wave", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 30,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Wave terms name WAVE SA, registered in Mali, with UBA Mali as e-money issuer; the status page lists Mali among markets with Client, Commerce (business) and Agent apps. Whether Wave Business is open to Mali merchants, and its Mali fees, were NOT confirmed (the Wave Business page found is Senegal-oriented). A Wave business account is needed to receive."
+    },
+    {
+      "key": "sama-money-ml",
+      "name": "Sama Money Mali",
+      "provider": "Sama Money Mali",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.bceao.int/sites/default/files/inline-files/5%20-%20Liste%20Mali_2026.pdf", "title": "5 - Liste Mali_2026", "publisher": "BCEAO", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 20,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked). Only evidence: the search extract of the BCEAO Mali list names Sama Money Mali as one of 2 licensed e-money institutions. Its merchant offer, fees and requirements were not researched from the provider's own site. Low priority until checked."
+    },
+    {
+      "key": "bank-transfer-ml",
+      "name": "Virement bancaire (banque au Mali)",
+      "provider": "Banques agréées au Mali (liste BCEAO)",
+      "kind": "bank",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.bceao.int/sites/default/files/2026-04/LISTE%20DES%20%C3%89TABLISSEMENTS%20DE%20CR%C3%89DIT%20AGR%C3%89%C3%89S%20DANS%20L'UMOA%20au%2031%20d%C3%A9cembre%202025.pdf", "title": "Liste des établissements de crédit agréés dans l'UMOA au 31 décembre 2025", "publisher": "BCEAO", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bceao.int/sites/default/files/2026-08/Liste_des_participants_PI-SPI_au_31_juillet_2026.pdf", "title": "Liste des participants autorisés à ouvrir les services de PI-SPI au public (31 juillet 2026)", "publisher": "BCEAO", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked). Generic method: the owner would need a bank account in Mali (business account depends on the bank). Fees depend on the bank; none recorded. BCEAO's PI-SPI instant-payment system has authorised participants (list seen in search only); which Malian banks/wallets take part was not checked."
+    }
+  ],
+  "rules": [
+    {
+      "scope": "brand", "ref": "gc-apple-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة آبل الأمريكية تعمل فقط على حساب Apple مسجّل في الولايات المتحدة. (مصدر Apple لم يُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.apple.com/en-us/108285", "title": "If you can't redeem your Apple Gift Card or App Store & iTunes Gift Card", "publisher": "Apple Support", "accessedAt": "2026-10-20" },
+        { "url": "https://support.apple.com/en-us/118205", "title": "Availability of Apple Media Services", "publisher": "Apple Support", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-gplay-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة جوجل بلاي تُستعمل فقط في بلد وعملة الشراء: تحتاج حساب Google Play أمريكي. (لم تُفتح الصفحة، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.google.com/googleplay/answer/3422734?hl=en", "title": "About Google Play gift cards & where to buy them", "publisher": "Google Play Help", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-psn-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "قسيمة بلايستيشن يجب أن تطابق بلد الحساب: تحتاج حساب PSN أمريكي. لم نؤكد وجود متجر PSN لمالي. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.playstation.com/en-us/support/account/check-account-country-region/", "title": "How to check your account's country/region on PlayStation (US)", "publisher": "PlayStation", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-xbox-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "رموز إكس بوكس تُستعمل في بلد الشراء: تحتاج حساب Microsoft أمريكي. قائمة دول Xbox لم تُفتح. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.xbox.com/en-ME/help/subscriptions-billing/manage-subscriptions/ensure-xbox-subscription-is-valid-for-your-country", "title": "Making sure your XBOX digital subscription is valid for your country or region", "publisher": "Xbox Support", "accessedAt": "2026-10-20" },
+        { "url": "https://xbox.com/en-CA/live/regions", "title": "Xbox Supported Countries & Regions", "publisher": "Xbox", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-steam", "availability": "AVAILABLE",
+      "note": "حسب صفحة Steam تُحوَّل قيمة البطاقة إلى عملة محفظة الحساب أينما اشتُريت. (الصفحة لم تُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://store.steampowered.com/account/redeemwalletcode", "title": "Redeem a Steam Gift Card or Wallet Code", "publisher": "Valve / Steam", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-netflix-us", "availability": "UNKNOWN",
+      "note": "نتفلكس تشترط أن تطابق عملة البطاقة (دولار) عملة فاتورة الحساب. لم نتحقق من عملة فوترة نتفلكس في مالي. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://help.netflix.com/en/node/59987", "title": "Can't redeem Netflix gift card", "publisher": "Netflix Help Center", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "sub-nflx", "availability": "UNKNOWN",
+      "note": "نتفلكس تقول إنها متاحة في أكثر من 190 دولة، لكن لم نجد قائمة رسمية تذكر مالي. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://about.netflix.com/en/news/netflix-is-now-available-around-the-world?data1=v2", "title": "Netflix Is Now Available Around the World", "publisher": "Netflix", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-spotify-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة سبوتيفاي تعمل فقط على حساب من بلد الشراء (أمريكا). وتقول سبوتيفاي إنها توقفت عن بيع بطاقات جديدة. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.spotify.com/us/article/gift-cards/", "title": "Spotify gift cards", "publisher": "Spotify Support", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "sub-spotify", "availability": "AVAILABLE",
+      "note": "سبوتيفاي تذكر مالي ضمن الدول المتاحة. إن سُلِّم الاشتراك برمز مقيد ببلد فيجب أن يطابق بلد الحساب. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.spotify.com/us/article/where-spotify-is-available/", "title": "Where is Spotify available?", "publisher": "Spotify Support", "accessedAt": "2026-10-20" },
+        { "url": "https://newsroom.spotify.com/2021-02-22/spotify-expands-international-footprint-bringing-audio-to-80-new-markets/", "title": "Spotify Expands International Footprint, Bringing Audio to 80+ New Markets", "publisher": "Spotify Newsroom", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "free-fire", "availability": "UNKNOWN",
+      "note": "الشحن بمعرّف اللاعب؛ لم نجد مصدرًا رسميًا لخادم مالي أو قيود منطقة لدى Garena. يُرجَّح أنه يعمل لكن غير مؤكد.",
+      "sources": [
+        { "url": "https://ffsupport.garena.com/hc/en-us/articles/4412920947866-Free-Fire-Customer-Service-Teams", "title": "Free Fire Customer Service Teams", "publisher": "Garena", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 15, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "pubg-mobile", "availability": "AVAILABLE",
+      "note": "متجر Midasbuy الرسمي يذكر مالي ضمن مناطق الشحن. الشحن بمعرّف اللاعب. (الصفحة لم تُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.midasbuy.com/ot/pubg", "title": "Midasbuy Top-Up Center", "publisher": "Midasbuy (Tencent)", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-amazon-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة أمازون الأمريكية تُصرف فقط على amazon.com ولا تنتقل لمتجر بلد آخر. الشحن إلى مالي غير متحقق منه. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GNG9PXYZUMQT72QK", "title": "Amazon.com Balance and Amazon.com Gift Card Terms and Conditions", "publisher": "Amazon", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    }
+  ]
+}

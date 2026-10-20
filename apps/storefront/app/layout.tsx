@@ -9,6 +9,9 @@ import ServiceWorker from '@/components/ServiceWorker';
 import './globals.css';
 import '@/components/discovery.css';
 
+/** Set only by render.staging.yaml: a test copy of the shop, never the real one. */
+const STAGING = process.env.NEXT_PUBLIC_STAGING === 'true';
+
 const cairo = Cairo({
   subsets: ['arabic', 'latin'],
   weight: ['400', '500', '600', '700', '800'],
@@ -40,6 +43,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     appleWebApp: { capable: true, title: 'patron', statusBarStyle: 'default' },
     formatDetection: { telephone: false },
+    // the staging copy (render.staging.yaml) must never appear in search results
+    ...(STAGING ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -66,6 +71,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="font-sans antialiased">
         <LangProvider lang={lang}>
+          {STAGING && (
+            <div role="status" className="sticky top-0 z-50 bg-amber-400 px-4 py-1.5 text-center text-sm font-bold text-black">
+              {translate(lang, 'نسخة تجريبية للاختبار فقط — لا تحوّل أي مال هنا.')}
+            </div>
+          )}
           {children}
           <Splash />
           <ServiceWorker />

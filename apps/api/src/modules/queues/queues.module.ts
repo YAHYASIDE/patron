@@ -12,6 +12,7 @@ import { MaintenanceProcessor } from './processors/maintenance.processor';
 import { MetricsCollector } from './processors/metrics.collector';
 import { CHECK_WATCHES_JOB, WATCHES_QUEUE, WatchesProcessor } from './processors/watches.processor';
 import { BACKUP_TICK_JOB, BACKUPS_QUEUE, BackupProcessor } from './processors/backup.processor';
+import { INTEL_SCAN_JOB, INTEL_SCAN_PATTERN, INTELLIGENCE_QUEUE, IntelligenceProcessor } from './processors/intelligence.processor';
 import { ReportsModule } from '../reports/reports.module';
 
 import { OrdersModule } from '../orders/orders.module';
@@ -23,6 +24,7 @@ import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { CustomerModule } from '../customer/customer.module';
 import { AdminToolsModule } from '../admin-tools/admin-tools.module';
 import { AgentsModule } from '../agents/agents.module';
+import { IntelligenceModule } from '../intelligence/intelligence.module';
 
 /**
  * In production the workers run as a separate process (`npm run start:worker`)
@@ -58,6 +60,7 @@ import { AgentsModule } from '../agents/agents.module';
       { name: QUEUES.MAINTENANCE },
       { name: WATCHES_QUEUE },
       { name: BACKUPS_QUEUE },
+      { name: INTELLIGENCE_QUEUE },
     ),
     OrdersModule,
     ProvidersModule,
@@ -69,6 +72,7 @@ import { AgentsModule } from '../agents/agents.module';
     CustomerModule,
     AdminToolsModule,
     AgentsModule, // its queue: the relay hands it order events
+    IntelligenceModule, // the daily scan
   ],
   providers: [
     OutboxRelay,
@@ -78,6 +82,7 @@ import { AgentsModule } from '../agents/agents.module';
     MetricsCollector,
     WatchesProcessor,
     BackupProcessor,
+    IntelligenceProcessor,
   ],
   exports: [BullModule],
 })
@@ -86,6 +91,7 @@ export class QueuesModule implements OnModuleInit {
     @InjectQueue(QUEUES.MAINTENANCE) private maintenance: Queue,
     @InjectQueue(WATCHES_QUEUE) private watches: Queue,
     @InjectQueue(BACKUPS_QUEUE) private backups: Queue,
+    @InjectQueue(INTELLIGENCE_QUEUE) private intelligence: Queue,
   ) {}
 
   /** Repeatable jobs are idempotent by key — re-registering on deploy is safe. */
@@ -138,6 +144,14 @@ export class QueuesModule implements OnModuleInit {
       jobId: `cron-${BACKUP_TICK_JOB}`,
       removeOnComplete: { count: 50 },
       removeOnFail: { count: 200 },
+    });
+
+    // The in-app intelligence scanners, once a day (POST /admin/intelligence/scan runs them on demand).
+    await this.intelligence.add(INTEL_SCAN_JOB, {}, {
+      repeat: { pattern: INTEL_SCAN_PATTERN },
+      jobId: `cron-${INTEL_SCAN_JOB}`,
+      removeOnComplete: { count: 30 },
+      removeOnFail: { count: 100 },
     });
   }
 }
