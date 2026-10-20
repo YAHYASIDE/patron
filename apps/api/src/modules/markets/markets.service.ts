@@ -303,6 +303,7 @@ export class MarketsService {
 
     return this.retryOnConflict(() =>
       this.prisma.$transaction(async (tx) => {
+        await this.lockResearch(tx, country.code);
         const now = new Date();
         const existing = new Set(
           (await tx.marketPaymentMethod.findMany({ where: { countryCode: country.code, key: { in: list.map((m) => m.key) } }, select: { key: true } }))
@@ -347,6 +348,7 @@ export class MarketsService {
 
     return this.retryOnConflict(() =>
       this.prisma.$transaction(async (tx) => {
+        await this.lockResearch(tx, country.code);
         const now = new Date();
         const rows = await tx.productMarketRule.findMany({
           where: { countryCode: country.code, ref: { in: unique(list.map((r) => r.ref)) } },
@@ -380,7 +382,15 @@ export class MarketsService {
     );
   }
 
-  /** Two research runs adding the same new key at once: the loser runs again and updates. */
+  /**
+   * One research write per country at a time, so "created" and "updated" are counted right when
+   * the same research arrives twice at once (the unique index already keeps one row per key).
+   */
+  private async lockResearch(tx: Prisma.TransactionClient, code: string) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`markets-research:${code}`}))`;
+  }
+
+  /** A write that still hits the unique index (a race the lock did not cover) runs once more as an update. */
   private async retryOnConflict<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();

@@ -91,6 +91,7 @@ function fakePrisma() {
     },
   };
   prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
+  prisma.$executeRaw = jest.fn().mockResolvedValue(1);
   return { prisma, db };
 }
 
