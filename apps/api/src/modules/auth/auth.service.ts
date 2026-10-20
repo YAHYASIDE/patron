@@ -7,12 +7,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { VerificationPurpose } from '@prisma/client';
+import { User, VerificationPurpose } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
 import { countryFromPhone } from '../../common/reference/phone-country';
 import { TokenService, TokenPair } from './token.service';
+import { applyReferral } from '../agents/referrals';
+import { CodesService, Destination, emailNotConfigured, invalidCode } from './codes.service';
+import { LoginGuardService } from './login-guard.service';
+import { accountWhere, parseIdentifier } from './identifier';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -22,16 +26,20 @@ import {
   RegisterDto,
   RequestPhoneCodeDto,
   ResetPasswordDto,
+  SetPasswordDto,
   VerifyCodeDto,
 } from './dto/auth.dto';
 
-interface RequestMeta {
+export interface RequestMeta {
   ip: string;
   userAgent?: string;
   deviceInfo?: string;
 }
 
 export type PhoneStartResult = ({ status: 'SIGNED_IN' } & TokenPair) | { status: 'CODE_REQUIRED' };
+
+const blocked = () => new ForbiddenException({ error: 'ACCOUNT_BLOCKED', message: 'This account has been blocked' });
+const inactive = () => new ForbiddenException({ error: 'ACCOUNT_INACTIVE', message: 'This account is inactive' });
 
 @Injectable()
 export class AuthService {
@@ -42,7 +50,13 @@ export class AuthService {
     private crypto: CryptoService,
     private tokens: TokenService,
     private config: ConfigService,
+    private codes: CodesService,
+    private guard: LoginGuardService,
   ) {}
+
+  private session(meta: RequestMeta) {
+    return { ip: meta.ip, deviceInfo: meta.deviceInfo, userAgent: meta.userAgent };
+  }
 
   // ─────────────── Register ───────────────
 
@@ -53,7 +67,7 @@ export class AuthService {
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email }, ...(dto.phone ? [{ phone: dto.phone }] : [])] },
     });
-    if (existing) throw new BadRequestException('An account with these details already exists');
+    if (existing) throw new BadRequestException({ error: 'ACCOUNT_EXISTS', message: 'An account with these details already exists' });
 
     const customerRole = await this.prisma.role.findUnique({ where: { name: 'customer' } });
     if (!customerRole) throw new BadRequestException('Customer role missing — run the seed');
@@ -72,6 +86,7 @@ export class AuthService {
           wallets: { create: { currencyCode: currency } },
         },
       });
+      await applyReferral(tx, created.id, dto.ref);
 
       await tx.auditLog.create({
         data: {
@@ -86,40 +101,45 @@ export class AuthService {
       return created;
     });
 
-    await this.issueVerificationCode(user.id, VerificationPurpose.EMAIL_VERIFY);
-    return this.tokens.issue(user.id, user.email, { ip: meta.ip, deviceInfo: meta.deviceInfo });
+    // The account exists either way; a mail that cannot go now can be re-sent from the store.
+    if (this.codes.emailEnabled) {
+      await this.codes
+        .issue(user, VerificationPurpose.EMAIL_VERIFY, { kind: 'email', to: email }, { onCooldown: 'skip' })
+        .catch(() => this.logger.warn(`Email verification for ${user.id} could not be sent at sign-up`));
+    }
+    return this.tokens.issue(user.id, user.email, this.session(meta));
   }
 
-  // ─────────────── Login ───────────────
+  // ─────────────── Login (email or phone + password) ───────────────
 
   async login(dto: LoginDto, meta: RequestMeta): Promise<TokenPair> {
-    const email = dto.email.toLowerCase().trim();
-    await this.assertNotLockedOut(email, meta.ip);
+    const id = parseIdentifier(dto.identifier ?? dto.email);
+    await this.guard.assertAllowed(id.to, meta.ip);
 
-    const user = await this.prisma.user.findFirst({ where: { email, deletedAt: null } });
+    const user = await this.prisma.user.findFirst({ where: accountWhere(id) });
 
-    // Same failure path and timing whether the email exists or not —
+    // Same failure path and timing whether the account exists or not —
     // otherwise login doubles as an account-enumeration oracle. The fake verify
     // runs the same Argon2 work as a real one.
-    // A WhatsApp-number account has no password: it signs in by code only.
+    // A WhatsApp-number account without a password signs in by code only.
     const passwordOk = user?.passwordHash
       ? await this.crypto.verifyPassword(dto.password, user.passwordHash)
       : await this.crypto.fakeVerify(dto.password);
 
     if (!user || !passwordOk) {
-      await this.recordAttempt(email, meta.ip, false, 'invalid_credentials');
-      throw new UnauthorizedException('Invalid email or password');
+      await this.guard.recordFailure(id.to, meta.ip, 'invalid_credentials');
+      throw new UnauthorizedException({ error: 'INVALID_CREDENTIALS', message: 'Invalid email, phone or password' });
     }
     if (user.isBlocked) {
-      await this.recordAttempt(email, meta.ip, false, 'blocked');
-      throw new ForbiddenException('This account has been blocked');
+      await this.guard.recordFailure(id.to, meta.ip, 'blocked');
+      throw blocked();
     }
     if (!user.isActive) {
-      await this.recordAttempt(email, meta.ip, false, 'inactive');
-      throw new ForbiddenException('This account is inactive');
+      await this.guard.recordFailure(id.to, meta.ip, 'inactive');
+      throw inactive();
     }
 
-    await this.recordAttempt(email, meta.ip, true);
+    await this.guard.recordSuccess(id.to, meta.ip);
 
     // Transparently upgrade a legacy bcrypt hash to Argon2id now that we hold
     // the plaintext — no password reset is forced by the migration.
@@ -131,13 +151,13 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date(), lastLoginIp: meta.ip, ...(rehashed && { passwordHash: rehashed }) },
     });
-    await this.auditAuth(user.id, 'auth.login', meta);
+    await this.auditAuth(user.id, id.kind === 'phone' ? 'auth.login_phone_password' : 'auth.login', meta);
 
-    return this.tokens.issue(user.id, user.email, { ip: meta.ip, deviceInfo: meta.deviceInfo });
+    return this.tokens.issue(user.id, user.email, this.session(meta));
   }
 
   refresh(refreshToken: string, meta: RequestMeta) {
-    return this.tokens.rotate(refreshToken, { ip: meta.ip, deviceInfo: meta.deviceInfo });
+    return this.tokens.rotate(refreshToken, this.session(meta));
   }
 
   async logout(refreshToken: string, meta: RequestMeta) {
@@ -157,10 +177,28 @@ export class AuthService {
     return { message: 'All sessions revoked' };
   }
 
+  // ─────────────── Sessions & devices ───────────────
+
+  listSessions(userId: string, currentSessionId?: string) {
+    return this.tokens.listSessions(userId, currentSessionId);
+  }
+
+  async revokeSession(userId: string, sessionId: string, meta: RequestMeta) {
+    const res = await this.tokens.revokeSession(userId, sessionId);
+    await this.auditAuth(userId, 'auth.session_revoked', meta, sessionId);
+    return res;
+  }
+
+  async revokeOtherSessions(userId: string, currentSessionId: string | undefined, meta: RequestMeta) {
+    const res = await this.tokens.revokeOtherSessions(userId, currentSessionId);
+    await this.auditAuth(userId, 'auth.sessions_revoked_others', meta);
+    return res;
+  }
+
   /** A uniform auth audit row carrying the request's IP and user agent. */
-  private auditAuth(userId: string, action: string, meta: RequestMeta) {
+  private auditAuth(userId: string, action: string, meta: RequestMeta, entityId = userId, entityType = entityId === userId ? 'User' : 'Session') {
     return this.prisma.auditLog.create({
-      data: { userId, action, entityType: 'User', entityId: userId, ipAddress: meta.ip, userAgent: meta.userAgent },
+      data: { userId, action, entityType, entityId, ipAddress: meta.ip, userAgent: meta.userAgent },
     });
   }
 
@@ -169,11 +207,11 @@ export class AuthService {
   /**
    * A new number with a name signs straight in, unverified. A number that
    * already proves something (verified, has a password, or has orders) needs a
-   * code the owner relays over WhatsApp, so typing someone else's number never
-   * opens their account.
+   * code (relayed by the owner over WhatsApp, or sent by the SMS provider), so
+   * typing someone else's number never opens their account.
    */
   async phoneStart(dto: PhoneStartDto, meta: RequestMeta): Promise<PhoneStartResult> {
-    await this.assertNotLockedOut(dto.phone, meta.ip);
+    await this.guard.assertAllowed(dto.phone, meta.ip);
     const user = await this.prisma.user.findFirst({
       where: { phone: dto.phone, deletedAt: null },
       include: { _count: { select: { orders: true } } },
@@ -183,46 +221,47 @@ export class AuthService {
       if (!dto.fullName?.trim()) {
         throw new BadRequestException({ message: 'Enter your full name', error: 'NAME_REQUIRED' });
       }
-      const created = await this.createPhoneCustomer(dto.phone, dto.fullName.trim(), dto.locale, meta);
-      return { status: 'SIGNED_IN', ...(await this.tokens.issue(created.id, null, { ip: meta.ip, deviceInfo: meta.deviceInfo })) };
+      const created = await this.createPhoneCustomer(dto.phone, dto.fullName.trim(), dto.locale, meta, dto.ref);
+      return { status: 'SIGNED_IN', ...(await this.tokens.issue(created.id, null, this.session(meta))) };
     }
 
-    if (user.isBlocked) throw new ForbiddenException('This account has been blocked');
-    if (!user.isActive) throw new ForbiddenException('This account is inactive');
+    if (user.isBlocked) throw blocked();
+    if (!user.isActive) throw inactive();
 
     const guarded = !!user.phoneVerifiedAt || !!user.passwordHash || user._count.orders > 0;
     if (guarded) {
-      await this.issueVerificationCode(user.id, VerificationPurpose.PHONE_LOGIN, { relay: true });
+      // asking again within the cooldown keeps the code already on its way
+      await this.codes.issue(user, VerificationPurpose.PHONE_LOGIN, { kind: 'phone', to: dto.phone }, { onCooldown: 'skip' });
       return { status: 'CODE_REQUIRED' };
     }
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: meta.ip } });
     await this.auditAuth(user.id, 'auth.login_phone', meta);
-    return { status: 'SIGNED_IN', ...(await this.tokens.issue(user.id, user.email, { ip: meta.ip, deviceInfo: meta.deviceInfo })) };
+    return { status: 'SIGNED_IN', ...(await this.tokens.issue(user.id, user.email, this.session(meta))) };
   }
 
-  /** Second step for a guarded number: the code the owner sent over WhatsApp. */
+  /** Second step for a guarded number: the code that reached that WhatsApp/SMS. */
   async phoneLogin(dto: PhoneLoginDto, meta: RequestMeta): Promise<TokenPair> {
-    await this.assertNotLockedOut(dto.phone, meta.ip);
+    await this.guard.assertAllowed(dto.phone, meta.ip);
     const user = await this.prisma.user.findFirst({ where: { phone: dto.phone, deletedAt: null } });
     try {
-      if (!user) throw new BadRequestException('Invalid or expired code');
-      await this.consumeCode(user.id, VerificationPurpose.PHONE_LOGIN, dto.code);
+      if (!user) throw invalidCode();
+      await this.codes.consume(user.id, VerificationPurpose.PHONE_LOGIN, dto.code, { kind: 'phone', to: dto.phone });
     } catch (err) {
-      await this.recordAttempt(dto.phone, meta.ip, false, 'invalid_code');
+      await this.guard.recordFailure(dto.phone, meta.ip, 'invalid_code');
       throw err;
     }
-    if (user.isBlocked) throw new ForbiddenException('This account has been blocked');
-    if (!user.isActive) throw new ForbiddenException('This account is inactive');
+    if (user.isBlocked) throw blocked();
+    if (!user.isActive) throw inactive();
 
-    await this.recordAttempt(dto.phone, meta.ip, true);
-    // The code reached that WhatsApp, which is exactly what verification proves.
+    await this.guard.recordSuccess(dto.phone, meta.ip);
+    // The code reached that number, which is exactly what verification proves.
     await this.prisma.user.update({
       where: { id: user.id },
       data: { phoneVerifiedAt: user.phoneVerifiedAt ?? new Date(), lastLoginAt: new Date(), lastLoginIp: meta.ip },
     });
     await this.auditAuth(user.id, 'auth.login_phone_code', meta);
-    return this.tokens.issue(user.id, user.email, { ip: meta.ip, deviceInfo: meta.deviceInfo });
+    return this.tokens.issue(user.id, user.email, this.session(meta));
   }
 
   /** The signed-in customer asks for a code to verify their number (added here if they had none). */
@@ -234,7 +273,7 @@ export class AuthService {
     if (!phone) {
       if (!dto.phone) throw new BadRequestException({ message: 'Add your WhatsApp number first', error: 'PHONE_REQUIRED' });
       const taken = await this.prisma.user.findFirst({ where: { phone: dto.phone, id: { not: userId } } });
-      if (taken) throw new BadRequestException('That number belongs to another account');
+      if (taken) throw new BadRequestException({ error: 'PHONE_TAKEN', message: 'That number belongs to another account' });
       phone = (
         await this.prisma.user.update({
           where: { id: userId },
@@ -243,12 +282,14 @@ export class AuthService {
       ).phone;
     }
 
-    await this.issueVerificationCode(userId, VerificationPurpose.PHONE_VERIFY, { relay: true });
+    await this.codes.issue(user, VerificationPurpose.PHONE_VERIFY, { kind: 'phone', to: phone as string });
     return { status: 'SENT' as const, phone };
   }
 
   async verifyPhone(userId: string, dto: VerifyCodeDto) {
-    await this.consumeCode(userId, VerificationPurpose.PHONE_VERIFY, dto.code);
+    const user = await this.prisma.user.findFirstOrThrow({ where: { id: userId, deletedAt: null } });
+    const dest: Destination | undefined = user.phone ? { kind: 'phone', to: user.phone } : undefined;
+    await this.codes.consume(userId, VerificationPurpose.PHONE_VERIFY, dto.code, dest);
     await this.prisma.user.update({ where: { id: userId }, data: { phoneVerifiedAt: new Date() } });
     await this.prisma.auditLog.create({
       data: { userId, action: 'auth.phone_verified', entityType: 'User', entityId: userId },
@@ -256,7 +297,7 @@ export class AuthService {
     return { message: 'Phone verified' };
   }
 
-  private async createPhoneCustomer(phone: string, fullName: string, locale: string | undefined, meta: RequestMeta) {
+  private async createPhoneCustomer(phone: string, fullName: string, locale: string | undefined, meta: RequestMeta, ref?: string) {
     const customerRole = await this.prisma.role.findUnique({ where: { name: 'customer' } });
     if (!customerRole) throw new BadRequestException('Customer role missing — run the seed');
     const currency = this.config.get<string>('currency.base') ?? 'USD';
@@ -275,6 +316,7 @@ export class AuthService {
           wallets: { create: { currencyCode: currency } },
         },
       });
+      await applyReferral(tx, created.id, ref);
       await tx.auditLog.create({
         data: {
           userId: created.id, action: 'auth.register_phone', entityType: 'User', entityId: created.id,
@@ -321,25 +363,29 @@ export class AuthService {
       select: {
         id: true, email: true, phone: true, fullName: true, avatarUrl: true,
         locale: true, defaultCurrency: true, emailVerifiedAt: true, phoneVerifiedAt: true,
-        twoFaEnabled: true, createdAt: true, country: true, city: true,
+        twoFaEnabled: true, createdAt: true, country: true, city: true, passwordHash: true,
         wallets: { select: { currencyCode: true, balance: true } },
         roles: { select: { role: { select: { name: true } } } },
+        _count: { select: { passkeys: true } },
       },
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const { roles, ...rest } = user;
-    return { ...rest, roles: roles.map((r) => r.role.name) };
+    const { roles, passwordHash, _count, ...rest } = user;
+    return { ...rest, hasPassword: !!passwordHash, passkeyCount: _count.passkeys, roles: roles.map((r) => r.role.name) };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findFirstOrThrow({ where: { id: userId, deletedAt: null } });
-    if (!user.passwordHash) throw new BadRequestException('This account signs in with its WhatsApp number and has no password');
+    if (!user.passwordHash) {
+      throw new BadRequestException({ error: 'NO_PASSWORD', message: 'This account signs in with its WhatsApp number and has no password' });
+    }
     if (!(await this.crypto.verifyPassword(dto.currentPassword, user.passwordHash))) {
-      throw new UnauthorizedException('Current password is incorrect');
+      // 400, not 401: a client reads 401 on a signed-in call as "session over"
+      throw new BadRequestException({ error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
     }
     if (dto.currentPassword === dto.newPassword) {
-      throw new BadRequestException('New password must differ from the current one');
+      throw new BadRequestException({ error: 'SAME_PASSWORD', message: 'New password must differ from the current one' });
     }
 
     await this.prisma.user.update({
@@ -355,125 +401,98 @@ export class AuthService {
     return { message: 'Password changed — please sign in again' };
   }
 
-  // ─────────────── Verification codes ───────────────
-
   /**
-   * `relay`: the owner sends this code by hand, so it is kept readable
-   * (encrypted) for them, lives longer, and asking again reuses the live code
-   * instead of replacing the one they may already have sent.
+   * A WhatsApp-number customer adds a password, so they can sign in with
+   * number + password when no code can reach them. Only once the number (or
+   * email) is verified: otherwise whoever typed a stranger's number first could
+   * lock a password onto it.
    */
-  async issueVerificationCode(userId: string, purpose: VerificationPurpose, opts: { relay?: boolean } = {}) {
-    if (opts.relay) {
-      const live = await this.prisma.verificationToken.findFirst({
-        where: { userId, purpose, consumedAt: null, codeEnc: { not: null }, expiresAt: { gt: new Date() } },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (live?.codeEnc) return this.crypto.decrypt(live.codeEnc);
+  async setPassword(userId: string, dto: SetPasswordDto, meta: RequestMeta) {
+    const user = await this.prisma.user.findFirstOrThrow({ where: { id: userId, deletedAt: null } });
+    if (user.passwordHash) {
+      throw new BadRequestException({ error: 'PASSWORD_ALREADY_SET', message: 'This account already has a password; change it instead' });
     }
-
-    const code = this.crypto.randomNumericCode(6);
-    const ttl = opts.relay
-      ? (this.config.get<number>('security.relayedOtpTtlSeconds') ?? 1800)
-      : (this.config.get<number>('security.otpTtlSeconds') ?? 300);
-
-    // Only one live code per purpose.
-    await this.prisma.verificationToken.updateMany({
-      where: { userId, purpose, consumedAt: null },
-      data: { consumedAt: new Date() },
+    if (!user.phoneVerifiedAt && !user.emailVerifiedAt) {
+      throw new ForbiddenException({ error: 'VERIFY_FIRST', message: 'Verify your number before adding a password' });
+    }
+    const { count } = await this.prisma.user.updateMany({
+      where: { id: userId, passwordHash: null },
+      data: { passwordHash: await this.crypto.hashPassword(dto.newPassword) },
     });
-    await this.prisma.verificationToken.create({
-      data: {
-        userId,
-        purpose,
-        codeHash: this.crypto.sha256(code),
-        codeEnc: opts.relay ? this.crypto.encrypt(code) : undefined,
-        expiresAt: new Date(Date.now() + ttl * 1000),
-      },
-    });
-
-    // TODO(notifications): hand off to the email/SMS channel once that module lands.
-    this.logger.debug(`Verification code for ${userId} (${purpose}): ${code}`);
-    return code;
+    if (count !== 1) {
+      throw new BadRequestException({ error: 'PASSWORD_ALREADY_SET', message: 'This account already has a password; change it instead' });
+    }
+    await this.auditAuth(userId, 'auth.password_set', meta);
+    return { message: 'Password set' };
   }
 
+  // ─────────────── Email verification ───────────────
+
   async verifyEmail(userId: string, dto: VerifyCodeDto) {
-    await this.consumeCode(userId, VerificationPurpose.EMAIL_VERIFY, dto.code);
+    await this.codes.consume(userId, VerificationPurpose.EMAIL_VERIFY, dto.code);
     await this.prisma.user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date() } });
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'auth.email_verified', entityType: 'User', entityId: userId },
+    });
     return { message: 'Email verified' };
   }
 
-  /** Always returns the same response — never reveals whether the email exists. */
-  async forgotPassword(dto: ForgotPasswordDto) {
-    const user = await this.prisma.user.findFirst({
-      where: { email: dto.email.toLowerCase().trim(), deletedAt: null, isActive: true },
-    });
-    if (user) await this.issueVerificationCode(user.id, VerificationPurpose.PASSWORD_RESET);
-    return { message: 'If that email is registered, a reset code has been sent' };
+  /** Send (again) the code that verifies the account's email; one per cooldown. */
+  async resendEmailCode(userId: string) {
+    const user = await this.prisma.user.findFirstOrThrow({ where: { id: userId, deletedAt: null } });
+    if (user.emailVerifiedAt) return { status: 'VERIFIED' as const };
+    if (!user.email) throw new BadRequestException({ error: 'EMAIL_REQUIRED', message: 'This account has no email' });
+    await this.codes.issue(user, VerificationPurpose.EMAIL_VERIFY, { kind: 'email', to: user.email });
+    return { status: 'SENT' as const };
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
-    const user = await this.prisma.user.findFirst({
-      where: { email: dto.email.toLowerCase().trim(), deletedAt: null },
-    });
-    if (!user) throw new BadRequestException('Invalid or expired code');
+  // ─────────────── Password reset (email or phone) ───────────────
 
-    await this.consumeCode(user.id, VerificationPurpose.PASSWORD_RESET, dto.code);
+  /** Always the same answer — never reveals whether the email or number has an account. */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const id = parseIdentifier(dto.identifier ?? dto.email);
+    // depends on the server's settings only, never on the account
+    if (id.kind === 'email' && !this.codes.emailEnabled) throw emailNotConfigured();
+
+    const user = await this.prisma.user.findFirst({ where: { ...accountWhere(id), isActive: true, isBlocked: false } });
+    if (user) {
+      await this.codes
+        .issue(user, VerificationPurpose.PASSWORD_RESET, id, { onCooldown: 'skip' })
+        .catch(() => this.logger.warn(`Password reset code for ${user.id} could not be sent`));
+    }
+    return { message: 'If that account exists, a reset code has been sent', channel: id.kind };
+  }
+
+  /** Only a proven code sets the password; the code also proves the contact, so it is marked verified. */
+  async resetPassword(dto: ResetPasswordDto, meta: RequestMeta) {
+    const id = parseIdentifier(dto.identifier ?? dto.email);
+    await this.guard.assertAllowed(id.to, meta.ip);
+    const user = await this.prisma.user.findFirst({ where: accountWhere(id) });
+    try {
+      if (!user) throw invalidCode();
+      await this.codes.consume(user.id, VerificationPurpose.PASSWORD_RESET, dto.code, id);
+    } catch (err) {
+      await this.guard.recordFailure(id.to, meta.ip, 'invalid_reset_code');
+      throw err;
+    }
+    await this.guard.recordSuccess(id.to, meta.ip);
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: await this.crypto.hashPassword(dto.newPassword) },
+      data: {
+        passwordHash: await this.crypto.hashPassword(dto.newPassword),
+        ...this.verifiedNow(user, id),
+      },
     });
     await this.tokens.revokeAllForUser(user.id);
-    await this.prisma.auditLog.create({
-      data: { userId: user.id, action: 'auth.password_reset', entityType: 'User', entityId: user.id },
-    });
+    await this.auditAuth(user.id, 'auth.password_reset', meta);
 
     return { message: 'Password reset — please sign in' };
   }
 
-  private async consumeCode(userId: string, purpose: VerificationPurpose, code: string) {
-    const token = await this.prisma.verificationToken.findFirst({
-      where: { userId, purpose, consumedAt: null },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!token || token.expiresAt < new Date()) throw new BadRequestException('Invalid or expired code');
-
-    if (token.attempts >= 5) {
-      await this.prisma.verificationToken.update({
-        where: { id: token.id },
-        data: { consumedAt: new Date() },
-      });
-      throw new BadRequestException('Too many attempts — request a new code');
-    }
-    if (!this.crypto.timingSafeEquals(token.codeHash, this.crypto.sha256(code))) {
-      await this.prisma.verificationToken.update({
-        where: { id: token.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw new BadRequestException('Invalid or expired code');
-    }
-
-    await this.prisma.verificationToken.update({
-      where: { id: token.id },
-      data: { consumedAt: new Date() },
-    });
-  }
-
-  // ─────────────── Brute-force protection ───────────────
-
-  private async assertNotLockedOut(identifier: string, ip: string) {
-    const max = this.config.get<number>('security.maxLoginAttempts') ?? 5;
-    const minutes = this.config.get<number>('security.lockoutMinutes') ?? 15;
-    const since = new Date(Date.now() - minutes * 60_000);
-
-    const failures = await this.prisma.loginAttempt.count({
-      where: { success: false, createdAt: { gte: since }, OR: [{ identifier }, { ipAddress: ip }] },
-    });
-    if (failures >= max) {
-      throw new ForbiddenException(`Too many failed attempts. Try again in ${minutes} minutes.`);
-    }
-  }
-
-  private recordAttempt(identifier: string, ipAddress: string, success: boolean, reason?: string) {
-    return this.prisma.loginAttempt.create({ data: { identifier, ipAddress, success, reason } });
+  private verifiedNow(user: Pick<User, 'emailVerifiedAt' | 'phoneVerifiedAt'>, id: Destination) {
+    return id.kind === 'email'
+      ? { emailVerifiedAt: user.emailVerifiedAt ?? new Date() }
+      : { phoneVerifiedAt: user.phoneVerifiedAt ?? new Date() };
   }
 }

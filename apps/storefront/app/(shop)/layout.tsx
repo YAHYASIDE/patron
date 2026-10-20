@@ -6,6 +6,7 @@ import AuthGate from '@/components/AuthGate';
 import WhatsAppFab from '@/components/WhatsAppFab';
 import InstallPrompt from '@/components/InstallPrompt';
 import ErrorReporter from '@/components/ErrorReporter';
+import RefCapture from '@/components/RefCapture';
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +24,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       <WhatsAppFab />
       <InstallPrompt />
       <ErrorReporter />
+      <RefCapture />
     </div>
   );
 }

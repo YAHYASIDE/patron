@@ -20,12 +20,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const lang = await serverLang();
   return {
     title: {
-      default: translate(lang, 'patron — بطاقات وشحن رقمي فوري'),
+      default: translate(lang, 'patron — بطاقات وشحن رقمي موثوق'),
       template: '%s · patron',
     },
     description: translate(
       lang,
-      'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.',
+      'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، ونسلّمها لك بعد تأكيد الدفع. أسعار واضحة ودفع آمن.',
     ),
     applicationName: 'patron',
     // installable app (public/manifest.webmanifest, icons from public/icons/*.svg)

@@ -46,6 +46,10 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { FxModule } from './modules/fx/fx.module';
 import { QueuesModule } from './modules/queues/queues.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { UsdtModule } from './modules/usdt/usdt.module';
+import { AgentsModule } from './modules/agents/agents.module';
+import { StaffNotificationsModule } from './modules/staff-notifications/staff-notifications.module';
+import { BankNoticesModule } from './modules/bank-notices/bank-notices.module';
 import { optInTier } from './common/guards/throttle-tiers';
 
 @Module({
@@ -97,6 +101,10 @@ import { optInTier } from './common/guards/throttle-tiers';
     NotificationsModule,
     FxModule,
     ReportsModule,
+    UsdtModule,
+    AgentsModule,
+    StaffNotificationsModule,
+    BankNoticesModule,
 
     // async work
     QueuesModule,

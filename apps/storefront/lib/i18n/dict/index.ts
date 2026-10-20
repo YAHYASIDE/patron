@@ -11,10 +11,14 @@ import pages from './pages';
 import discovery from './discovery';
 import myaccount from './myaccount';
 import feedback from './feedback';
+import auth2 from './auth2';
+import usdt from './usdt';
+import referral from './referral';
+import ui2 from './ui2';
 
 export type Dict = { fr: Record<string, string>; en: Record<string, string> };
 
-const parts: Dict[] = [common, catalog, checkout, account, pages, discovery, myaccount, feedback];
+const parts: Dict[] = [common, catalog, checkout, account, pages, discovery, myaccount, feedback, auth2, usdt, referral, ui2];
 
 export const FR: Record<string, string> = Object.assign({}, ...parts.map((p) => p.fr));
 export const EN: Record<string, string> = Object.assign({}, ...parts.map((p) => p.en));

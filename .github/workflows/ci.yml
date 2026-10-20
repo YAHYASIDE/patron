@@ -303,6 +303,44 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+  # ═══════════════ Admin app (apps/admin_app) ═══════════════
+  admin-app:
+    name: Admin app · analyze & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  # The owner installs the admin app straight from this file (debug-signed until a
+  # release key is configured in android/key.properties, which is never committed).
+  admin-app-apk:
+    name: Admin app · Android APK
+    needs: admin-app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: patron-admin-apk
+          path: apps/admin_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
   # ═══════════════ Security (whole repo) ═══════════════
   security:
     name: Security checks

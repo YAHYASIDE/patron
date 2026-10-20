@@ -114,6 +114,18 @@ describe('SupportService', () => {
       expect(notifications.notify).not.toHaveBeenCalled();
     });
 
+    it("raises the owner's support.message notice for a new request and closes it once answered or closed", async () => {
+      const staffEvents = { supportMessage: jest.fn(), supportHandled: jest.fn() };
+      const withStaff = new SupportService(prisma, audit, notifications, staffEvents as any);
+      await withStaff.create('u1', { orderId: ORDER, subject: 'لم يصل الكود', message: 'دفعت ولم يصل' });
+      expect(staffEvents.supportMessage).toHaveBeenCalledWith({ ticketId: 't1', subject: 'لم يصل الكود', orderNumber: 'PTN-1' });
+
+      await withStaff.update('t1', {}, 'admin');
+      expect(staffEvents.supportHandled).not.toHaveBeenCalled();
+      await withStaff.update('t1', { reply: 'تم' }, 'admin');
+      expect(staffEvents.supportHandled).toHaveBeenCalledWith('t1');
+    });
+
     it('refuses a missing request', async () => {
       tx.supportTicket.findUnique.mockResolvedValue(null);
       await expect(service.update('nope', { status: 'CLOSED' }, 'admin')).rejects.toThrow(NotFoundException);

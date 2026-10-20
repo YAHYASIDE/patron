@@ -11,6 +11,7 @@ import { NotificationsProcessor } from './processors/notifications.processor';
 import { MaintenanceProcessor } from './processors/maintenance.processor';
 import { MetricsCollector } from './processors/metrics.collector';
 import { CHECK_WATCHES_JOB, WATCHES_QUEUE, WatchesProcessor } from './processors/watches.processor';
+import { BACKUP_TICK_JOB, BACKUPS_QUEUE, BackupProcessor } from './processors/backup.processor';
 import { ReportsModule } from '../reports/reports.module';
 
 import { OrdersModule } from '../orders/orders.module';
@@ -20,6 +21,8 @@ import { FxModule } from '../fx/fx.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { CustomerModule } from '../customer/customer.module';
+import { AdminToolsModule } from '../admin-tools/admin-tools.module';
+import { AgentsModule } from '../agents/agents.module';
 
 /**
  * In production the workers run as a separate process (`npm run start:worker`)
@@ -54,6 +57,7 @@ import { CustomerModule } from '../customer/customer.module';
       { name: QUEUES.NOTIFICATIONS },
       { name: QUEUES.MAINTENANCE },
       { name: WATCHES_QUEUE },
+      { name: BACKUPS_QUEUE },
     ),
     OrdersModule,
     ProvidersModule,
@@ -63,6 +67,8 @@ import { CustomerModule } from '../customer/customer.module';
     ReportsModule,
     MaintenanceModule,
     CustomerModule,
+    AdminToolsModule,
+    AgentsModule, // its queue: the relay hands it order events
   ],
   providers: [
     OutboxRelay,
@@ -71,6 +77,7 @@ import { CustomerModule } from '../customer/customer.module';
     MaintenanceProcessor,
     MetricsCollector,
     WatchesProcessor,
+    BackupProcessor,
   ],
   exports: [BullModule],
 })
@@ -78,6 +85,7 @@ export class QueuesModule implements OnModuleInit {
   constructor(
     @InjectQueue(QUEUES.MAINTENANCE) private maintenance: Queue,
     @InjectQueue(WATCHES_QUEUE) private watches: Queue,
+    @InjectQueue(BACKUPS_QUEUE) private backups: Queue,
   ) {}
 
   /** Repeatable jobs are idempotent by key — re-registering on deploy is safe. */
@@ -118,6 +126,16 @@ export class QueuesModule implements OnModuleInit {
     await this.watches.add(CHECK_WATCHES_JOB, {}, {
       repeat: { pattern: '20 * * * *' },
       jobId: `cron-${CHECK_WATCHES_JOB}`,
+      removeOnComplete: { count: 50 },
+      removeOnFail: { count: 200 },
+    });
+
+    // Scheduled backups to Google Drive. The tick reads the owner's schedule (a
+    // setting), so changing the hour or switching a copy on needs no new job;
+    // off the quarter hours so it does not land on the other sweeps.
+    await this.backups.add(BACKUP_TICK_JOB, {}, {
+      repeat: { pattern: '7,22,37,52 * * * *' },
+      jobId: `cron-${BACKUP_TICK_JOB}`,
       removeOnComplete: { count: 50 },
       removeOnFail: { count: 200 },
     });
