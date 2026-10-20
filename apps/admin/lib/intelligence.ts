@@ -261,6 +261,8 @@ export type MarketMethod = {
   kind: string;
   currency: string | null;
   fees: string | null;
+  /** what the research could not confirm */
+  note?: string | null;
   sources: Source[] | null;
   confidence: number;
   status: MarketStatus;

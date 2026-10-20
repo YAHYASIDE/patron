@@ -258,6 +258,12 @@ function MethodCard({
         </div>
       </dl>
 
+      {m.note && (
+        <p dir="auto" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+          ملاحظة البحث: {m.note}
+        </p>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] text-muted">المصادر</span>
         <SourceList sources={m.sources} />
