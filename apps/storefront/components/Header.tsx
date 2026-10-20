@@ -11,6 +11,7 @@ import ThemeToggle from './ThemeToggle';
 import CurrencySwitch from './CurrencySwitch';
 import NotificationBell from './NotificationBell';
 import BrandMark from './BrandMark';
+import UsdtNavLink from './usdt/UsdtNavLink';
 
 const NAV = [
   { href: '/', label: 'الرئيسية' },
@@ -124,6 +125,7 @@ export default function Header() {
               {t(n.label)}
             </Link>
           ))}
+          <UsdtNavLink className="rounded-lg px-3 py-2 text-[15px] font-semibold text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]" />
         </nav>
 
         <div className="ms-auto flex min-w-0 items-center gap-0.5 min-[360px]:gap-1">
@@ -162,6 +164,7 @@ export default function Header() {
               {t(n.label)}
             </Link>
           ))}
+          <UsdtNavLink className={ITEM} />
           <div className="my-1.5 border-t border-[rgb(var(--line))]" />
           <div className="grid grid-cols-2 gap-x-2">
             {(authed ? ACCOUNT : GUEST).map((n) => (
