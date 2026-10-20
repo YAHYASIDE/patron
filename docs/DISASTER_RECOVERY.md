@@ -1,5 +1,45 @@
 # Backup, recovery and scaling
 
+## On Render's free plan (the shop as it runs today)
+
+The free Postgres instance is **deleted about 30 days after it is created**,
+and the free plan has no WAL archiving or snapshots. Until the database moves
+to a paid plan (the only real fix), the owner's downloaded backup is the
+recovery path:
+
+1. **Download a backup** from the dashboard (Settings → "نسخة احتياطية") at
+   least weekly and after any busy day. Settings shows when the last one was
+   downloaded (`GET /admin/backup/status`).
+2. The file (version 2, `BackupService`) holds everything the shop is rebuilt
+   from: customers, wallets with their whole ledger, orders, payments, refunds,
+   reviews, tickets, customers' favourites, saved player IDs and price alerts,
+   the catalogue with prices, banners, coupons, settings, and
+   the code stock — unsold and delivered — as the AES-256-GCM ciphertext stored
+   in the database. It holds no password hash, session, 2FA secret, sensitive
+   input, provider key, notification, log or uploaded image.
+3. **Keep `ENCRYPTION_KEY` with the backup, separately** (the owner generated
+   it). Without it the codes in the backup cannot be opened by anyone,
+   including the restored shop.
+
+### Restoring
+
+```bash
+# a new, empty Postgres (DATABASE_URL), the same ENCRYPTION_KEY
+npx prisma migrate deploy
+SEED_ADMIN_PASSWORD=… node dist/restore-runner.js patron-backup-2026-10-20T08-15-30.json
+```
+
+The runner refuses a database that already has customers or orders, loads
+everything in one transaction (a bad file changes nothing), gives the owner
+account (`SEED_ADMIN_EMAIL`, default `admin@patron.io`) the seeded password
+back, and checks that wallet balances still equal the ledger. Customers sign in
+with their WhatsApp number as before; other staff reset their password. Receipt
+images and uploaded logos do not come back (re-upload logos in Payment methods).
+
+`test/integration/backup-restore.spec.ts` builds a shop, downloads the backup,
+wipes the database, restores it and checks every balance, amount, row count and
+code — it runs in CI on every change.
+
 ## Objectives
 
 | Metric | Target | Basis |

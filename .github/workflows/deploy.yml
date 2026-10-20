@@ -45,7 +45,7 @@ jobs:
           curl -fsS https://staging.patron.io/api/v1/catalog/currencies
 
       - name: Load test
-        run: k6 run --env BASE_URL=https://staging.patron.io/api/v1 test/load/checkout.load.js
+        run: k6 run --env BASE_URL=https://staging.patron.io/api/v1 apps/api/test/load/checkout.load.js
 
   production:
     name: Deploy to production

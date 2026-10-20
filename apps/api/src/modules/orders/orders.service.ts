@@ -1,0 +1,554 @@
+import {
+  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
+} from '@nestjs/common';
+import { OrderStatus, Prisma, QuoteStatus } from '@prisma/client';
+
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { CryptoService } from '../../common/crypto/crypto.service';
+import { OutboxService } from '../../common/outbox/outbox.service';
+import { AuditService } from '../../common/audit/audit.service';
+import { ReferenceService } from '../../common/reference/reference.service';
+import { cursorWhere, toCursorPage } from '../../common/dto/cursor.dto';
+import { assertTransition, deriveOrderStatus } from './order-state.machine';
+import { createdAtRange, ManualFulfilDto, QueryOrdersDto } from './dto/order.dto';
+
+/**
+ * The shape `present()` reads. Declared structurally rather than pulled from a
+ * Prisma payload type because the two callers pass different `include` shapes;
+ * what matters is that both carry items, inputs and results.
+ */
+interface PresentableOrder {
+  items: Array<{
+    inputs: Array<{ fieldKey: string; fieldLabel: string; value: string; isSensitive: boolean }>;
+    results: Array<{
+      id: string;
+      resultType: string;
+      viewedAt: Date | null;
+      deliveredAt: Date;
+      providerRef: string | null;
+    }>;
+  }>;
+}
+
+/** The customer-facing guide a product carries in `metadata.guide` (null when none). */
+export function guideOf(metadata: Prisma.JsonValue | undefined): unknown {
+  const guide = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata.guide : null;
+  return guide && typeof guide === 'object' ? guide : null;
+}
+
+@Injectable()
+export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private crypto: CryptoService,
+    private outbox: OutboxService,
+    private audit: AuditService,
+    private reference: ReferenceService,
+  ) {}
+
+  /**
+   * Turn a quote into an order. Every monetary value is copied from the quote —
+   * nothing is recalculated, so the customer pays exactly what was shown.
+   *
+   * The quote is consumed with a conditional update: only one request can flip
+   * ACTIVE → CONSUMED, so a double-tapped checkout produces one order even if
+   * the idempotency layer is bypassed.
+   */
+  async createFromQuote(userId: string, quoteId: string, meta: { ip?: string; userAgent?: string }) {
+    const quote = await this.prisma.checkoutQuote.findUnique({
+      where: { id: quoteId },
+      include: { items: { include: { inputs: true } } },
+    });
+
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (quote.userId !== userId) throw new ForbiddenException('This quote belongs to another account');
+    if (quote.status === QuoteStatus.CONSUMED) {
+      const existing = await this.prisma.order.findUnique({ where: { quoteId } });
+      if (existing) return this.findOne(existing.id, userId);
+    }
+    if (quote.status !== QuoteStatus.ACTIVE) throw new BadRequestException('This quote is no longer valid');
+    if (quote.expiresAt < new Date()) {
+      await this.prisma.checkoutQuote.update({ where: { id: quoteId }, data: { status: QuoteStatus.EXPIRED } });
+      throw new BadRequestException('This quote has expired — please request a new price');
+    }
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.checkoutQuote.updateMany({
+        where: { id: quoteId, status: QuoteStatus.ACTIVE, expiresAt: { gt: new Date() } },
+        data: { status: QuoteStatus.CONSUMED, consumedAt: new Date() },
+      });
+      if (claimed.count === 0) throw new BadRequestException('This quote has already been used or expired');
+
+      const created = await tx.order.create({
+        data: {
+          orderNumber: await this.reference.order(tx),
+          userId,
+          quoteId,
+          status: OrderStatus.PENDING_PAYMENT,
+          // ── frozen values, copied verbatim ──
+          subtotal: quote.subtotal,
+          discount: quote.discount,
+          fees: quote.fees,
+          taxAmount: quote.taxAmount,
+          taxRate: quote.taxRate,
+          taxInclusive: quote.taxInclusive,
+          total: quote.total,
+          currency: quote.currency,
+          baseCurrency: quote.baseCurrency,
+          fxRate: quote.fxRate,
+          fxRateId: quote.fxRateId,
+          totalBase: quote.totalBase,
+          couponId: quote.couponId,
+          ipAddress: meta.ip,
+          userAgent: meta.userAgent,
+          items: {
+            create: quote.items.map((qi) => ({
+              productId: qi.productId,
+              productNameAr: qi.productNameAr,
+              productNameEn: qi.productNameEn,
+              quantity: qi.quantity,
+              unitPrice: qi.unitPrice,
+              unitCost: qi.unitCostBase,
+              lineTotal: qi.lineTotal,
+              taxAmount: qi.taxAmount,
+              plannedProviderId: qi.plannedProviderId,
+              inputs: {
+                create: qi.inputs.map((input) => ({
+                  fieldKey: input.fieldKey,
+                  fieldLabel: input.fieldLabel,
+                  value: input.value, // already encrypted if sensitive
+                  isSensitive: input.isSensitive,
+                })),
+              },
+            })),
+          },
+        },
+        include: { items: true },
+      });
+
+      if (quote.couponId) {
+        await tx.coupon.update({ where: { id: quote.couponId }, data: { usedCount: { increment: 1 } } });
+      }
+
+      await this.outbox.emit(tx, {
+        aggregate: 'Order',
+        aggregateId: created.id,
+        eventType: 'order.created',
+        payload: { orderId: created.id, userId, total: created.total.toString(), currency: created.currency },
+      });
+
+      return created;
+    });
+
+    return this.findOne(order.id, userId);
+  }
+
+  /**
+   * Cursor-paginated: a customer's order history grows without bound, and
+   * OFFSET plus COUNT would degrade for the platform's best customers first.
+   */
+  async findAllForUser(userId: string, query: QueryOrdersDto) {
+    const rows = await this.prisma.order.findMany({
+      where: { userId, ...(query.status && { status: query.status }), ...cursorWhere(query.cursor, query.order) },
+      take: query.limit + 1, // the extra row decides hasMore without a COUNT
+      orderBy: [{ createdAt: query.order }, { id: query.order }],
+      include: {
+        items: { select: { id: true, productNameAr: true, productNameEn: true, quantity: true, status: true } },
+      },
+    });
+
+    return toCursorPage(rows, query.limit);
+  }
+
+  async findAllAdmin(query: QueryOrdersDto) {
+    const createdAt = createdAtRange(query.from, query.to);
+    const where: Prisma.OrderWhereInput = {
+      ...(query.status && { status: query.status }),
+      ...(query.userId && { userId: query.userId }),
+      ...(query.gateway && { payments: { some: { gateway: query.gateway } } }),
+      ...(query.country && { user: { country: query.country } }),
+      ...(createdAt && { createdAt }),
+      ...(query.search && {
+        OR: [
+          { orderNumber: { contains: query.search, mode: 'insensitive' } },
+          { user: { email: { contains: query.search, mode: 'insensitive' } } },
+          // the owner looks customers up by WhatsApp number ("22123456") or name
+          { user: { phone: { contains: query.search.replace(/[^\d+]/g, '') || query.search } } },
+          { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        ],
+      }),
+    };
+
+    const rows = await this.prisma.order.findMany({
+      // the cursor goes under AND: spread at the top level, its OR replaced the search's OR from page 2 on
+      where: { ...where, AND: [cursorWhere(query.cursor, query.order)] },
+      take: query.limit + 1,
+      orderBy: [{ createdAt: query.order }, { id: query.order }],
+      include: {
+        user: { select: { id: true, email: true, fullName: true, phone: true, country: true } },
+        items: true,
+        payments: { select: { id: true, gateway: true, status: true, amount: true } },
+      },
+    });
+
+    // rows carry every order column, so the staff note (adminNote) comes along
+    const page = toCursorPage(rows, query.limit);
+    return {
+      ...page,
+      data: page.data.map((o) => ({
+        ...o,
+        country: o.user.country,
+        // Margin is knowable per order because cost was frozen at quote time.
+        marginBase: o.items.reduce(
+          (acc, i) => acc.plus(i.unitPrice.div(o.fxRate).minus(i.unitCost).mul(i.quantity)),
+          new Prisma.Decimal(0),
+        ),
+      })),
+    };
+  }
+
+  async findOne(id: string, userId?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: { include: { inputs: true, results: true, product: { select: { metadata: true } } } },
+        payments: { select: { id: true, gateway: true, status: true, amount: true, failureReason: true, createdAt: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (userId && order.userId !== userId) throw new ForbiddenException('This order belongs to another account');
+
+    // the customer gets each product's how-to-use guide, not the rest of the product
+    const presented = this.present(order, !!userId);
+    return {
+      ...presented,
+      items: presented.items.map(({ product, ...item }) => ({ ...item, guide: guideOf(product?.metadata) })),
+    };
+  }
+
+  /**
+   * Staff view of one order: the customer, what they entered, each item's
+   * delivery mode, and any manual transfer they reported. Codes stay encrypted:
+   * staff deliver them, they do not need to read them back.
+   */
+  async findOneAdmin(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, phone: true, phoneVerifiedAt: true } },
+        items: {
+          include: {
+            inputs: true,
+            results: true,
+            product: {
+              select: {
+                sku: true, delivery: true, imageUrl: true,
+                // codes in stock, so the order page can offer "deliver from stock"
+                _count: { select: { codes: { where: { isUsed: false, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } } } },
+              },
+            },
+          },
+        },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, gateway: true, status: true, amount: true, currency: true,
+            failureReason: true, rawResponse: true, createdAt: true, updatedAt: true,
+          },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    const presented = this.present(order, false);
+    return {
+      ...presented,
+      // only the transfer report and review, never a gateway's raw payload
+      payments: order.payments.map(({ rawResponse, ...p }) => {
+        const raw = (rawResponse ?? {}) as { transfer?: unknown; review?: unknown };
+        return { ...p, transfer: raw.transfer ?? null, review: raw.review ?? null };
+      }),
+    };
+  }
+
+  /**
+   * Staff deliver a paid item by hand (MANUAL delivery, or any item a provider
+   * could not fulfil). Values are encrypted like provider results; the audit
+   * entry records that it happened, never the codes. The order status is then
+   * re-derived, so the last delivered item completes the order.
+   */
+  async deliverManually(orderId: string, orderItemId: string, dto: ManualFulfilDto, actorId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+      if (!order) throw new NotFoundException('Order not found');
+      const item = order.items.find((i) => i.id === orderItemId);
+      if (!item) throw new NotFoundException('This item is not part of the order');
+      if (!['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'FAILED'].includes(order.status)) {
+        throw new BadRequestException(
+          order.status === 'PENDING_PAYMENT' ? 'This order is not paid yet' : `An order that is ${order.status} cannot be delivered`,
+        );
+      }
+
+      // PAID/FAILED → PROCESSING first: the machine has no direct PAID → COMPLETED.
+      if (order.status === 'PAID' || order.status === 'FAILED') {
+        assertTransition(order.status, 'PROCESSING');
+        await tx.order.update({ where: { id: orderId }, data: { status: 'PROCESSING', version: { increment: 1 } } });
+      }
+
+      // Conditional, so two staff delivering the same item cannot both succeed.
+      const { count } = await tx.orderItem.updateMany({
+        where: { id: orderItemId, status: { in: ['PENDING', 'PROCESSING', 'FAILED'] } },
+        data: { status: 'DELIVERED', deliveredAt: new Date(), lastError: null },
+      });
+      if (count === 0) throw new BadRequestException('This item was already delivered or cancelled');
+
+      await tx.orderResult.createMany({
+        data: dto.values.map((value) => ({
+          orderItemId,
+          resultType: dto.resultType ?? 'code',
+          valueEnc: this.crypto.encrypt(value.trim()),
+          providerRef: 'manual',
+        })),
+      });
+      await this.audit.record(tx, {
+        actorId,
+        action: 'orders.fulfil_manual',
+        entityType: 'OrderItem',
+        entityId: orderItemId,
+        after: { orderId, values: dto.values.length, resultType: dto.resultType ?? 'code' },
+      });
+    });
+
+    await this.syncStatus(orderId);
+    return this.findOneAdmin(orderId);
+  }
+
+  /**
+   * Hand out codes from the owner's stock to each paid item that has enough of
+   * them. An item without enough stock is left as it is: for staff (MANUAL) or
+   * the provider engine. Codes are claimed with SKIP LOCKED, so two orders paid
+   * at the same moment never receive the same code, and an item is delivered
+   * all at once or not at all.
+   */
+  async deliverFromStock(orderId: string, actorId?: string): Promise<number> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { product: { select: { delivery: true } } } } },
+    });
+    if (!order || !['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'FAILED'].includes(order.status)) return 0;
+
+    let delivered = 0;
+    for (const item of order.items) {
+      if (!['PENDING', 'FAILED'].includes(item.status) || item.product?.delivery === 'AUTO_PROVIDER') continue;
+
+      const done = await this.prisma.$transaction(async (tx) => {
+        const codes = await tx.$queryRaw<{ id: string; codeEnc: string; serialEnc: string | null }[]>`
+          SELECT "id", "codeEnc", "serialEnc" FROM "product_codes"
+          WHERE "productId" = ${item.productId}::uuid AND "isUsed" = false
+            AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+          ORDER BY "createdAt" ASC
+          LIMIT ${item.quantity}
+          FOR UPDATE SKIP LOCKED`;
+        if (codes.length < item.quantity) return false;
+
+        const claimed = await tx.orderItem.updateMany({
+          where: { id: item.id, status: { in: ['PENDING', 'FAILED'] } },
+          data: { status: 'DELIVERED', deliveredAt: new Date(), lastError: null },
+        });
+        if (claimed.count === 0) return false;
+
+        const current = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true } });
+        if (current.status === 'PAID' || current.status === 'FAILED') {
+          assertTransition(current.status, 'PROCESSING');
+          await tx.order.update({ where: { id: orderId }, data: { status: 'PROCESSING', version: { increment: 1 } } });
+        }
+
+        await tx.productCode.updateMany({
+          where: { id: { in: codes.map((c) => c.id) } },
+          data: { isUsed: true, usedAt: new Date(), orderItemId: item.id },
+        });
+        // stock and results share one key, so the ciphertext moves as it is
+        await tx.orderResult.createMany({
+          data: codes.flatMap((c) => [
+            { orderItemId: item.id, resultType: 'code', valueEnc: c.codeEnc, providerRef: `stock:${c.id}` },
+            ...(c.serialEnc ? [{ orderItemId: item.id, resultType: 'serial', valueEnc: c.serialEnc, providerRef: `stock:${c.id}` }] : []),
+          ]),
+        });
+        await this.audit.record(tx, {
+          actorId, action: 'orders.deliver_from_stock', entityType: 'OrderItem', entityId: item.id,
+          after: { orderId, codes: codes.length },
+        });
+        return true;
+      });
+      if (done) delivered++;
+    }
+
+    if (delivered > 0) await this.syncStatus(orderId);
+    return delivered;
+  }
+
+  /**
+   * Reveal a delivered code. Decryption is a separate, audited call rather than
+   * part of the order payload — codes should not sit in every list response,
+   * browser cache and log line.
+   */
+  async revealResult(orderItemId: string, userId: string) {
+    const item = await this.prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: { order: true, results: true },
+    });
+    if (!item) throw new NotFoundException('Order item not found');
+    if (item.order.userId !== userId) throw new ForbiddenException('This order belongs to another account');
+    if (item.status !== 'DELIVERED') throw new BadRequestException('This item has not been delivered yet');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderResult.updateMany({
+        where: { orderItemId, viewedAt: null },
+        data: { viewedAt: new Date() },
+      });
+      await this.audit.record(tx, {
+        actorId: userId, action: 'orders.reveal_result', entityType: 'OrderItem', entityId: orderItemId,
+      });
+    });
+
+    return item.results.map((r) => ({
+      resultType: r.resultType,
+      value: this.crypto.decrypt(r.valueEnc),
+      deliveredAt: r.deliveredAt,
+    }));
+  }
+
+  /**
+   * Recompute order status from its items. Called after every fulfilment
+   * attempt; the aggregate is derived, never assigned ad hoc.
+   */
+  syncStatus(orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { items: { select: { status: true } } },
+      });
+      if (['PENDING_PAYMENT', 'REFUNDED', 'CANCELLED'].includes(order.status)) return order;
+
+      const derived = deriveOrderStatus(order.items.map((i) => i.status));
+      if (derived === order.status) return order;
+
+      assertTransition(order.status, derived);
+
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: derived,
+          version: { increment: 1 },
+          completedAt: derived === 'COMPLETED' ? new Date() : undefined,
+        },
+      });
+
+      await this.outbox.emit(tx, {
+        aggregate: 'Order',
+        aggregateId: orderId,
+        eventType: `order.${derived.toLowerCase()}`,
+        payload: { orderId, userId: order.userId, status: derived },
+      });
+
+      return updated;
+    });
+  }
+
+  cancelUnpaid(orderId: string, reason: string, actorId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+      assertTransition(order.status, 'CANCELLED');
+
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED', version: { increment: 1 } },
+      });
+      await tx.orderItem.updateMany({
+        where: { orderId, status: { in: ['PENDING', 'FAILED'] } },
+        data: { status: 'CANCELLED' },
+      });
+      // Releasing the coupon matters: an abandoned checkout should not burn
+      // a single-use code.
+      if (order.couponId) {
+        await tx.coupon.update({ where: { id: order.couponId }, data: { usedCount: { decrement: 1 } } });
+      }
+      await this.audit.record(tx, {
+        actorId, action: 'orders.cancel', entityType: 'Order', entityId: orderId, after: { reason },
+      });
+      return updated;
+    });
+  }
+
+  /**
+   * Sweeper: cancel orders that were never paid.
+   *
+   * Batched rather than one transaction per order. At a thousand stale orders
+   * the previous implementation opened a thousand transactions and held a
+   * connection for the duration; this holds one, briefly.
+   */
+  async expireUnpaid(minutes: number, batchSize = 500) {
+    const cutoff = new Date(Date.now() - minutes * 60_000);
+
+    // An order whose customer already reported a manual transfer is waiting on
+    // staff, not abandoned: it must not expire under them.
+    const awaitingReview: Prisma.OrderWhereInput = { payments: { none: { gateway: 'MANUAL', status: 'AUTHORIZED' } } };
+    const stale = await this.prisma.order.findMany({
+      where: { status: 'PENDING_PAYMENT', createdAt: { lt: cutoff }, ...awaitingReview },
+      select: { id: true, couponId: true },
+      take: batchSize,
+      orderBy: { createdAt: 'asc' },
+    });
+    if (stale.length === 0) return 0;
+
+    const ids = stale.map((o) => o.id);
+    const couponIds = stale.map((o) => o.couponId).filter((c): c is string => !!c);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Conditional on status so an order paid between the read and the write
+      // is not cancelled out from under a customer who just paid.
+      const cancelled = await tx.order.updateMany({
+        where: { id: { in: ids }, status: 'PENDING_PAYMENT', ...awaitingReview },
+        data: { status: 'CANCELLED', version: { increment: 1 } },
+      });
+      await tx.orderItem.updateMany({
+        where: { orderId: { in: ids }, status: { in: ['PENDING', 'FAILED'] } },
+        data: { status: 'CANCELLED' },
+      });
+      // An abandoned checkout must not burn a single-use coupon.
+      for (const couponId of new Set(couponIds)) {
+        await tx.coupon.update({
+          where: { id: couponId },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
+      this.logger.log(`Expired ${cancelled.count} unpaid order(s)`);
+    });
+
+    return stale.length;
+  }
+
+  /** Never leak raw code values or decrypted inputs in list/detail payloads. */
+  private present<T extends PresentableOrder>(order: T, maskSensitive: boolean) {
+    return {
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        inputs: item.inputs.map((i) => ({
+          fieldKey: i.fieldKey,
+          fieldLabel: i.fieldLabel,
+          value: i.isSensitive ? '••••' : i.value,
+        })),
+        results: item.results.map((r) => ({
+          id: r.id,
+          resultType: r.resultType,
+          hasValue: true,
+          revealed: !!r.viewedAt,
+          deliveredAt: r.deliveredAt,
+          ...(maskSensitive ? {} : { providerRef: r.providerRef }),
+        })),
+      })),
+    };
+  }
+}
