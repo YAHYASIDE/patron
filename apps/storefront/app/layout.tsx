@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const lang = await serverLang();
   return {
     title: {
-      default: translate(lang, 'patron — بطاقات وشحن رقمي فوري'),
+      default: translate(lang, 'patron — بطاقات وشحن رقمي موثوق'),
       template: '%s · patron',
     },
     description: translate(

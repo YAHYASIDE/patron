@@ -59,7 +59,7 @@ export default function Splash() {
           patron
           <b>.</b>
         </div>
-        <div className="splash-tag">{t('بطاقات وشحن رقمي فوري')}</div>
+        <div className="splash-tag">{t('بطاقات وشحن رقمي موثوق')}</div>
       </div>
     </div>
   );
