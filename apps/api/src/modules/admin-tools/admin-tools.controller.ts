@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import {
+  Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, StreamableFile,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
@@ -95,10 +97,11 @@ export class DataExportController {
   })
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @RequirePermissions('settings.manage') @Get('backup')
-  async backup(@Res({ passthrough: true }) res: Response) {
-    const { filename, body } = await this.exporter.backup();
+  async backup(@Res({ passthrough: true }) res: Response, @CurrentUser('id') actorId?: string) {
+    const { filename, body } = await this.exporter.backup(actorId);
     attach(res, 'application/json; charset=utf-8', filename);
-    return body;
+    // the exact bytes that were measured and hashed for the backup log
+    return new StreamableFile(body, { length: body.length });
   }
 }
 
