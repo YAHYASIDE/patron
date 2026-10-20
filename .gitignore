@@ -54,3 +54,6 @@ Thumbs.db
 
 # Redis persistence dumps from local test runs
 dump.rdb
+
+# Claude Code agent worktrees (local only)
+.claude/worktrees/
