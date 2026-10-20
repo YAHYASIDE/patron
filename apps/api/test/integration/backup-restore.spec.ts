@@ -95,19 +95,63 @@ describe('Backup and restore', () => {
       data: [
         { key: 'payments.manual_note', value: 'نؤكّد بسرعة' },
         { key: 'mail.api_key', value: 'k-should-stay' },
+        { key: 'backup.gdrive.folder_id', value: 'drive-folder-of-this-deployment' },
       ],
     });
-    return { owner, customer };
+
+    // Platform V2: an agent who brought the customer, the order credited to them, a paid commission
+    const agentUser = await prisma.user.create({ data: { phone: '+22240000002', fullName: 'Mandoub', country: 'MR' } });
+    const agent = await prisma.agent.create({ data: { userId: agentUser.id, code: 'AGENT7', commissionValue: 5 } });
+    await prisma.user.update({ where: { id: customer.id }, data: { referredByAgentId: agent.id } });
+    await prisma.order.update({ where: { id: order.id }, data: { agentId: agent.id } });
+    const payout = await prisma.agentPayout.create({ data: { agentId: agent.id, amount: 0.05, currency: 'USD', reference: 'cash-1', paidById: owner.id } });
+    await prisma.commission.create({
+      data: {
+        agentId: agent.id, orderId: order.id, basis: 1.01, amount: 0.05, currency: 'USD', rule: { type: 'PERCENT', value: 5 },
+        status: 'PAID', payoutId: payout.id, earnedAt: new Date(), paidAt: new Date(),
+      },
+    });
+    await prisma.passkey.create({
+      data: { userId: customer.id, credentialId: 'cred-1', publicKey: Buffer.from([0xa5, 0x01, 0x02, 0xff]), counter: BigInt(3), transports: ['internal'] },
+    });
+    await prisma.webAuthnChallenge.create({ data: { purpose: 'login', challenge: 'challenge-left-out', expiresAt: new Date() } });
+    await prisma.accountRecoveryRequest.create({
+      data: { userId: customer.id, contact: '+22240000001', fullName: 'Aicha', proof: 'PTN-RESTORE-1', status: 'VERIFIED', reviewedById: owner.id },
+    });
+    const usdt = await prisma.usdtOrder.create({
+      data: {
+        number: 'USDT-20261020-000001', userId: customer.id, status: 'COMPLETED', amountUsdt: 10, delivery: 'ONCHAIN', network: 'TRC20',
+        address: 'TXYZaddress', rate: 41, currency: 'MRU', subtotal: 410, fee: 10, total: 420, txid: 'tx-1', reviewedById: owner.id,
+        proofUploadId: '00000000-0000-4000-8000-000000000001',
+      },
+    });
+    await prisma.usdtOrderEvent.createMany({
+      data: [
+        { usdtOrderId: usdt.id, action: 'created', toStatus: 'NEW' },
+        { usdtOrderId: usdt.id, actorId: owner.id, action: 'sent', fromStatus: 'READY_TO_SEND', toStatus: 'COMPLETED', data: { txid: 'tx-1' } },
+      ],
+    });
+    await prisma.bankNotification.create({
+      data: { deviceId: 'phone-1', sourceApp: 'bankily', text: 'Vous avez reçu 420 MRU', postedAt: new Date(), amount: 420, currency: 'MRU', parser: 'bankily', fingerprint: 'fp-1' },
+    });
+    await prisma.staffNotification.create({ data: { type: 'order.paid', title: 'طلب', body: 'جديد', dedupeKey: 'left-out' } });
+    await prisma.backupRun.create({ data: { trigger: 'download', destination: 'download', status: 'SUCCEEDED' } });
+    return { owner, customer, agent };
   }
 
   it('brings back every amount, row and code, and carries no secret', async () => {
-    await buildShop();
+    const { customer, agent } = await buildShop();
     const before = await backups.fingerprint();
 
     // what the owner downloads: a JSON file
     const file = JSON.parse(JSON.stringify(await backups.export())) as BackupFile;
     const text = JSON.stringify(file);
-    for (const secret of ['$argon2id$secret-hash', 'enc-2fa', 'k-should-stay', 'enc:1234']) expect(text).not.toContain(secret);
+    for (const secret of [
+      '$argon2id$secret-hash', 'enc-2fa', 'k-should-stay', 'enc:1234', 'drive-folder-of-this-deployment', 'challenge-left-out',
+    ]) expect(text).not.toContain(secret);
+    expect(Object.keys(file.tables)).not.toEqual(expect.arrayContaining(['staffNotification']));
+    expect(file.tables.backupRun).toBeUndefined();
+    expect(file.tables.usdtOrder[0].proofUploadId).toBeNull(); // uploads are not in the backup
     expect(text).toContain('iv.tag.ciphertext-unsold'); // stock travels, encrypted as stored
     expect(file.tables.order[0].adminNote).toBe('paid fast');
 
@@ -130,8 +174,20 @@ describe('Backup and restore', () => {
     expect(after.refunded).toBe(before.refunded);
     expect(after.codes).toEqual({ used: 1, unsold: 1 });
     expect(after.counts).toMatchObject({ favorite: 1, savedInput: 1, priceWatch: 1 });
-    // the secret setting stayed behind; every other row came back
-    expect(after.counts).toEqual({ ...before.counts, systemSetting: before.counts.systemSetting - 1 });
+    expect(after.counts).toMatchObject({
+      passkey: 1, accountRecoveryRequest: 1, usdtOrder: 1, usdtOrderEvent: 2, agent: 1, agentPayout: 1, commission: 1, bankNotification: 1,
+    });
+    // the secret settings stayed behind; every other row came back
+    expect(after.counts).toEqual({ ...before.counts, systemSetting: before.counts.systemSetting - 2 });
+    // the agent links survived the users ↔ agents circle
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: customer.id } })).referredByAgentId).toBe(agent.id);
+    expect((await prisma.order.findFirstOrThrow()).agentId).toBe(agent.id);
+    expect((await prisma.commission.findFirstOrThrow()).status).toBe('PAID');
+    const passkey = await prisma.passkey.findFirstOrThrow();
+    expect(Buffer.from(passkey.publicKey).toString('hex')).toBe('a50102ff');
+    expect(passkey.counter).toBe(BigInt(3));
+    expect(await prisma.staffNotification.count()).toBe(0);
+    expect(await prisma.webAuthnChallenge.count()).toBe(0);
     expect(await wallet.findDriftFull()).toHaveLength(0);
 
     // the backup's own setting wins over the new database's default
@@ -154,6 +210,6 @@ describe('Backup and restore', () => {
   });
 
   it('refuses a file that is not a backup', async () => {
-    await expect(backups.restore({ version: 1 } as unknown as BackupFile)).rejects.toThrow('version 2');
+    await expect(backups.restore({ version: 1 } as unknown as BackupFile)).rejects.toThrow('version 2 or 3');
   });
 });
