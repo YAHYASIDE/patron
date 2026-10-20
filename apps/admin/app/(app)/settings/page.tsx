@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { date, dateTime } from '@/lib/format';
-import ExportButton from '@/components/ExportButton';
+import { date } from '@/lib/format';
+import BackupCenter from '@/components/BackupCenter';
 import Notice from '@/components/Notice';
 
 type Me = {
@@ -36,7 +36,7 @@ export default function SettingsPage() {
 
       <QuickReplies />
 
-      <Backup />
+      <BackupCenter />
 
       {error && (
         <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
@@ -299,44 +299,6 @@ function QuickReplies() {
           {msg && <p className={`text-sm font-semibold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.text}</p>}
         </div>
       )}
-    </section>
-  );
-}
-
-/** Full backup: the free database is deleted after about 30 days, so the owner keeps copies. */
-function Backup() {
-  const status = useFetch<{ lastBackupAt: string | null }>('/admin/backup/status');
-  const last = status.data?.lastBackupAt;
-  return (
-    <section id="backup" className="surface flex scroll-mt-20 flex-col gap-3 rounded-2xl border-warn/40 p-5 shadow-card">
-      <h2 className="text-base font-bold">نسخة احتياطية كاملة</h2>
-      <div className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm leading-relaxed text-warn">
-        <b>مهم:</b> قاعدة البيانات المجانية على Render تُحذف بعد نحو 30 يومًا من إنشائها، ومعها كل الزبائن
-        والطلبات والمنتجات. نزّل نسخة احتياطية بانتظام (مرة في الأسبوع على الأقل) واحفظها في مكان آمن، ورقِّ قاعدة
-        البيانات إلى خطة مدفوعة على Render حتى لا تُحذف.
-      </div>
-      <p className="text-sm text-muted">
-        ملف واحد يُعاد منه بناء المتجر كاملًا: الزبائن وأرصدة محافظهم بكل حركاتها، والطلبات والمدفوعات والاسترجاعات،
-        والمنتجات والأسعار والعروض والقسائم والإعدادات، ومخزون الأكواد مشفّرًا كما هو محفوظ. لا يحتوي كلمات المرور ولا
-        الصور المرفوعة. الأكواد فيه لا تُفتح إلا بمفتاح التشفير (ENCRYPTION_KEY) الذي أنشأته عند النشر: احفظ المفتاح
-        في مكان آمن منفصل عن الملف.
-      </p>
-      <p className="text-sm font-semibold">
-        {status.loading && !status.data
-          ? '…'
-          : last
-            ? `آخر نسخة نُزّلت: ${dateTime(last)}`
-            : 'لم تنزّل أي نسخة احتياطية بعد.'}
-      </p>
-      <div>
-        <ExportButton
-          primary
-          path="/admin/backup"
-          filename={`patron-backup-${new Date().toLocaleDateString('en-CA')}.json`}
-          label="تنزيل نسخة احتياطية"
-          onDone={status.reload}
-        />
-      </div>
     </section>
   );
 }
