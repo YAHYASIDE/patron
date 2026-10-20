@@ -31,14 +31,31 @@ export function skipString(src, i) {
   return j;
 }
 
-/** Index just past the bracket that closes the one at `i`, skipping strings. */
+/**
+ * Index just past the bracket that closes the one at `i`, skipping strings and regex literals: a
+ * `/[{(]/` inside a method body must not unbalance it and hide the methods after it.
+ */
 export function skipBalanced(src, i, open, close) {
   let depth = 0;
   let j = i;
+  let prev = ''; // last significant character or word, to tell a regex from a division
   while (j < src.length) {
     const c = src[j];
     if (c === '"' || c === "'" || c === '`') {
       j = skipString(src, j);
+      prev = 'str';
+      continue;
+    }
+    if (c === '/' && j > i && (REGEX_PREV.has(prev) || REGEX_KEYWORDS.has(prev))) {
+      j = skipRegex(src, j);
+      prev = 'regex';
+      continue;
+    }
+    if (ID_START.test(c)) {
+      let k = j;
+      while (k < src.length && ID_PART.test(src[k])) k++;
+      prev = src.slice(j, k);
+      j = k;
       continue;
     }
     if (c === open) depth++;
@@ -46,6 +63,7 @@ export function skipBalanced(src, i, open, close) {
       depth--;
       if (depth === 0) return j + 1;
     }
+    if (!/\s/.test(c)) prev = c;
     j++;
   }
   return j;

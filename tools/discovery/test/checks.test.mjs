@@ -106,3 +106,8 @@ test('a check that throws marks the run FAILED but keeps the others', () => {
   assert.equal(r.status, 'FAILED');
   assert.match(r.summary, /boom: kaput/);
 });
+
+test('routes after a regex with brackets are still read (an unguarded one is caught)', () => {
+  const r = runDiscovery({ root: fixture('regex-routes'), env });
+  assert.deepEqual(byFp(r, 'admin-route-no-permission:').map((d) => d.fingerprint), ['admin-route-no-permission:GET_/admin/sanitize/leak']);
+});

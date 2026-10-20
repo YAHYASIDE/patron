@@ -57,3 +57,20 @@ test('dictionaries are read without evaluating them', () => {
   const d = readDictionary("const dict = { fr: { حذف: 'Supprimer', 'a {n}': 'b ' + '{n}' }, en: { \"x\": `y` } };");
   assert.deepEqual(d, { fr: { حذف: 'Supprimer', 'a {n}': 'b {n}' }, en: { x: 'y' } });
 });
+
+test('a regex with brackets inside a method body does not hide the methods after it', () => {
+  const code = stripComments(`
+    @Controller('admin/r')
+    export class R {
+      @Get() a() { const re = /[{(]/g; return 'x'.replace(re, ''); }
+      @Get('b') b() { const t = /}{"'\`/; const u = x / 2 / y; return t.test(\`\${u}\`); }
+      @Post('c') c() { return /\\/[}]/.source; }
+      @Delete('d') d() { return 1; }
+    }
+    class After { @Get() z() {} }
+  `);
+  const classes = parseClasses(code);
+  assert.deepEqual(classes.map((c) => c.name), ['R', 'After']);
+  assert.deepEqual(classes[0].methods.map((m) => m.name), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(classes[0].methods[3].decorators.map((d) => d.name), ['Delete']);
+});
