@@ -14,6 +14,9 @@ description: >-
 - `apps/admin_app`: staff app. Talks to `/api/v1` (`/auth/login`, `/admin/orders/attention`,
   `/admin/staff-notifications`, `/admin/bank-notices`). Tokens in flutter_secure_storage;
   biometric unlock via local_auth.
+- Android package `com.patron.patron_admin`; native listener in
+  `android/app/src/main/kotlin/com/patron/patron_admin/BankNotificationListener.kt`; masking in
+  `lib/bank/sensitive_filter.dart` (mirrored in Kotlin `SensitiveText.kt`); queue `lib/bank/notice_queue.dart`.
 - `apps/mobile`: customer app scaffold (structure only until scoped).
 Both are outside the npm/Turbo graph; CI runs `flutter pub get`, `flutter analyze`, `flutter test`
 per app ("Mobile · analyze & test", "Admin app · analyze & test").

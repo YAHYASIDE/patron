@@ -11,7 +11,9 @@ description: >-
 # Patron backup
 
 ## What exists
-- `apps/api/src/modules/admin-tools/backup.service.ts`: TABLES in restore order (every table money
+- `apps/api/src/modules/admin-tools/backup.service.ts` (file format version 3; version-2 files still
+  restore): TABLES in restore order, including V2 tables (passkeys, recovery requests, USDT orders and
+  events, agents, payouts, commissions, bank notices) (every table money
   and customers depend on), omitted secrets (password hashes, 2FA secrets, sensitive inputs,
   settings named secret/password/token/api_key/private), codes as stored ciphertext.
   `export()`, `restore()` (empty DB only, one transaction), `fingerprint()` (counts, wallet sums =
@@ -21,6 +23,15 @@ description: >-
 - `dist/restore-runner.js <file>`: restore into a migrated empty DB; encrypted files need
   BACKUP_PASSPHRASE or BACKUP_ENCRYPTION_KEY. The owner account gets SEED_ADMIN_PASSWORD back.
 - Docs: `docs/DISASTER_RECOVERY.md`.
+
+## Encrypted and scheduled
+- `.patronbak`: JSON header + AES-256-GCM of the gzipped backup + tag; scrypt key from the owner's
+  passphrase for downloads, `BACKUP_ENCRYPTION_KEY` (64 hex) for scheduled Drive copies.
+- Google Drive (scope drive.file): GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI; refresh
+  token stored encrypted under `backup.gdrive.refresh_token`; a `backups` queue job every 15 min reads the
+  schedule; retention trashes only this app's tagged files. Every attempt → BackupRun; failure → URGENT
+  `backup.failed` notice. Dashboard: `components/BackupCenter.tsx`, client `lib/backup.ts`.
+- `node dist/restore-runner.js --check <file>` opens and counts without writing.
 
 ## Rules
 - Production database is never touched by tests. Backups never go to GitHub or any public place

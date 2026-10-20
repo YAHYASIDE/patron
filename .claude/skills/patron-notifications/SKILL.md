@@ -18,6 +18,8 @@ description: >-
 2. **Staff**: `StaffNotificationsService.notify({type, priority, title, body, link, entityType,
    entityId, dedupeKey?})` (global, never throws) → `staff_notifications` with a unique
    `dedupeKey` (raising again refreshes/reopens, never stacks); `resolve(dedupeKey)` when handled.
+   Producers live in `staff-notifications/staff-events.service.ts` (the outbox relay hands it every
+   event; payments/refunds/support/feedback call it for actions without outbox events).
    API `GET /admin/staff-notifications?state=open|all|resolved` (+ read, read-all, resolve, prefs
    with muted types). Reminders: repeatable job re-raises open HIGH/URGENT notices after 15/30
    min, at most 6 times. Dashboard: `components/StaffBell.tsx`, `/notifications`.
