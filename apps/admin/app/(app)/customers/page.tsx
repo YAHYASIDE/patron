@@ -173,7 +173,7 @@ export default function CustomersPage() {
                 )}
               </Link>
               <div className="text-end">
-                <div className="tnum text-lg font-extrabold">{money(c.totalSpentBase)}</div>
+                <div className="tnum whitespace-nowrap text-lg font-extrabold">{money(c.totalSpentBase)}</div>
                 <div className="text-xs text-muted">{c.paidOrders} طلب مدفوع</div>
               </div>
             </div>
