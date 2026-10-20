@@ -148,6 +148,12 @@ log('API checks');
   }
 }
 {
+  // the full backup is live and only for the owner: signed out it must answer 401, not 404 (an older API)
+  const page = '/admin/backup/status';
+  const { status } = await getJson(page);
+  ok(status === 401, { ar: 'النسخة الاحتياطية الكاملة غير منشورة أو مفتوحة بلا دخول', en: 'Full backup not deployed, or open without sign-in', page, detail: `HTTP ${status}` });
+}
+{
   const page = '/catalog/banners';
   const { status, body } = await getJson(page);
   ok(status === 200 && Array.isArray(body), { ar: 'اللافتات لا تجيب', en: 'Banners not answering as an array', page, detail: `HTTP ${status}` });
