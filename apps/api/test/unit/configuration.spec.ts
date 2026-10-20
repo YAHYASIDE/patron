@@ -41,7 +41,14 @@ describe('configuration', () => {
     expect(c.otel.enabled).toBe(false);
     expect(c.otel.sampleRatio).toBe(0.1);
     expect(c.otel.serviceName).toBe('patron-api');
-    expect(c.security).toEqual({ maxLoginAttempts: 5, lockoutMinutes: 15, otpTtlSeconds: 300, relayedOtpTtlSeconds: 1800 });
+    expect(c.security).toEqual({
+      maxLoginAttempts: 5, lockoutMinutes: 15, maxIpFailures: 30, otpTtlSeconds: 300, emailOtpTtlSeconds: 900,
+      smsOtpTtlSeconds: 600, relayedOtpTtlSeconds: 1800, maxCodeAttempts: 5, resendCooldownSeconds: 60,
+    });
+    // phone codes go through the owner unless a provider is chosen; email is off without a key
+    expect(c.auth.otpProvider).toBe('owner_relay');
+    expect(c.auth.resendApiKey).toBeUndefined();
+    expect(c.auth.webauthn.rpName).toBe('patron');
   });
 
   it('reads overrides and numeric-parses PORT and REDIS_PORT', () => {

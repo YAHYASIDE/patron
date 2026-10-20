@@ -13,6 +13,7 @@
     "clean": "rimraf .next"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
     "next": "^15.1.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

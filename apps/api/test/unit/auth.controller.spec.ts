@@ -29,6 +29,9 @@ describe('AuthController', () => {
 
     expect(res).toBe('register-result');
     expect(auth.register).toHaveBeenCalledWith(dto, { ip: '1.2.3.4', userAgent: 'jest-ua', deviceInfo: undefined });
+    // a device label sent at sign-up names the session
+    await controller.register({ ...dto, deviceInfo: 'Pixel 8' }, req('jest-ua'), '1.2.3.4');
+    expect(auth.register).toHaveBeenLastCalledWith({ ...dto, deviceInfo: 'Pixel 8' }, { ip: '1.2.3.4', userAgent: 'jest-ua', deviceInfo: 'Pixel 8' });
   });
 
   it('login threads deviceInfo from the dto into the meta object', async () => {
@@ -106,11 +109,35 @@ describe('AuthController', () => {
     expect(auth.forgotPassword).toHaveBeenCalledWith(dto);
   });
 
-  it('resetPassword delegates the dto (no request metadata)', async () => {
+  it('resetPassword passes the request metadata (the lockout is per identifier and IP)', async () => {
     const dto = { email: 'a@b.c', code: '123456', newPassword: 'N3wStr0ngPass!' } as any;
 
-    await controller.resetPassword(dto);
+    await controller.resetPassword(dto, req('ua'), '3.3.3.3');
 
-    expect(auth.resetPassword).toHaveBeenCalledWith(dto);
+    expect(auth.resetPassword).toHaveBeenCalledWith(dto, { ip: '3.3.3.3', userAgent: 'ua', deviceInfo: undefined });
+  });
+
+  it('sessions: lists with the current session, revokes one, revokes the others', async () => {
+    auth.listSessions = jest.fn().mockResolvedValue([]);
+    auth.revokeSession = jest.fn().mockResolvedValue({ revoked: true });
+    auth.revokeOtherSessions = jest.fn().mockResolvedValue({ revoked: 1 });
+    const user = { id: 'u1', email: null, roles: [], permissions: [], sessionId: 's1' };
+
+    await controller.sessions(user);
+    await controller.revokeSession('u1', 's2', req('ua'), '4.4.4.4');
+    await controller.revokeOtherSessions(user, req('ua'), '4.4.4.4');
+
+    expect(auth.listSessions).toHaveBeenCalledWith('u1', 's1');
+    expect(auth.revokeSession).toHaveBeenCalledWith('u1', 's2', { ip: '4.4.4.4', userAgent: 'ua', deviceInfo: undefined });
+    expect(auth.revokeOtherSessions).toHaveBeenCalledWith('u1', 's1', { ip: '4.4.4.4', userAgent: 'ua', deviceInfo: undefined });
+  });
+
+  it('password set and email-code resend go to the signed-in user', async () => {
+    auth.setPassword = jest.fn().mockResolvedValue({});
+    auth.resendEmailCode = jest.fn().mockResolvedValue({});
+    await controller.setPassword('u1', { newPassword: 'N3wStr0ngPass' }, req('ua'), '5.5.5.5');
+    await controller.resendEmailCode('u1');
+    expect(auth.setPassword).toHaveBeenCalledWith('u1', { newPassword: 'N3wStr0ngPass' }, { ip: '5.5.5.5', userAgent: 'ua', deviceInfo: undefined });
+    expect(auth.resendEmailCode).toHaveBeenCalledWith('u1');
   });
 });

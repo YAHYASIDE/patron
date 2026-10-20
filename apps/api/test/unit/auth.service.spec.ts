@@ -1,5 +1,17 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from '../../src/modules/auth/auth.service';
+import { CodesService } from '../../src/modules/auth/codes.service';
+import { LoginGuardService } from '../../src/modules/auth/login-guard.service';
+import { OwnerRelaySmsSender } from '../../src/modules/auth/senders/sms-sender';
+import { DisabledEmailSender } from '../../src/modules/auth/senders/email-sender';
+
+/** The real code and lockout services over the mocked Prisma (owner relay, email off). */
+const build = (prisma: any, crypto: any, tokens: any, config: any) =>
+  new AuthService(
+    prisma, crypto, tokens, config,
+    new CodesService(prisma, crypto, config, new OwnerRelaySmsSender(), new DisabledEmailSender()),
+    new LoginGuardService(prisma, config),
+  );
 
 const META = { ip: '1.2.3.4', userAgent: 'jest' };
 const PAIR = { accessToken: 'a.jwt', refreshToken: 'raw-refresh', expiresIn: 900 };
@@ -19,7 +31,12 @@ describe('AuthService', () => {
   beforeEach(() => {
     prisma = {
       user: { findFirst: jest.fn().mockResolvedValue(user), update: jest.fn().mockResolvedValue({}) },
-      loginAttempt: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({}) },
+      loginAttempt: {
+        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({}),
+      },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       refreshToken: { findUnique: jest.fn().mockResolvedValue({ userId: 'u1' }) },
     };
@@ -38,7 +55,7 @@ describe('AuthService', () => {
     config = {
       get: (k: string) => ({ 'security.maxLoginAttempts': 5, 'security.lockoutMinutes': 15 }[k]),
     };
-    service = new AuthService(prisma, crypto, tokens, config);
+    service = build(prisma, crypto, tokens, config);
   });
 
   describe('login', () => {
@@ -54,7 +71,7 @@ describe('AuthService', () => {
       expect(prisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ action: 'auth.login', userId: 'u1' }) }),
       );
-      expect(tokens.issue).toHaveBeenCalledWith('u1', 'a@b.c', { ip: META.ip, deviceInfo: undefined });
+      expect(tokens.issue).toHaveBeenCalledWith('u1', 'a@b.c', { ip: META.ip, deviceInfo: undefined, userAgent: 'jest' });
     });
 
     it('transparently upgrades a legacy bcrypt hash to Argon2id', async () => {
@@ -91,8 +108,8 @@ describe('AuthService', () => {
       expect(crypto.verifyPassword).not.toHaveBeenCalled();
     });
 
-    it('blocks and does not issue tokens after too many failed attempts', async () => {
-      prisma.loginAttempt.count.mockResolvedValue(5);
+    it('blocks and does not issue tokens after too many failed attempts from this device', async () => {
+      prisma.loginAttempt.findMany.mockResolvedValue(Array.from({ length: 5 }, () => ({ createdAt: new Date() })));
 
       await expect(service.login(dto, META)).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.user.findFirst).not.toHaveBeenCalled();
@@ -156,7 +173,12 @@ describe('AuthService · WhatsApp number sign-in', () => {
         update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'u1', ...data })),
       },
       role: { findUnique: jest.fn().mockResolvedValue({ id: 'role-customer' }) },
-      loginAttempt: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({}) },
+      loginAttempt: {
+        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({}),
+      },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       verificationToken: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -184,7 +206,7 @@ describe('AuthService · WhatsApp number sign-in', () => {
       get: (k: string) =>
         ({ 'security.maxLoginAttempts': 5, 'security.lockoutMinutes': 15, 'security.relayedOtpTtlSeconds': 1800, 'currency.base': 'USD' })[k],
     };
-    service = new AuthService(prisma, crypto, tokens, config as any);
+    service = build(prisma, crypto, tokens, config);
   });
 
   const existing = (over: Record<string, unknown> = {}) => ({
@@ -312,6 +334,7 @@ describe('AuthService · WhatsApp number sign-in', () => {
     });
 
     it('verifies the number with the code', async () => {
+      prisma.user.findFirstOrThrow.mockResolvedValue(existing());
       prisma.verificationToken.findFirst.mockResolvedValue({
         id: 't1', codeHash: 'sha:482913', expiresAt: new Date(Date.now() + 60_000), attempts: 0,
       });

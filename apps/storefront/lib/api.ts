@@ -76,7 +76,7 @@ function getRefresh(): string | null {
     return null;
   }
 }
-function storeTokens(t: TokenPair) {
+export function storeTokens(t: TokenPair) {
   try {
     localStorage.setItem(ACCESS_KEY, t.accessToken);
     localStorage.setItem(REFRESH_KEY, t.refreshToken);
