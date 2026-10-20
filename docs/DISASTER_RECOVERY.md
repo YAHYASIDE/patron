@@ -8,11 +8,12 @@ to a paid plan (the only real fix), the owner's downloaded backup is the
 recovery path:
 
 1. **Download a backup** from the dashboard (Settings → "نسخة احتياطية") at
-   least weekly and after any busy day. The dashboard warns when the last one
-   is older than 7 days (`GET /admin/backup/status`).
+   least weekly and after any busy day. Settings shows when the last one was
+   downloaded (`GET /admin/backup/status`).
 2. The file (version 2, `BackupService`) holds everything the shop is rebuilt
    from: customers, wallets with their whole ledger, orders, payments, refunds,
-   reviews, tickets, the catalogue with prices, banners, coupons, settings, and
+   reviews, tickets, customers' favourites, saved player IDs and price alerts,
+   the catalogue with prices, banners, coupons, settings, and
    the code stock — unsold and delivered — as the AES-256-GCM ciphertext stored
    in the database. It holds no password hash, session, 2FA secret, sensitive
    input, provider key, notification, log or uploaded image.

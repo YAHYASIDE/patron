@@ -86,6 +86,9 @@ describe('Backup and restore', () => {
       },
     });
     await prisma.$transaction((tx) => wallet.credit({ userId: customer.id, currency: 'MRU', amount: 10, type: 'REFUND' }, tx));
+    await prisma.favorite.create({ data: { userId: customer.id, brandKey: 'g-pubg' } });
+    await prisma.savedInput.create({ data: { userId: customer.id, gameId: game.id, label: 'حسابي', values: { player_id: '5123456789' } } });
+    await prisma.priceWatch.create({ data: { userId: customer.id, productId: product.id, priceAtWatch: 1 } });
     await prisma.coupon.create({ data: { code: 'EID10', discountType: 'PERCENT', discountValue: 10 } });
     await prisma.banner.create({ data: { titleAr: 'عرض', linkType: 'offers' } });
     await prisma.systemSetting.createMany({
@@ -126,6 +129,7 @@ describe('Backup and restore', () => {
     expect(after.paid).toBe(before.paid);
     expect(after.refunded).toBe(before.refunded);
     expect(after.codes).toEqual({ used: 1, unsold: 1 });
+    expect(after.counts).toMatchObject({ favorite: 1, savedInput: 1, priceWatch: 1 });
     // the secret setting stayed behind; every other row came back
     expect(after.counts).toEqual({ ...before.counts, systemSetting: before.counts.systemSetting - 1 });
     expect(await wallet.findDriftFull()).toHaveLength(0);

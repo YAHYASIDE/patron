@@ -8,7 +8,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
  * Render's free database is deleted after about 30 days, so the backup has to
  * hold everything money depends on: customers and their wallets with the whole
  * ledger, orders with payments and refunds, the catalogue, and the codes the
- * owner paid for — unsold stock and delivered ones. Codes travel as the
+ * owner paid for — unsold stock and delivered ones — plus what customers keep in
+ * their account (favourites, saved player IDs, price alerts). Codes travel as the
  * ciphertext already stored (AES-256-GCM): the file never holds a readable
  * code, and only the same ENCRYPTION_KEY can open them after a restore.
  *
@@ -52,6 +53,11 @@ const TABLES: TableSpec[] = [
   { model: 'productPrice' },
   { model: 'user', omit: ['passwordHash', 'twoFaSecretEnc'], orderBy: { createdAt: 'asc' } },
   { model: 'userRole' },
+  // what customers keep in their account: favourite brands, saved player IDs (never a
+  // password: only non-sensitive fields are ever saved) and price alerts
+  { model: 'favorite' },
+  { model: 'savedInput' },
+  { model: 'priceWatch' },
   { model: 'wallet' },
   { model: 'walletTransaction', orderBy: { createdAt: 'asc' } },
   { model: 'coupon', orderBy: { createdAt: 'asc' } },
