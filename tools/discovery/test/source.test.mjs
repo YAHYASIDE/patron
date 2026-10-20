@@ -74,3 +74,13 @@ test('a regex with brackets inside a method body does not hide the methods after
   assert.deepEqual(classes[0].methods.map((m) => m.name), ['a', 'b', 'c', 'd']);
   assert.deepEqual(classes[0].methods[3].decorators.map((d) => d.name), ['Delete']);
 });
+
+test('a division after a closing paren, bracket, identifier or number stays a division', () => {
+  const code = stripComments(`
+    class D {
+      @Get() a(x, arr, i) { const m = (x + 1) / 2; const n = arr[i] / 3; const o = x / 4 / 5; return { m, n, o }; }
+      @Get('b') b() { return { ok: '}' }; }
+    }
+  `);
+  assert.deepEqual(parseClasses(code)[0].methods.map((m) => m.name), ['a', 'b']);
+});
