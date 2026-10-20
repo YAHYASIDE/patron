@@ -50,6 +50,8 @@ import { UsdtModule } from './modules/usdt/usdt.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { StaffNotificationsModule } from './modules/staff-notifications/staff-notifications.module';
 import { BankNoticesModule } from './modules/bank-notices/bank-notices.module';
+import { MarketsModule } from './modules/markets/markets.module';
+import { IntelligenceModule } from './modules/intelligence/intelligence.module';
 import { optInTier } from './common/guards/throttle-tiers';
 
 @Module({
@@ -105,6 +107,8 @@ import { optInTier } from './common/guards/throttle-tiers';
     AgentsModule,
     StaffNotificationsModule,
     BankNoticesModule,
+    MarketsModule,
+    IntelligenceModule,
 
     // async work
     QueuesModule,

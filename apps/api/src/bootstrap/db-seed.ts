@@ -72,6 +72,9 @@ const PERMISSIONS: Array<[string, string, string]> = [
   ['bank.review', 'payments', 'Review bank notifications read by the admin phone'],
   ['backup.manage', 'system', 'Download, schedule and verify backups'],
   ['recovery.review', 'users', 'Review account recovery requests'],
+  ['markets.manage', 'markets', 'Manage countries, payment-method suggestions and product availability'],
+  ['intelligence.read', 'intelligence', 'Read the intelligence and development center'],
+  ['intelligence.decide', 'intelligence', 'Approve, reject or defer discoveries and suggestions'],
 ];
 
 const ROLE_PERMISSIONS: Record<string, string[] | '*'> = {
@@ -85,6 +88,7 @@ const ROLE_PERMISSIONS: Record<string, string[] | '*'> = {
     'coupons.manage', 'banners.manage', 'notifications.send',
     'reports.read', 'reports.export', 'audit.read',
     'usdt.read', 'usdt.manage', 'agents.manage', 'staff.notifications', 'bank.review', 'recovery.review',
+    'markets.manage', 'intelligence.read', 'intelligence.decide',
   ],
   support: [
     'users.read', 'catalog.read',
