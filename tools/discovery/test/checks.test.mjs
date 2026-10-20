@@ -23,6 +23,8 @@ test('the run report has the ingest shape', () => {
       Object.keys(d).filter((k) => k !== 'testResults').sort(),
       ['confidence', 'description', 'evidence', 'fingerprint', 'impact', 'kind', 'proposal', 'severity', 'title', 'verified'],
     );
+    // the API's DiscoveryInputDto pattern (apps/api/src/modules/intelligence/dto/intelligence.dto.ts)
+    assert.match(d.fingerprint, /^[A-Za-z0-9][A-Za-z0-9._:/@#-]{0,199}$/, d.fingerprint);
     assert.ok(d.evidence.length > 0, d.fingerprint);
     for (const e of d.evidence) {
       assert.ok(['file', 'test', 'log', 'config'].includes(e.type), e.type);
@@ -48,9 +50,9 @@ test('a focused test is caught (known issue)', () => {
 test('an admin route without a permission decorator is caught (known issue)', () => {
   const routes = byFp(known, 'admin-route-no-permission:').map((d) => d.fingerprint).sort();
   assert.deepEqual(routes, [
-    'admin-route-no-permission:DELETE /admin/widgets/:id',
-    'admin-route-no-permission:GET /admin/widgets-export',
-    'admin-route-no-permission:POST /admin/widgets/import',
+    'admin-route-no-permission:DELETE_/admin/widgets/:id',
+    'admin-route-no-permission:GET_/admin/widgets-export',
+    'admin-route-no-permission:POST_/admin/widgets/import',
   ]);
   for (const d of byFp(known, 'admin-route-no-permission:')) {
     assert.equal(d.severity, 'HIGH');

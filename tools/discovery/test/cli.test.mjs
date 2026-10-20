@@ -37,7 +37,7 @@ test('the CLI writes the JSON and the Arabic Markdown report and exits 0', () =>
   assert.equal(r.status, 0, r.stderr);
   const report = JSON.parse(readFileSync(out, 'utf8'));
   assert.equal(report.trigger, 'ci');
-  assert.ok(report.discoveries.some((d) => d.fingerprint === 'admin-route-no-permission:DELETE /admin/widgets/:id'));
+  assert.ok(report.discoveries.some((d) => d.fingerprint === 'admin-route-no-permission:DELETE_/admin/widgets/:id'));
   const text = readFileSync(md, 'utf8');
   assert.match(text, /العدد حسب الخطورة/);
   assert.match(text, /\| عالٍ \(HIGH\) \| \d+ \|/);

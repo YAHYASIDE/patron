@@ -3,7 +3,7 @@ import { DiscoverySeverity, DiscoveryStatus } from '@prisma/client';
 /** bug | security | … (schema comment) plus `catalog`, which the market skill uses for unready products. */
 export const DISCOVERY_KINDS = [
   'bug', 'security', 'performance', 'ux', 'market', 'product', 'payment', 'data', 'opportunity', 'test', 'catalog',
-  'quality', // tools/discovery: TODO markers, modules without tests
+  'quality', // tools/discovery: code markers left to do, modules without tests
 ] as const;
 export type DiscoveryKind = (typeof DISCOVERY_KINDS)[number];
 

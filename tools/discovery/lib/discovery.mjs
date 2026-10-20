@@ -7,6 +7,15 @@ export const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 export const shortHash = (text) => createHash('sha1').update(String(text)).digest('hex').slice(0, 12);
 
 /**
+ * The API accepts fingerprints of `[A-Za-z0-9][A-Za-z0-9._:/@#-]{0,199}` only: spaces (in a route
+ * key like "GET /admin/x") become "_", any other character "-", and an over-long key is hashed.
+ */
+export function fingerprintOf(check, key) {
+  const raw = `${check}:${key}`.replace(/\s+/g, '_').replace(/[^A-Za-z0-9._:/@#-]/g, '-');
+  return raw.length <= 200 ? raw : `${check}:${shortHash(key)}`;
+}
+
+/**
  * Builds a DiscoveryInput. `check` + `key` make the fingerprint, so the same subject found again is the
  * same discovery (never a line number alone: keys are paths, routes, ids or hashes of content).
  */
@@ -16,7 +25,7 @@ export function discovery(check, key, fields) {
   } = fields;
   if (!SEVERITIES.includes(severity)) throw new Error(`${check}: bad severity ${severity}`);
   return {
-    fingerprint: `${check}:${key}`,
+    fingerprint: fingerprintOf(check, key),
     kind,
     title,
     description,
