@@ -1,6 +1,11 @@
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { BackupService, BackupFile } from '../../src/modules/admin-tools/backup.service';
 import { WalletService } from '../../src/modules/wallet/wallet.service';
+import { randomBytes, randomUUID } from 'crypto';
+import { BackupRunsService } from '../../src/modules/admin-tools/backup-runs.service';
+import { readBackupFile } from '../../src/modules/admin-tools/backup-crypto';
+import { StaffNotificationsService } from '../../src/modules/staff-notifications/staff-notifications.service';
+import { AuditService } from '../../src/common/audit/audit.service';
 
 /**
  * The backup is only worth something if the shop comes back from it. This
@@ -207,6 +212,64 @@ describe('Backup and restore', () => {
     await buildShop();
     const file = JSON.parse(JSON.stringify(await backups.export())) as BackupFile;
     await expect(backups.restore(file)).rejects.toThrow('empty database');
+  });
+
+  async function wipe() {
+    const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => `"${t.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
+  }
+
+  it('restores from encrypted files (passphrase and server key), logs each copy and raises/clears the alert', async () => {
+    await buildShop();
+    const key = randomBytes(32).toString('hex');
+    const drive = {
+      assertConfigured: jest.fn(),
+      upload: jest.fn<Promise<{ id: string; name: string }>, [string, Buffer, string]>(() => Promise.resolve({ id: 'drive-1', name: 'n' })),
+      prune: jest.fn(() => Promise.resolve([])),
+    };
+    const config = { get: (k: string) => (k === 'BACKUP_ENCRYPTION_KEY' ? key : undefined) };
+    const notices = new StaffNotificationsService(prisma);
+    const runs = new BackupRunsService(prisma, backups, drive as never, notices, new AuditService(prisma), config as never);
+    await prisma.backupRun.deleteMany(); // the log row buildShop left as sample data
+    const before = await backups.fingerprint();
+
+    // a failed scheduled copy: logged, one urgent notice
+    drive.upload.mockRejectedValueOnce(new Error('Google Drive: uploading failed (quota)'));
+    await expect(runs.toDrive('scheduled_daily')).rejects.toThrow('quota');
+    const passphrase = `test-${randomUUID()}`;
+    const download = await runs.encryptedDownload(passphrase);
+    await runs.toDrive('scheduled_daily');
+    const scheduled = drive.upload.mock.calls[1][1];
+
+    const log = await prisma.backupRun.findMany({ orderBy: { startedAt: 'asc' } });
+    expect(log.map((r) => [r.trigger, r.destination, r.status, r.encrypted])).toEqual([
+      ['scheduled_daily', 'google_drive', 'FAILED', true],
+      ['download', 'download', 'SUCCEEDED', true],
+      ['scheduled_daily', 'google_drive', 'SUCCEEDED', true],
+    ]);
+    expect(log[0].error).toContain('quota');
+    expect(log[2]).toMatchObject({ remoteId: 'drive-1', sizeBytes: scheduled.length });
+    const notice = await prisma.staffNotification.findUniqueOrThrow({ where: { dedupeKey: 'backup.failed' } });
+    expect(notice).toMatchObject({ type: 'backup.failed', priority: 'URGENT' });
+    expect(notice.resolvedAt).not.toBeNull(); // the next good copy closed it
+
+    // the dry run reads both files and writes nothing
+    const runsBefore = await prisma.backupRun.count();
+    await expect(runs.verify(download.body, passphrase)).resolves.toMatchObject({ ok: true, encrypted: true });
+    await expect(runs.verify(scheduled)).resolves.toMatchObject({ ok: true, encrypted: true });
+    expect(await prisma.backupRun.count()).toBe(runsBefore);
+
+    for (const [bytes, secrets] of [[download.body, { passphrase }], [scheduled, { keyHex: key }]] as const) {
+      await wipe();
+      const { data } = await readBackupFile(bytes, secrets);
+      await backups.restore(data as BackupFile);
+      const after = await backups.fingerprint();
+      expect(after.ledgerSum).toBe(before.ledgerSum);
+      // every row the file holds came back (the later copy also holds the download time)
+      expect(after.counts).toEqual((data as BackupFile).counts);
+      expect(after.counts).toMatchObject({ order: 1, agent: 1, commission: 1, usdtOrderEvent: 2 });
+    }
   });
 
   it('refuses a file that is not a backup', async () => {
