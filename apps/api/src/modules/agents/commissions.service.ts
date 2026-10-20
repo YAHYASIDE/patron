@@ -65,6 +65,10 @@ export class CommissionsService {
         _sum: { amountBase: true },
       });
       const net = netValue(order.totalBase, refunded._sum.amountBase);
+      // Lock the commission too (after the order, as everywhere): a payout settling
+      // it right now finishes first, and this then reads it as PAID instead of
+      // overwriting the payout with a stale status.
+      await tx.$queryRaw`SELECT "id" FROM "commissions" WHERE "orderId" = ${orderId}::uuid FOR UPDATE`;
       const existing = await tx.commission.findUnique({ where: { orderId } });
       // the rule frozen on the commission wins over today's rule
       const rule: CommissionRule = existing
@@ -99,8 +103,9 @@ export class CommissionsService {
         }
 
         case 'update': {
-          const row = await tx.commission.update({
-            where: { orderId },
+          // never over a PAID row, whatever happened meanwhile; the job is retried instead
+          const { count } = await tx.commission.updateMany({
+            where: { orderId, status: { not: 'PAID' } },
             data: {
               status: step.status,
               basis: step.basis,
@@ -110,7 +115,8 @@ export class CommissionsService {
               earnedAt: step.status === 'EARNED' ? (existing?.earnedAt ?? now) : step.status === 'VOID' ? existing?.earnedAt : null,
             },
           });
-          return { action: 'updated' as const, commissionId: row.id, status: row.status };
+          if (count === 0) throw new Error(`Commission for order ${orderId} was paid meanwhile; sync again`);
+          return { action: 'updated' as const, commissionId: existing?.id, status: step.status };
         }
 
         case 'clawback': {
