@@ -20,7 +20,7 @@ function fakePrisma(rows: Record<string, Array<Record<string, unknown>>> = {}, c
   });
   const models = [
     'currency', 'fxRate', 'role', 'permission', 'rolePermission', 'category', 'game', 'product', 'productPrice', 'user',
-    'userRole', 'wallet', 'walletTransaction', 'coupon', 'order', 'orderItem', 'orderInput', 'orderResult', 'productCode',
+    'userRole', 'favorite', 'savedInput', 'priceWatch', 'wallet', 'walletTransaction', 'coupon', 'order', 'orderItem', 'orderInput', 'orderResult', 'productCode',
     'payment', 'refund', 'review', 'supportTicket', 'banner', 'systemSetting',
   ];
   const prisma: Record<string, unknown> = Object.fromEntries(models.map((m) => [m, delegate(m)]));
@@ -72,7 +72,7 @@ describe('BackupService', () => {
 
     const written = await new BackupService(prisma as never).restore(file, { ownerEmail: 'owner@shop.test', ownerPasswordHash: 'h' });
 
-    expect(written).toMatchObject({ currency: 1, fxRate: 1, user: 1, order: 1, payment: 1, systemSetting: 1, product: 0 });
+    expect(written).toMatchObject({ currency: 1, fxRate: 1, user: 1, order: 1, payment: 1, systemSetting: 1, product: 0, favorite: 0 });
     expect(deleted).toEqual(['systemSetting', 'fxRate', 'currency']);
     // a null JSON column is written as a database NULL
     expect((created.payment[0] as { rawResponse: unknown }).rawResponse).toBe(Prisma.DbNull);
