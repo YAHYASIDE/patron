@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { date, money } from '@/lib/format';
 import { countryName, flagOf } from '@/lib/countries';
 import ExportButton from '@/components/ExportButton';
+import { SegmentChips, SegmentFilter, VipSettings, type Segment } from '@/components/CustomerSegments';
 
 type Customer = {
   id: string;
@@ -21,6 +22,7 @@ type Customer = {
   country?: string | null;
   city?: string | null;
   tags?: string[];
+  segments?: Segment[];
 };
 type Page = { data: Customer[]; meta: { page: number; pages: number; total: number } };
 
@@ -28,6 +30,7 @@ export default function CustomersPage() {
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [segment, setSegment] = useState<Segment | ''>('');
   const [res, setRes] = useState<Page | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +45,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     const qs = new URLSearchParams({ role: 'customer', limit: '20', page: String(page) });
+    if (segment) qs.set('segment', segment);
     // a typed number like "22 12 34 56" matches the stored +22222123456
     if (search) qs.set('search', /^[\d\s+]+$/.test(search) ? search.replace(/\s/g, '') : search);
     api
@@ -55,7 +59,7 @@ export default function CustomersPage() {
           e instanceof ApiError && e.status === 403 ? 'ليست لديك صلاحية عرض الزبائن.' : 'تعذّر جلب الزبائن.',
         ),
       );
-  }, [search, page]);
+  }, [search, page, segment]);
 
   async function toggleBlock(c: Customer) {
     const reason = c.isBlocked ? undefined : prompt('سبب الإيقاف (لسجلّك):', 'إساءة استخدام');
@@ -105,13 +109,24 @@ export default function CustomersPage() {
         className="surface hairline rounded-xl border px-4 py-3 text-[15px] outline-none focus:border-teal"
       />
 
+      <div className="flex flex-col gap-2">
+        <SegmentFilter
+          value={segment}
+          onChange={(v) => {
+            setSegment(v);
+            setPage(1);
+          }}
+        />
+        <VipSettings />
+      </div>
+
       {error && (
         <div className="rounded-xl border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad">{error}</div>
       )}
       {!res && !error && <p className="text-sm text-muted">جارٍ التحميل…</p>}
       {res?.data.length === 0 && (
         <div className="rounded-2xl border border-dashed border-[rgb(var(--line))] px-5 py-10 text-center text-sm text-muted">
-          لا يوجد زبون بهذا الاسم أو الرقم.
+          {segment ? 'لا يوجد زبون في هذه الشريحة.' : 'لا يوجد زبون بهذا الاسم أو الرقم.'}
         </div>
       )}
 
@@ -136,6 +151,7 @@ export default function CustomersPage() {
                       موقوف
                     </span>
                   )}
+                  <SegmentChips segments={c.segments} />
                 </div>
                 <div dir="ltr" className="mt-0.5 text-right text-sm text-muted">
                   {c.phone ?? c.email}
