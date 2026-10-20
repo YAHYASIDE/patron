@@ -159,7 +159,7 @@ async function fetchWaking(url: string, init: RequestInit, retryable: boolean): 
   }
 }
 
-async function request<T>(path: string, opts: Opts = {}): Promise<T> {
+export async function request<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = 'GET', body, auth = false, idempotent = false, retry = true } = opts;
   const headers: Record<string, string> = { Accept: 'application/json' };
   // a file goes as multipart; the browser sets the boundary itself
