@@ -8,7 +8,7 @@
 /// Rules:
 /// 1. Anything that reads like an OTP / PIN / password message is dropped
 ///    whole: a bank's login code is never payment evidence.
-/// 2. Card-number-like digit runs (13–19 digits) are masked to the last 4.
+/// 2. Card numbers (13–19 digits) are masked to the last 4.
 library;
 
 /// Why a notification was kept off the queue. Only the reason is kept on the
@@ -54,8 +54,10 @@ class SensitiveFilter {
     unicode: true,
   );
 
-  /// 13–19 digits, optionally grouped by spaces or dashes: a card number.
-  static final RegExp _cardNumber = RegExp(r'\b\d(?:[ -]?\d){12,18}\b');
+  /// A card number: 13–19 digits in one run, or grouped by four
+  /// ("4111 1111 1111 1234"). Order numbers like PTN-20261020-000123 and
+  /// references are left alone.
+  static final RegExp _cardNumber = RegExp(r'\b(?:\d{13,19}|(?:\d{4}[ -]){3}\d{1,7})\b');
 
   static FilterResult apply({String? title, required String text}) {
     final t = (title ?? '').trim();
