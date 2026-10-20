@@ -147,6 +147,44 @@ describe('BackupService', () => {
     ]);
   });
 
+  it('holds the markets and intelligence tables, each after the one it points at', async () => {
+    const order = BACKUP_TABLES;
+    const before = (a: string, b: string) => expect(order.indexOf(a)).toBeLessThan(order.indexOf(b));
+    for (const model of ['marketCountry', 'marketPaymentMethod', 'productMarketRule', 'discovery', 'discoveryDecision', 'agentRun']) {
+      expect(order).toContain(model);
+    }
+    before('marketCountry', 'marketPaymentMethod');
+    before('marketCountry', 'productMarketRule');
+    before('discovery', 'discoveryDecision');
+
+    // the countries a migration seeded are replaced by the backup's; a null Json column becomes DbNull
+    const { prisma, created, deleted } = fakePrisma();
+    const written = await new BackupService(prisma as never).restore({
+      version: BACKUP_VERSION,
+      exportedAt: '2026-10-20T00:00:00.000Z',
+      counts: {},
+      tables: {
+        marketCountry: [{ code: 'ML', enabled: true }],
+        marketPaymentMethod: [{ id: 'm1', countryCode: 'ML', sources: [] }],
+        discovery: [{ id: 'd1', evidence: [], testResults: null }],
+        discoveryDecision: [{ id: 'dd1', discoveryId: 'd1' }],
+        agentRun: [{ id: 'r1', details: null }],
+      },
+    });
+    expect(deleted).toEqual(['marketCountry']);
+    expect(written).toMatchObject({ marketCountry: 1, marketPaymentMethod: 1, productMarketRule: 0, discovery: 1, discoveryDecision: 1, agentRun: 1 });
+    expect((created.discovery[0] as { testResults: unknown }).testResults).toBe(Prisma.DbNull);
+    expect((created.agentRun[0] as { details: unknown }).details).toBe(Prisma.DbNull);
+  });
+
+  it('keeps the seeded countries when restoring a file from before the markets tables', async () => {
+    const { prisma, deleted } = fakePrisma();
+    await new BackupService(prisma as never).restore({
+      version: BACKUP_VERSION, exportedAt: '2026-10-19T00:00:00.000Z', counts: {}, tables: { user: [{ id: 'u1' }] },
+    });
+    expect(deleted).not.toContain('marketCountry');
+  });
+
   it('still restores a version-2 file (no V2 tables)', async () => {
     const { prisma } = fakePrisma();
     const written = await new BackupService(prisma as never).restore({
