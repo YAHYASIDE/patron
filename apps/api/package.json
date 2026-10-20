@@ -62,6 +62,7 @@
     "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@opentelemetry/semantic-conventions": "^1.37.0",
     "@prisma/client": "^6.0.0",
+    "@simplewebauthn/server": "^13.3.3",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.71.0",
     "bullmq-otel": "^1.0.1",
