@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { Prisma } from '@prisma/client';
 
 import { DiscoveriesStore, criticalKey } from '../../src/modules/intelligence/discoveries.store';
 import { DiscoveryInput } from '../../src/modules/intelligence/intelligence.types';
@@ -32,6 +31,7 @@ describe('DiscoveriesStore', () => {
   let tx: any;
   let staff: any;
   let store: DiscoveriesStore;
+  let created: ReturnType<typeof row>;
 
   beforeEach(() => {
     tx = {
@@ -44,7 +44,11 @@ describe('DiscoveriesStore', () => {
     prisma = {
       discovery: {
         findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn((a: any) => Promise.resolve(row(a.data))),
+        createMany: jest.fn((a: any) => {
+          created = row(a.data[0]);
+          return Promise.resolve({ count: 1 });
+        }),
+        findUniqueOrThrow: jest.fn(() => Promise.resolve(created)),
       },
       $transaction: jest.fn((fn: (t: unknown) => unknown) => fn(tx)),
     };
@@ -63,7 +67,7 @@ describe('DiscoveriesStore', () => {
     const phone = `+222${String(Date.now()).slice(-8)}`;
     const res = await store.upsert(input({ title: `appel ${phone}`, evidence: [{ type: 'log', ref: phone }] }), 'qa-tester', NOW);
     expect(res.created).toBe(true);
-    const data = prisma.discovery.create.mock.calls[0][0].data;
+    const data = prisma.discovery.createMany.mock.calls[0][0].data[0];
     expect(data).toMatchObject({ status: 'NEW', seenCount: 1, source: 'qa-tester', firstSeenAt: NOW, lastSeenAt: NOW });
     expect(JSON.stringify(data)).not.toContain(phone);
     expect(staff.notify).not.toHaveBeenCalled();
@@ -71,7 +75,7 @@ describe('DiscoveriesStore', () => {
 
   it('clamps confidence and stores testResults when given', async () => {
     await store.upsert(input({ confidence: 140.4, testResults: { passed: 3 } }), 'ci', NOW);
-    expect(prisma.discovery.create.mock.calls[0][0].data).toMatchObject({ confidence: 100, testResults: { passed: 3 } });
+    expect(prisma.discovery.createMany.mock.calls[0][0]).toMatchObject({ data: [{ confidence: 100, testResults: { passed: 3 } }], skipDuplicates: true });
   });
 
   it('a new CRITICAL discovery raises one urgent Arabic notice linked to it', async () => {
@@ -133,24 +137,20 @@ describe('DiscoveriesStore', () => {
     expect(staff.notify).toHaveBeenCalledTimes(1);
   });
 
-  it('two writers creating the same subject: the loser lands on the update path', async () => {
+  it('two writers creating the same subject: the one whose insert did nothing lands on the update path', async () => {
     const winner = row();
-    prisma.discovery.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: winner.id });
-    prisma.discovery.create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' }));
+    prisma.discovery.createMany.mockResolvedValueOnce({ count: 0 });
+    prisma.discovery.findUniqueOrThrow.mockResolvedValueOnce(winner);
     tx.discovery.findUniqueOrThrow.mockResolvedValue(winner);
-    const res = await store.upsert(input(), 'a', NOW);
+    const res = await store.upsert(input({ severity: 'CRITICAL' }), 'a', NOW);
     expect(res.created).toBe(false);
     expect(tx.discovery.update).toHaveBeenCalledTimes(1);
+    expect(tx.discovery.update.mock.calls[0][0].where).toEqual({ id: winner.id });
   });
 
-  it('other database errors are not swallowed', async () => {
-    prisma.discovery.create.mockRejectedValueOnce(new Error('db down'));
+  it('database errors are not swallowed', async () => {
+    prisma.discovery.createMany.mockRejectedValueOnce(new Error('db down'));
     await expect(store.upsert(input(), 'a', NOW)).rejects.toThrow('db down');
-  });
-
-  it('gives up after repeated unique races', async () => {
-    prisma.discovery.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 'x' }));
-    await expect(store.upsert(input(), 'a', NOW)).rejects.toThrow(/could not be stored/);
   });
 
   it('resolveCritical closes the notice and never throws', async () => {

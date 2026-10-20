@@ -8,8 +8,6 @@ import { CLOSED, DiscoveryInput } from './intelligence.types';
 
 export type UpsertOutcome = { discovery: Discovery; created: boolean };
 
-const isUniqueViolation = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
-
 /** The staff notice for a critical discovery: one per discovery, closed when it is done or rejected. */
 export const criticalKey = (id: string) => `intel.critical:${id}`;
 
@@ -38,34 +36,29 @@ export class DiscoveriesStore {
 
   async upsert(input: DiscoveryInput, source: string, now = new Date()): Promise<UpsertOutcome> {
     const clean = this.clean(input);
-    // Two writers seeing a new subject at once: one create wins on the unique
-    // fingerprint, the other lands on the update path below.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const existing = await this.prisma.discovery.findUnique({ where: { fingerprint: clean.fingerprint }, select: { id: true } });
-      if (!existing) {
-        try {
-          const discovery = await this.prisma.discovery.create({
-            data: {
-              ...clean,
-              evidence: clean.evidence as unknown as Prisma.InputJsonValue,
-              testResults: clean.testResults ? (clean.testResults as Prisma.InputJsonValue) : Prisma.JsonNull,
-              source: scrubText(source),
-              status: 'NEW',
-              seenCount: 1,
-              firstSeenAt: now,
-              lastSeenAt: now,
-            },
-          });
-          if (discovery.severity === 'CRITICAL') await this.raiseCritical(discovery);
-          return { discovery, created: true };
-        } catch (e) {
-          if (isUniqueViolation(e)) continue;
-          throw e;
-        }
-      }
-      return this.seenAgain(existing.id, clean, now);
-    }
-    throw new Error(`discovery ${clean.fingerprint} could not be stored`);
+    const existing = await this.prisma.discovery.findUnique({ where: { fingerprint: clean.fingerprint }, select: { id: true } });
+    if (existing) return this.seenAgain(existing.id, clean, now);
+
+    // INSERT … ON CONFLICT DO NOTHING: when two writers see a new subject at
+    // once, one inserts and the other finds nothing inserted and takes the
+    // update path, so the sighting is still counted and nothing errors.
+    const { count } = await this.prisma.discovery.createMany({
+      data: [{
+        ...clean,
+        evidence: clean.evidence as unknown as Prisma.InputJsonValue,
+        testResults: clean.testResults ? (clean.testResults as Prisma.InputJsonValue) : Prisma.JsonNull,
+        source: scrubText(source),
+        status: 'NEW',
+        seenCount: 1,
+        firstSeenAt: now,
+        lastSeenAt: now,
+      }],
+      skipDuplicates: true,
+    });
+    const discovery = await this.prisma.discovery.findUniqueOrThrow({ where: { fingerprint: clean.fingerprint } });
+    if (!count) return this.seenAgain(discovery.id, clean, now);
+    if (discovery.severity === 'CRITICAL') await this.raiseCritical(discovery);
+    return { discovery, created: true };
   }
 
   /** The update path, under a row lock so two sightings at once count twice and decide from the same state. */
