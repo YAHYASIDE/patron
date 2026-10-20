@@ -1,5 +1,6 @@
 'use client';
 
+import StaffBell from '@/components/StaffBell';
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -300,6 +301,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {pendingCodes} رمز بانتظار الإرسال
               </Link>
             )}
+            <StaffBell />
             <AlertsButton />
             <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-teal/15 text-sm font-bold text-teal">
               A
