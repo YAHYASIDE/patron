@@ -25,8 +25,13 @@ import { PrismaService } from '../../common/prisma/prisma.service';
  * staff set a new password (the restore sets the seeded owner's one) and
  * customers sign in with their WhatsApp number as before.
  *
+ * The markets and intelligence center travel too: countries with the payment
+ * methods and product rules research found and the owner's decisions on them,
+ * discoveries with their decision log, and the agents' run log.
+ *
  * Version 3 only adds tables: a version-2 file still restores (the new tables
- * stay empty).
+ * stay empty), and so does a version-3 file from before the markets tables (the
+ * countries the migration seeded stay as they are).
  */
 export const BACKUP_VERSION = 3;
 /** Every version this code can restore. */
@@ -116,11 +121,23 @@ const TABLES: TableSpec[] = [
   { model: 'review', orderBy: { createdAt: 'asc' } },
   { model: 'supportTicket', orderBy: { createdAt: 'asc' } },
   { model: 'banner', orderBy: { sortOrder: 'asc' } },
+  // markets: each country before the methods and rules researched for it (a method's accountId is
+  // the id of a manual account inside the payments setting, not a foreign key)
+  { model: 'marketCountry', orderBy: { code: 'asc' } },
+  { model: 'marketPaymentMethod', orderBy: { createdAt: 'asc' } },
+  { model: 'productMarketRule', orderBy: { createdAt: 'asc' } },
+  // the intelligence center: discoveries with the owner's decisions, and the agents' run log
+  { model: 'discovery', orderBy: { createdAt: 'asc' } },
+  { model: 'discoveryDecision', orderBy: { createdAt: 'asc' } },
+  { model: 'agentRun', orderBy: { startedAt: 'asc' } },
   { model: 'systemSetting', orderBy: { key: 'asc' } },
 ];
 
-/** Tables a fresh, migrated database already has rows in; the backup's rows replace them. */
-const REPLACED_ON_RESTORE = ['systemSetting', 'fxRate', 'currency'];
+/**
+ * Tables a fresh, migrated database already has rows in; the backup's rows replace them (the
+ * markets migration seeds the countries the store serves).
+ */
+const REPLACED_ON_RESTORE = ['systemSetting', 'fxRate', 'currency', 'marketCountry'];
 
 /**
  * Roles and permissions are seeded by migrations too (Platform V2 adds the agent
