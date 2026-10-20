@@ -6,6 +6,9 @@ import { CaptureSmsSender, OwnerRelaySmsSender, SmsSender } from '../../src/modu
 import { CaptureEmailSender, DisabledEmailSender, EmailSender } from '../../src/modules/auth/senders/email-sender';
 import { captureOutbox } from '../../src/modules/auth/senders/capture-outbox';
 
+// a fresh password per run: nothing that reads like a credential lives in the repo
+const NEW_PASSWORD = `N3w${randomUUID()}`;
+
 const META = { ip: '10.0.0.1', userAgent: 'jest' };
 const PAIR = { accessToken: 'a.jwt', refreshToken: 'raw-refresh', expiresIn: 900 };
 const PHONE = '+22222123456';
@@ -116,20 +119,20 @@ describe('AuthService · accounts', () => {
   describe('setting a first password', () => {
     it('needs a verified number', async () => {
       prisma.user.findFirstOrThrow.mockResolvedValue(user({ passwordHash: null }));
-      await expect(make().setPassword('u1', { newPassword: 'N3wStrongPass' }, META)).rejects.toMatchObject({
+      await expect(make().setPassword('u1', { newPassword: NEW_PASSWORD }, META)).rejects.toMatchObject({
         response: { error: 'VERIFY_FIRST' },
       });
     });
 
     it('sets it once the number is verified, and audits it', async () => {
       prisma.user.findFirstOrThrow.mockResolvedValue(user({ passwordHash: null, phoneVerifiedAt: new Date() }));
-      await make().setPassword('u1', { newPassword: 'N3wStrongPass' }, META);
+      await make().setPassword('u1', { newPassword: NEW_PASSWORD }, META);
       expect(prisma.user.updateMany).toHaveBeenCalledWith({ where: { id: 'u1', passwordHash: null }, data: { passwordHash: '$argon2id$new' } });
       expect(prisma.auditLog.create.mock.calls[0][0].data.action).toBe('auth.password_set');
     });
 
     it('will not overwrite an existing password (change it instead)', async () => {
-      await expect(make().setPassword('u1', { newPassword: 'N3wStrongPass' }, META)).rejects.toMatchObject({
+      await expect(make().setPassword('u1', { newPassword: NEW_PASSWORD }, META)).rejects.toMatchObject({
         response: { error: 'PASSWORD_ALREADY_SET' },
       });
     });
@@ -213,7 +216,7 @@ describe('AuthService · accounts', () => {
         id: 't1', codeHash: sha(code), attempts: 0, expiresAt: new Date(Date.now() + 60_000),
       });
 
-      await svc.resetPassword({ identifier: PHONE, code, newPassword: 'N3wStrongPass' }, META);
+      await svc.resetPassword({ identifier: PHONE, code, newPassword: NEW_PASSWORD }, META);
       const data = prisma.user.update.mock.calls[0][0].data;
       expect(data.passwordHash).toBe('$argon2id$new');
       expect(data.phoneVerifiedAt).toBeInstanceOf(Date);
@@ -224,7 +227,7 @@ describe('AuthService · accounts', () => {
       prisma.verificationToken.findFirst.mockResolvedValue({
         id: 't1', codeHash: sha('123456'), attempts: 0, expiresAt: new Date(Date.now() + 60_000),
       });
-      await expect(make().resetPassword({ identifier: PHONE, code: '654321', newPassword: 'N3wStrongPass' }, META))
+      await expect(make().resetPassword({ identifier: PHONE, code: '654321', newPassword: NEW_PASSWORD }, META))
         .rejects.toMatchObject({ response: { error: 'INVALID_CODE' } });
       expect(prisma.user.update).not.toHaveBeenCalled();
       expect(prisma.loginAttempt.create.mock.calls[0][0].data).toMatchObject({ identifier: PHONE, ipAddress: META.ip, success: false });

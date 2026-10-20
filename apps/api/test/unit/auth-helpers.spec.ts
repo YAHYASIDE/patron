@@ -1,7 +1,11 @@
+import { randomUUID } from 'crypto';
 import { describeDevice } from '../../src/modules/auth/device';
 import { accountWhere, maskContact, parseIdentifier } from '../../src/modules/auth/identifier';
 import { PasskeysController } from '../../src/modules/auth/passkeys.controller';
 import { RecoveryAdminController, RecoveryController } from '../../src/modules/auth/recovery.controller';
+
+// a fresh password per run: nothing that reads like a credential lives in the repo
+const NEW_PASSWORD = `N3w${randomUUID()}`;
 
 describe('describeDevice', () => {
   it.each([
@@ -70,7 +74,7 @@ describe('passkey and recovery controllers', () => {
     const pub = new RecoveryController(svc);
     const admin = new RecoveryAdminController(svc);
     await pub.request({ contact: 'a@b.c', fullName: 'A', proof: 'p'.repeat(10) }, req, '9.9.9.9');
-    await pub.complete({ contact: 'a@b.c', code: '123456', newPassword: 'N3wStrongPass' }, req, '9.9.9.9');
+    await pub.complete({ contact: 'a@b.c', code: '123456', newPassword: NEW_PASSWORD }, req, '9.9.9.9');
     await admin.list({ status: 'PENDING' });
     await admin.verify('rq', { note: 'ok' }, 'staff', req, '9.9.9.9');
     await admin.reject('rq', {}, 'staff', req, '9.9.9.9');

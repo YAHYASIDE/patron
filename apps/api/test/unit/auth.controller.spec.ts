@@ -1,4 +1,8 @@
+import { randomUUID } from 'crypto';
 import { AuthController } from '../../src/modules/auth/auth.controller';
+
+// a fresh password per run: nothing that reads like a credential lives in the repo
+const NEW_PASSWORD = `N3w${randomUUID()}`;
 
 const req = (userAgent?: string) => ({ headers: { 'user-agent': userAgent } }) as any;
 
@@ -135,9 +139,9 @@ describe('AuthController', () => {
   it('password set and email-code resend go to the signed-in user', async () => {
     auth.setPassword = jest.fn().mockResolvedValue({});
     auth.resendEmailCode = jest.fn().mockResolvedValue({});
-    await controller.setPassword('u1', { newPassword: 'N3wStr0ngPass' }, req('ua'), '5.5.5.5');
+    await controller.setPassword('u1', { newPassword: NEW_PASSWORD }, req('ua'), '5.5.5.5');
     await controller.resendEmailCode('u1');
-    expect(auth.setPassword).toHaveBeenCalledWith('u1', { newPassword: 'N3wStr0ngPass' }, { ip: '5.5.5.5', userAgent: 'ua', deviceInfo: undefined });
+    expect(auth.setPassword).toHaveBeenCalledWith('u1', { newPassword: NEW_PASSWORD }, { ip: '5.5.5.5', userAgent: 'ua', deviceInfo: undefined });
     expect(auth.resendEmailCode).toHaveBeenCalledWith('u1');
   });
 });

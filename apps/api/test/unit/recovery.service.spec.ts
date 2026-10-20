@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { RecoveryService } from '../../src/modules/auth/recovery.service';
@@ -6,6 +7,9 @@ import { LoginGuardService } from '../../src/modules/auth/login-guard.service';
 import { CaptureSmsSender, OwnerRelaySmsSender, SmsSender } from '../../src/modules/auth/senders/sms-sender';
 import { CaptureEmailSender, DisabledEmailSender, EmailSender } from '../../src/modules/auth/senders/email-sender';
 import { captureOutbox } from '../../src/modules/auth/senders/capture-outbox';
+
+// a fresh password per run: nothing that reads like a credential lives in the repo
+const NEW_PASSWORD = `N3w${randomUUID()}`;
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 const META = { ip: '5.6.7.8', userAgent: 'jest' };
@@ -196,7 +200,7 @@ describe('RecoveryService', () => {
 
     it('sets the password, makes the new number the account\'s (verified) and ends every session', async () => {
       prisma.verificationToken.findFirst.mockResolvedValue(live);
-      const res = await make().complete({ contact: NEW, code: '246810', newPassword: 'N3wStrongPass' }, META);
+      const res = await make().complete({ contact: NEW, code: '246810', newPassword: NEW_PASSWORD }, META);
 
       expect(res.identifier).toBe(NEW);
       const data = prisma.user.update.mock.calls[0][0].data;
@@ -209,20 +213,20 @@ describe('RecoveryService', () => {
 
     it('a wrong code changes nothing and counts against this device', async () => {
       prisma.verificationToken.findFirst.mockResolvedValue(live);
-      await expect(make().complete({ contact: NEW, code: '000000', newPassword: 'N3wStrongPass' }, META)).rejects.toMatchObject({ response: { error: 'INVALID_CODE' } });
+      await expect(make().complete({ contact: NEW, code: '000000', newPassword: NEW_PASSWORD }, META)).rejects.toMatchObject({ response: { error: 'INVALID_CODE' } });
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.loginAttempt.create.mock.calls[0][0].data).toMatchObject({ identifier: NEW, success: false });
     });
 
     it('no verified request for that contact looks exactly like a wrong code', async () => {
       prisma.accountRecoveryRequest.findFirst.mockResolvedValue(null);
-      await expect(make().complete({ contact: NEW, code: '246810', newPassword: 'N3wStrongPass' }, META)).rejects.toMatchObject({ response: { error: 'INVALID_CODE' } });
+      await expect(make().complete({ contact: NEW, code: '246810', newPassword: NEW_PASSWORD }, META)).rejects.toMatchObject({ response: { error: 'INVALID_CODE' } });
     });
 
     it('a contact taken meanwhile answers RECOVERY_CONTACT_TAKEN', async () => {
       prisma.verificationToken.findFirst.mockResolvedValue(live);
       prisma.$transaction.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: '6' }));
-      await expect(make().complete({ contact: NEW, code: '246810', newPassword: 'N3wStrongPass' }, META)).rejects.toMatchObject({ response: { error: 'RECOVERY_CONTACT_TAKEN' } });
+      await expect(make().complete({ contact: NEW, code: '246810', newPassword: NEW_PASSWORD }, META)).rejects.toMatchObject({ response: { error: 'RECOVERY_CONTACT_TAKEN' } });
     });
   });
 });
