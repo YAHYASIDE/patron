@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCurrency } from '@/lib/currency';
 import { groupBrands, useCatalog, type Brand } from '@/lib/brands';
 import { useLang, useT, type Lang } from '@/lib/i18n';
-import { SECTIONS } from '@/lib/sections';
+import { SECTIONS, topBrands } from '@/lib/sections';
 import { noteCatalog } from '@/lib/fresh';
 import BrandGrid, { SectionTabs, filterBrands } from '@/components/BrandGrid';
 import SearchSuggest from '@/components/SearchSuggest';
 import SuggestButton from '@/components/SuggestProduct';
+import BrandTile from '@/components/BrandTile';
+import { SearchIcon } from '@/components/icons';
 
 const SORTS = [
   { id: 'best', label: 'الأنسب' },
@@ -30,10 +32,6 @@ function arrange(list: Brand[], sort: SortId, offers: boolean, lang: Lang): Bran
   return out;
 }
 
-const chip = (on: boolean) =>
-  `flex-none rounded-full px-3.5 py-1.5 text-sm font-bold transition ${
-    on ? 'bg-teal text-white' : 'surface-2 text-muted hover:text-[rgb(var(--text))]'
-  }`;
 
 function ProductsInner() {
   const t = useT();
@@ -54,6 +52,19 @@ function ProductsInner() {
 
   useEffect(() => noteCatalog(brands), [brands]);
 
+  // keep what was typed in the address (?q=), so Back from a brand returns to the same results
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const url = new URL(window.location.href);
+      const q = search.trim();
+      if ((url.searchParams.get('q') ?? '') === q) return;
+      if (q) url.searchParams.set('q', q);
+      else url.searchParams.delete('q');
+      window.history.replaceState(window.history.state, '', url);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   return (
     <div className="mx-auto max-w-page px-4 py-8">
       <h1 className="text-2xl font-extrabold">{active ? t(active.label) : t('كل المنتجات')}</h1>
@@ -64,19 +75,26 @@ function ProductsInner() {
         value={search}
         onChange={setSearch}
         placeholder={t('ابحث: ببجي، آيتونز، نتفلكس، ماتل…')}
-        className="surface mt-5 flex items-center gap-2 rounded-xl px-3.5 py-3"
+        popular={topBrands(brands)}
+        className="surface mt-5 flex min-h-12 items-center gap-2 rounded-2xl py-1 pe-1.5 ps-4 shadow-card focus-within:border-teal"
       />
 
       <div className="mt-4">
         <SectionTabs
           brands={brands}
           value={sectionId}
-          onChange={(id) => router.replace(id ? `/products?s=${id}` : '/products', { scroll: false })}
+          onChange={(id) => {
+            const q = search.trim();
+            const qs = new URLSearchParams();
+            if (id) qs.set('s', id);
+            if (q) qs.set('q', q);
+            router.replace(qs.toString() ? `/products?${qs}` : '/products', { scroll: false });
+          }}
         />
       </div>
 
       <div
-        className="-mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-1"
+        className="no-scrollbar -mx-4 mt-2.5 flex items-center gap-2 overflow-x-auto px-4 pb-1"
         role="group"
         aria-label={t('ترتيب')}
       >
@@ -85,7 +103,7 @@ function ProductsInner() {
             key={o.id}
             onClick={() => setSort(o.id)}
             aria-pressed={sort === o.id}
-            className={chip(sort === o.id)}
+            className="chip"
           >
             {t(o.label)}
           </button>
@@ -93,7 +111,7 @@ function ProductsInner() {
         {hasOffers && (
           <>
             <span aria-hidden className="mx-1 h-5 w-px flex-none bg-[rgb(var(--line))]" />
-            <button onClick={() => setOffers((v) => !v)} aria-pressed={offers} className={chip(offers)}>
+            <button onClick={() => setOffers((v) => !v)} aria-pressed={offers} className="chip">
               {t('عروض وتخفيضات')}
             </button>
           </>
@@ -109,24 +127,71 @@ function ProductsInner() {
         </div>
       )}
 
-      <div className="mt-6">
+      {/* how many brands match, so a narrowed list is never mistaken for the whole shop */}
+      <p className="mt-4 min-h-5 text-xs font-semibold text-muted" aria-live="polite">
+        {!loading && !error && shown.length > 0 && (search.trim() || sectionId || offers)
+          ? t('النتائج: {n}', { n: shown.length })
+          : null}
+      </p>
+
+      <div className="mt-2">
         <BrandGrid brands={shown} loading={loading} />
       </div>
 
       {!loading && !error && shown.length === 0 && (
-        <div className="mt-8 rounded-2xl border border-dashed border-[rgb(var(--line))] p-10 text-center text-muted">
-          {offers && !search
-            ? t('لا توجد عروض في هذا القسم الآن.')
-            : t('لا يوجد ما يطابق «{search}». جرّب اسمًا آخر أو اختر قسمًا.', { search })}
+        <div className="surface mt-2 rounded-2xl p-6 text-center shadow-card sm:p-10">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-teal/10 text-teal">
+            <SearchIcon size={26} />
+          </div>
+          <p className="mt-4 font-extrabold">
+            {offers && !search
+              ? t('لا توجد عروض في هذا القسم الآن.')
+              : search.trim()
+                ? t('لا نتائج لـ «{search}»', { search: search.trim() })
+                : t('لا يوجد ما يطابق «{search}». جرّب اسمًا آخر أو اختر قسمًا.', { search })}
+          </p>
           {search.trim() && (
-            <SuggestButton
-              text={search}
-              className="mt-3 block w-full text-sm font-bold text-teal hover:underline"
-            >
+            <p className="mt-1 text-sm text-muted">{t('تأكد من الكتابة أو جرّب اسمًا أقصر، بالعربية أو الإنجليزية.')}</p>
+          )}
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {search.trim() && (
+              <button type="button" onClick={() => setSearch('')} className="btn-quiet">
+                {t('مسح البحث')}
+              </button>
+            )}
+            {(sectionId || offers) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOffers(false);
+                  router.replace(search.trim() ? `/products?q=${encodeURIComponent(search.trim())}` : '/products', { scroll: false });
+                }}
+                className="btn-quiet"
+              >
+                {t('كل الأقسام')}
+              </button>
+            )}
+          </div>
+          {search.trim() && (
+            <SuggestButton text={search} className="mt-4 block w-full text-sm font-bold text-teal hover:underline">
               {t('لم تجد ما تبحث عنه؟ اقترح علينا')}
             </SuggestButton>
           )}
         </div>
+      )}
+
+      {/* a dead end still leads somewhere: the brands people buy most */}
+      {!loading && !error && shown.length === 0 && brands.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-extrabold">{t('الأكثر طلبًا')}</h2>
+          <div className="mt-4 grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+            {topBrands(brands)
+              .slice(0, 8)
+              .map((b) => (
+                <BrandTile key={b.key} brand={b} size="sm" />
+              ))}
+          </div>
+        </section>
       )}
     </div>
   );
@@ -137,7 +202,15 @@ export default function ProductsPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-page px-4 py-16 text-center text-muted">{t('جارٍ التحميل…')}</div>
+        // the page's own shape, so nothing jumps when it arrives
+        <div className="mx-auto max-w-page px-4 py-8" aria-label={t('جارٍ التحميل…')}>
+          <div className="skel h-8 w-40" />
+          <div className="skel mt-5 h-12 rounded-2xl" />
+          <div className="skel mt-4 h-10 w-3/4 rounded-full" />
+          <div className="mt-8">
+            <BrandGrid brands={[]} loading />
+          </div>
+        </div>
       }
     >
       <ProductsInner />

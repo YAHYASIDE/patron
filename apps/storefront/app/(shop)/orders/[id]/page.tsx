@@ -85,7 +85,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   if (res.loading && !order)
-    return <div className="mx-auto max-w-page px-4 py-16 text-center text-muted">{t('جارٍ التحميل…')}</div>;
+    // the page's own shape (heading, timeline, item, payment), so nothing jumps when it arrives
+    return (
+      <div className="mx-auto max-w-page px-4 py-8" aria-busy="true" aria-label={t('جارٍ التحميل…')}>
+        <div className="skel h-4 w-40" />
+        <div className="mt-6 flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <div className="skel h-7 w-56 max-w-[60vw]" />
+            <div className="skel h-5 w-28 rounded-full" />
+          </div>
+          <div className="skel h-10 w-24" />
+        </div>
+        <div className="skel mt-6 h-52 rounded-2xl" />
+        <div className="skel mt-4 h-24 rounded-2xl" />
+        <div className="skel mt-4 h-40 rounded-2xl" />
+      </div>
+    );
   if (res.error || !order)
     return (
       <div className="mx-auto max-w-page px-4 py-20 text-center">
@@ -114,8 +129,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="break-all text-2xl font-extrabold" dir="ltr">
-            {order.orderNumber}
+          <h1 className="break-all text-xl font-extrabold sm:text-2xl">
+            <span dir="ltr">{order.orderNumber}</span>
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${c.c}`}>{t(c.t)}</span>
