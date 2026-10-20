@@ -168,6 +168,7 @@ export function useUsdtEnabled(): boolean {
 const ERRORS: Record<string, string> = {
   USDT_DISABLED: 'شراء USDT غير متاح حاليًا.',
   PHONE_NOT_VERIFIED: 'أكّد رقم واتساب أولًا.',
+  USDT_COUNTRY_BLOCKED: 'شراء USDT غير متاح في بلدك.',
   USDT_AMOUNT_OUT_OF_RANGE: 'الكمية خارج الحدود المسموح بها.',
   USDT_CURRENCY_UNSUPPORTED: 'لا نبيع USDT بهذه العملة.',
   USDT_NETWORK_REQUIRED: 'اختر الشبكة.',

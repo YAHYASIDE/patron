@@ -6,6 +6,7 @@ const dict: Dict = {
     // errors (lib/usdt.ts)
     'شراء USDT غير متاح حاليًا.': "L'achat d'USDT n'est pas disponible pour le moment.",
     'أكّد رقم واتساب أولًا.': "Confirmez d'abord votre numéro WhatsApp.",
+    'شراء USDT غير متاح في بلدك.': "L'achat d'USDT n'est pas proposé dans votre pays.",
     'الكمية خارج الحدود المسموح بها.': 'Montant hors des limites autorisées.',
     'لا نبيع USDT بهذه العملة.': "Nous ne vendons pas d'USDT dans cette devise.",
     'اختر الشبكة.': 'Choisissez le réseau.',
@@ -139,6 +140,7 @@ const dict: Dict = {
   en: {
     'شراء USDT غير متاح حاليًا.': 'Buying USDT is not available right now.',
     'أكّد رقم واتساب أولًا.': 'Confirm your WhatsApp number first.',
+    'شراء USDT غير متاح في بلدك.': 'Buying USDT is not offered in your country.',
     'الكمية خارج الحدود المسموح بها.': 'The amount is outside the allowed limits.',
     'لا نبيع USDT بهذه العملة.': 'We do not sell USDT in this currency.',
     'اختر الشبكة.': 'Choose the network.',

@@ -18,6 +18,12 @@ import { validateAddress, validateBinanceId, validateTxid } from './usdt-address
 /** Kind of the `uploads` row that holds a customer's receipt for a USDT order. */
 export const USDT_PROOF_KIND = 'usdt_proof';
 
+/**
+ * Countries where buying crypto-assets is a crime (Algeria: finance law 2018
+ * art. 117, made an offence in 2025). See docs/USDT_COMPLIANCE.md.
+ */
+export const BLOCKED_DIAL_CODES = ['+213'];
+
 /** A customer may keep this many unpaid orders open at once. */
 export const MAX_OPEN_ORDERS = 3;
 
@@ -62,11 +68,14 @@ export class UsdtService {
   // ───────────────────────── quotes ─────────────────────────
 
   private async requireVerified(userId: string) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { phoneVerifiedAt: true } });
+    const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { phoneVerifiedAt: true, phone: true } });
     if (!user) throw new ForbiddenException({ message: 'Account not found', error: 'ACCOUNT_NOT_FOUND' });
     // same rule as checkout: the owner knows who is buying
     if (!user.phoneVerifiedAt) {
       throw new ForbiddenException({ message: 'Verify your WhatsApp number before ordering', error: 'PHONE_NOT_VERIFIED' });
+    }
+    if (user.phone && BLOCKED_DIAL_CODES.some((code) => user.phone!.startsWith(code))) {
+      throw new ForbiddenException({ message: 'Buying USDT is not offered in your country', error: 'USDT_COUNTRY_BLOCKED' });
     }
   }
 

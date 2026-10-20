@@ -111,6 +111,12 @@ describe('UsdtService — quote', () => {
     await expect(service.quote('u1', quoteDto())).rejects.toMatchObject({ response: { error: 'ACCOUNT_NOT_FOUND' } });
   });
 
+  it('is not offered where buying crypto is a crime (Algerian numbers)', async () => {
+    const { service, prisma } = setup();
+    prisma.user.findFirst.mockResolvedValue({ phoneVerifiedAt: new Date(), phone: '+213550000000' });
+    await expect(service.quote('u1', quoteDto())).rejects.toMatchObject({ response: { error: 'USDT_COUNTRY_BLOCKED' } });
+  });
+
   it('computes rate, fee and total on the server', async () => {
     const { service } = setup();
     const q = await service.quote('u1', quoteDto());
