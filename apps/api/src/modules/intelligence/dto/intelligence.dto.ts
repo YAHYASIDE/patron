@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { METHOD_KINDS, MarketRuleScope, RULE_SCOPES } from '../../markets/markets.types';
 import { ProductAvailability } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -154,7 +155,6 @@ export class MarketSourceDto {
   @ApiProperty() @IsISO8601() accessedAt!: string;
 }
 
-const MARKET_KINDS = ['mobile_money', 'mobile', 'bank', 'card', 'crypto', 'cash'] as const;
 
 export class MarketMethodDto {
   @ApiProperty({ example: 'orange-money-ml' })
@@ -163,8 +163,8 @@ export class MarketMethodDto {
   @ApiProperty() @Transform(trim) @IsString() @Length(1, 120) name!: string;
   @ApiPropertyOptional() @IsOptional() @Transform(trim) @IsString() @MaxLength(120) provider?: string;
 
-  @ApiProperty({ enum: MARKET_KINDS })
-  @Transform(lower) @IsIn(MARKET_KINDS) kind!: string;
+  @ApiProperty({ enum: METHOD_KINDS })
+  @Transform(lower) @IsIn(METHOD_KINDS) kind!: string;
 
   @ApiPropertyOptional() @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @Matches(/^[A-Z]{3}$/) currency?: string;
@@ -179,8 +179,8 @@ export class MarketMethodDto {
 }
 
 export class MarketRuleDto {
-  @ApiProperty({ enum: ['product', 'brand', 'category'] })
-  @Transform(lower) @IsIn(['product', 'brand', 'category']) scope!: string;
+  @ApiProperty({ enum: RULE_SCOPES })
+  @Transform(lower) @IsIn(RULE_SCOPES) scope!: MarketRuleScope;
 
   @ApiProperty() @Transform(trim) @IsString() @Length(1, 120) ref!: string;
 

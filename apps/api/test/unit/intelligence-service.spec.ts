@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { NotImplementedException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 import { IntelligenceService, tabWhere } from '../../src/modules/intelligence/intelligence.service';
 import { IntelligenceController } from '../../src/modules/intelligence/intelligence.controller';
@@ -265,11 +265,11 @@ describe('IntelligenceService', () => {
     });
 
     it('a markets failure is recorded on the run and returned to the caller', async () => {
-      markets.upsertMethods.mockImplementation(() => new MarketsService().upsertMethods('ML', [], { label: 'x' }));
+      markets.upsertMethods.mockRejectedValue(new NotFoundException({ error: 'MARKET_NOT_FOUND', message: 'Markets: no such country' }));
       await expect(service.ingest({
         agent: 'market-scout', trigger: 'manual', status: 'SUCCEEDED', discoveries: [d('new:1')],
         market: { code: 'ML', methods: [{ key: 'k', name: 'n', kind: 'bank', sources: [], confidence: 1, verifiedBy: 'v' }] },
-      }, { label: 'ingest-token', via: 'token' })).rejects.toBeInstanceOf(NotImplementedException);
+      }, { label: 'ingest-token', via: 'token' })).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.agentRun.create.mock.calls[0][0].data.details).toMatchObject({ created: 1, marketError: expect.stringContaining('Markets') });
     });
   });

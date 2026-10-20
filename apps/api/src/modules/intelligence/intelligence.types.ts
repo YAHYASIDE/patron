@@ -3,10 +3,12 @@ import { DiscoverySeverity, DiscoveryStatus } from '@prisma/client';
 /** bug | security | … (schema comment) plus `catalog`, which the market skill uses for unready products. */
 export const DISCOVERY_KINDS = [
   'bug', 'security', 'performance', 'ux', 'market', 'product', 'payment', 'data', 'opportunity', 'test', 'catalog',
+  'quality', // tools/discovery: TODO markers, modules without tests
 ] as const;
 export type DiscoveryKind = (typeof DISCOVERY_KINDS)[number];
 
-export const EVIDENCE_TYPES = ['code', 'test', 'log', 'url', 'db', 'metric', 'ci'] as const;
+// file / config: what tools/discovery reports for a line of source or a migration/config file
+export const EVIDENCE_TYPES = ['code', 'file', 'config', 'test', 'log', 'url', 'db', 'metric', 'ci'] as const;
 export const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const satisfies readonly DiscoverySeverity[];
 
 export const TABS = ['new', 'critical', 'opportunities', 'pending', 'done', 'deferred', 'all'] as const;
