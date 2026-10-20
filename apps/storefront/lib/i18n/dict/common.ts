@@ -4,6 +4,7 @@ import type { Dict } from '.';
 const dict: Dict = {
   fr: {
     // app/layout.tsx
+    'نسخة تجريبية للاختبار فقط — لا تحوّل أي مال هنا.': 'Version de test uniquement — n’envoyez aucun argent ici.',
     'patron — بطاقات وشحن رقمي موثوق': 'patron — Cartes et recharges numériques de confiance',
     'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، ونسلّمها لك بعد تأكيد الدفع. أسعار واضحة ودفع آمن.':
       'Achetez des recharges de jeux, des cartes cadeaux et des abonnements en ligne, livrés après confirmation du paiement. Prix clairs et paiement sécurisé.',
@@ -110,6 +111,7 @@ const dict: Dict = {
     'حدث خطأ غير متوقّع.': 'Une erreur inattendue s’est produite.',
   },
   en: {
+    'نسخة تجريبية للاختبار فقط — لا تحوّل أي مال هنا.': 'Test copy only — do not send any money here.',
     // app/layout.tsx
     'patron — بطاقات وشحن رقمي موثوق': 'patron — Trusted gift cards and digital top-ups',
     'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، ونسلّمها لك بعد تأكيد الدفع. أسعار واضحة ودفع آمن.':
