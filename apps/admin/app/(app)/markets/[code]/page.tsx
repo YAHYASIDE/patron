@@ -33,7 +33,7 @@ import { ApprovalExplainer, DecisionBar } from '../shared';
 const GROUP_TITLE: Record<MarketStatus, string> = {
   PENDING_REVIEW: 'بانتظار المراجعة',
   APPROVED: 'موافق عليها — لا تظهر للزبائن بعد',
-  ACTIVE: 'ظاهرة للزبائن',
+  ACTIVE: 'مربوطة بحساب',
   DEFERRED: 'مؤجلة',
   REJECTED: 'مرفوضة',
 };

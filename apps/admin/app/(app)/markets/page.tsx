@@ -107,7 +107,7 @@ function CountryCard({ c }: { c: MarketRow }) {
       <div className="grid grid-cols-3 gap-2 text-center">
         <Stat n={m.pending} label="بانتظار المراجعة" tone={m.pending > 0 ? 'text-warn' : 'text-muted'} />
         <Stat n={m.approved} label="موافق عليها" tone="text-teal" />
-        <Stat n={m.active} label="ظاهرة للزبائن" tone={m.active > 0 ? 'text-ok' : 'text-muted'} />
+        <Stat n={m.active} label="مربوطة بحساب" tone={m.active > 0 ? 'text-ok' : 'text-muted'} />
       </div>
 
       <div className="mt-auto flex flex-col gap-1.5 text-xs">
@@ -116,8 +116,12 @@ function CountryCard({ c }: { c: MarketRow }) {
             ⚠ {num(c.stale)} {c.stale === 1 ? 'معلومة تحتاج' : 'معلومات تحتاج'} إعادة تحقق
           </p>
         )}
+        {/* what customers see comes from the receiving accounts (وسائل الدفع), not from this count:
+            a country can sell through its accounts before any researched method is linked */}
         {c.enabled && m.active === 0 && (
-          <p className="rounded-lg bg-bad/10 px-2.5 py-1.5 font-semibold text-bad">مفعّلة بلا وسيلة دفع ظاهرة للزبائن.</p>
+          <p className="rounded-lg bg-warn/10 px-2.5 py-1.5 font-semibold text-warn">
+            لم تُربط أي وسيلة مبحوثة بحساب استقبال بعد. ما يراه الزبائن تحدده صفحة وسائل الدفع.
+          </p>
         )}
         <div className="flex flex-wrap gap-x-3 text-muted">
           {rulesPending > 0 && <span>{num(rulesPending)} قاعدة منتج بانتظار المراجعة</span>}
