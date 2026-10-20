@@ -20,4 +20,5 @@ Pass/fail per suite with numbers, the failing output when red, and the testResul
 discovery (`{ suite, passed, failed, command, commit }`).
 
 ## Limits
-Throwaway databases only. Follow .claude/agents/_shared-rules.md.
+Throwaway databases only. Load the skill **patron-discovery** when the work involves discoveries or the discovery engine.
+Follow .claude/agents/_shared-rules.md.
