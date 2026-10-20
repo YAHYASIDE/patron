@@ -61,6 +61,15 @@ describe('UsersService', () => {
       );
     });
 
+    it('never selects staff-only or referral columns for a profile (GET /users/me)', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [] });
+      await service.findOne('u1');
+      const select = prisma.user.findFirst.mock.calls[0][0].select;
+      for (const k of ['adminNote', 'tags', 'referredByAgentId', 'referredByAgent', 'agent', 'passwordHash']) {
+        expect(select).not.toHaveProperty(k);
+      }
+    });
+
     it('adds the segments to a customers list and filters by one', async () => {
       prisma.systemSetting = { findUnique: jest.fn().mockResolvedValue({ value: { vipSpendBase: 10, vipOrders: 0 } }) };
       prisma.user.findMany.mockResolvedValue([{ id: 'u1', createdAt: new Date(), roles: [], _count: { orders: 2 } }]);

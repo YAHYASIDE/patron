@@ -114,6 +114,17 @@ export default function AccountPage() {
             ))}
           </nav>
 
+          {/* agents (مندوبون) only: their code, referrals and commissions */}
+          {me.data.roles?.includes('agent') && (
+            <Link
+              href="/agent"
+              className="surface mt-4 flex items-center justify-between gap-3 rounded-2xl p-4 shadow-card transition hover:border-teal"
+            >
+              <span className="font-bold">{t('صفحة المندوب')}</span>
+              <span className="text-sm font-bold text-teal">{t('رمزك وعمولاتك')}</span>
+            </Link>
+          )}
+
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
               <ProfileForm me={me.data} />
