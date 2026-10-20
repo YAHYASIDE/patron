@@ -27,7 +27,7 @@ describe('Agent commissions under concurrent events (real Postgres)', () => {
     await prisma.$connect();
     staff = { notify: jest.fn().mockResolvedValue(null) };
     commissions = new CommissionsService(prisma, staff as any);
-    agents = new AgentsService(prisma, new AuditService(prisma), { get: () => 'USD' } as any);
+    agents = new AgentsService(prisma, new AuditService(prisma), { get: () => 'USD' } as any, { resolve: jest.fn() } as any);
   });
 
   afterAll(() => prisma.$disconnect());

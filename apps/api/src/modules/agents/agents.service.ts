@@ -6,6 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { countryFromPhone } from '../../common/reference/phone-country';
 import { D } from '../../common/money/money';
+import { StaffNotificationsService } from '../staff-notifications/staff-notifications.service';
 import { CreateAgentDto, QueryAgentsDto, RecordPayoutDto, UpdateAgentDto } from './agents.dto';
 import { generateCode } from './commission-rules';
 import { allocateClawbacks, buildStatement, StatusGroup } from './statement';
@@ -25,6 +26,7 @@ export class AgentsService {
     private prisma: PrismaService,
     private audit: AuditService,
     private config: ConfigService,
+    private staff: StaffNotificationsService,
   ) {}
 
   private get baseCurrency() {
@@ -233,6 +235,7 @@ export class AgentsService {
    * is ever paid twice. Open clawbacks are taken off the amount.
    */
   async recordPayout(agentId: string, dto: RecordPayoutDto, actorId: string) {
+    let settled: string[] = [];
     const payout = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "agents" WHERE "id" = ${agentId}::uuid FOR UPDATE`;
       if (locked.length === 0) throw new NotFoundException({ message: 'Agent not found', error: 'AGENT_NOT_FOUND' });
@@ -256,6 +259,10 @@ export class AgentsService {
         WHERE "agentId" = ${agentId}::uuid AND "clawbackAmount" > COALESCE("clawbackRecovered", 0)
         ORDER BY "clawbackAt" ASC, "id" ASC FOR UPDATE`;
       const { deducted, recoveries } = allocateClawbacks(gross, open);
+      // clawbacks this payout recovers in full: their owner notices can close
+      settled = recoveries
+        .filter((r) => r.recovered.gte(D(open.find((o) => o.id === r.id)?.clawbackAmount ?? 0)))
+        .map((r) => r.id);
 
       const created = await tx.agentPayout.create({
         data: {
@@ -287,6 +294,7 @@ export class AgentsService {
       });
       return created;
     });
+    for (const id of settled) await this.staff.resolve(`agent.clawback:${id}`);
     return { payout, statement: await this.statement(agentId) };
   }
 }

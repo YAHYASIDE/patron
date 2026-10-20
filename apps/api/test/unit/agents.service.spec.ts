@@ -13,6 +13,7 @@ describe('AgentsService (unit)', () => {
   let tx: any;
   let prisma: any;
   let audit: any;
+  let staff: any;
   let service: AgentsService;
 
   const agentRow = {
@@ -52,7 +53,8 @@ describe('AgentsService (unit)', () => {
       order: { count: jest.fn().mockResolvedValue(1) },
     };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
-    service = new AgentsService(prisma, audit, { get: () => 'USD' } as any);
+    staff = { resolve: jest.fn().mockResolvedValue(undefined) };
+    service = new AgentsService(prisma, audit, { get: () => 'USD' } as any, staff);
   });
 
   describe('create', () => {
@@ -156,6 +158,8 @@ describe('AgentsService (unit)', () => {
       });
       expect(tx.commission.update).toHaveBeenCalledWith({ where: { id: 'c0' }, data: { clawbackRecovered: D(3) } });
       expect(audit.record.mock.calls[0][1]).toMatchObject({ action: 'agents.payout', entityId: 'p1' });
+      // the clawback is recovered in full: its owner notice closes
+      expect(staff.resolve).toHaveBeenCalledWith('agent.clawback:c0');
     });
 
     it('rolls back when a commission changed between the lock and the claim', async () => {
