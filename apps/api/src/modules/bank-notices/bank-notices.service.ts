@@ -231,6 +231,10 @@ export class BankNoticesService {
   }
 
   private view(r: BankNotification, briefs: Map<string, PaymentBrief>) {
+    const suggested = r.suggestedPaymentId ? briefs.get(r.suggestedPaymentId) ?? null : null;
+    const matched = r.matchedPaymentId ? briefs.get(r.matchedPaymentId) ?? null : null;
+    // the order it is (or probably is) about, flat: the Android admin app links to it
+    const about = matched ?? suggested;
     return {
       id: r.id,
       deviceId: r.deviceId,
@@ -250,8 +254,10 @@ export class BankNoticesService {
       duplicateOfId: r.duplicateOfId,
       suggestedPaymentId: r.suggestedPaymentId,
       matchedPaymentId: r.matchedPaymentId,
-      suggestedPayment: r.suggestedPaymentId ? briefs.get(r.suggestedPaymentId) ?? null : null,
-      matchedPayment: r.matchedPaymentId ? briefs.get(r.matchedPaymentId) ?? null : null,
+      suggestedPayment: suggested,
+      matchedPayment: matched,
+      orderId: about?.orderId ?? null,
+      orderNumber: about?.orderNumber ?? null,
       reviewedById: r.reviewedById,
       reviewedAt: r.reviewedAt,
       reviewNote: r.reviewNote,

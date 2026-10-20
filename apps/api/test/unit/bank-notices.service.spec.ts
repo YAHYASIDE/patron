@@ -188,7 +188,10 @@ describe('BankNoticesService', () => {
         amount: '1500', duplicate: false,
         suggestedPayment: { id: PAY, orderId: 'o1', orderNumber: 'PTN-7', amount: '1500', currency: 'MRU', status: 'AUTHORIZED' },
         matchedPayment: null,
+        orderId: 'o1',
+        orderNumber: 'PTN-7',
       });
+      expect(data[1]).toMatchObject({ orderId: null, orderNumber: null });
     });
 
     it('filters by status, and skips the second query when the first fills the page', async () => {
