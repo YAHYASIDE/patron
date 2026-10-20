@@ -20,6 +20,8 @@ export interface MarketMethodInput {
   currency?: string;
   /** documented fees, as the source states them */
   fees?: string;
+  /** what research could not confirm, shown to the owner next to the method */
+  note?: string;
   sources: MarketSource[];
   /** 0–100 */
   confidence: number;

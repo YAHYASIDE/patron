@@ -140,9 +140,9 @@ describe('MarketsService', () => {
       const accountId = randomUUID();
       Object.assign(om, { status: 'ACTIVE', accountId, decisionById: ACTOR.id, decisionNote: 'ok', lastVerifiedAt: new Date(0) });
 
-      await expect(service.upsertMethods('ML', [method({ fees: '1%', confidence: 95 })], { label: 'market-scout' }))
+      await expect(service.upsertMethods('ML', [method({ fees: '1%', note: 'seen in search results only', confidence: 95 })], { label: 'market-scout' }))
         .resolves.toEqual({ created: 0, updated: 1 });
-      expect(om).toMatchObject({ status: 'ACTIVE', accountId, decisionById: ACTOR.id, decisionNote: 'ok', fees: '1%', confidence: 95 });
+      expect(om).toMatchObject({ status: 'ACTIVE', accountId, decisionById: ACTOR.id, decisionNote: 'ok', fees: '1%', note: 'seen in search results only', confidence: 95 });
       expect(om.lastVerifiedAt.getTime()).toBeGreaterThan(0);
       expect(audit.record).toHaveBeenLastCalledWith(prisma, expect.objectContaining({
         action: 'markets.methods.upsert', entityId: 'ML', actorId: undefined, after: expect.objectContaining({ by: 'market-scout', updated: 1 }),
@@ -172,7 +172,7 @@ describe('MarketsService', () => {
       expect(db.methods[0]).toMatchObject({ key: 'wave-ml', confidence: 100, verifiedBy: 'market-scout', provider: 'Wave', currency: 'XOF' });
       expect(db.methods[0].sources[0]).toMatchObject({ url: 'https://wave.example.test', title: 'https://wave.example.test', publisher: 'Wave' });
       await service.upsertMethods('ML', [method({ key: 'cash-ml', kind: 'cash', confidence: Number.NaN, currency: undefined })], ACTOR);
-      expect(db.methods[1]).toMatchObject({ confidence: 0, currency: null, fees: null, provider: null });
+      expect(db.methods[1]).toMatchObject({ confidence: 0, currency: null, fees: null, note: null, provider: null });
     });
 
     it('a second upsert that loses the race for a new key runs again as an update', async () => {

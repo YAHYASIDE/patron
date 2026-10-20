@@ -1734,6 +1734,8 @@ model MarketPaymentMethod {
   currency       String?            @db.Char(3)
   /// documented fees, as the source states them (text, not computed)
   fees           String?
+  /// research caveats the owner must see (e.g. "page not fetched, seen in search results only")
+  note           String?
   /// [{ url, title, publisher, accessedAt }]
   sources        Json               @default("[]")
   /// 0–100: how sure the research is that this method exists and works for receiving money

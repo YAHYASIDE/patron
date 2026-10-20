@@ -320,6 +320,7 @@ export class IntelligenceService {
         ...(x.provider !== undefined && { provider: x.provider }),
         ...(x.currency !== undefined && { currency: x.currency }),
         ...(x.fees !== undefined && { fees: x.fees }),
+        ...(x.note !== undefined && { note: x.note }),
       }));
       out.methods = await this.markets.upsertMethods(m.code, items, actor);
     }

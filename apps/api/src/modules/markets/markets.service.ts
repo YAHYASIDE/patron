@@ -311,7 +311,7 @@ export class MarketsService {
         );
         for (const m of list) {
           const facts = {
-            name: m.name, provider: m.provider, kind: m.kind, currency: m.currency, fees: m.fees,
+            name: m.name, provider: m.provider, kind: m.kind, currency: m.currency, fees: m.fees, note: m.note,
             sources: json(m.sources), confidence: m.confidence, verifiedBy: m.verifiedBy, lastVerifiedAt: now,
           };
           await tx.marketPaymentMethod.upsert({
@@ -497,6 +497,7 @@ function cleanMethod(item: MarketMethodInput, index: number, actor: MarketActor)
     provider: optionalText(item.provider, 120),
     currency: currency || null,
     fees: optionalText(item.fees, 500),
+    note: optionalText(item.note, 500),
     sources: cleanSources(item.sources, index),
     confidence: cleanConfidence(item.confidence),
     verifiedBy: cleanText(item.verifiedBy, 80) || actor.label,

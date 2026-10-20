@@ -170,6 +170,7 @@ export class MarketMethodDto {
   @Matches(/^[A-Z]{3}$/) currency?: string;
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) fees?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) note?: string;
 
   @ApiProperty({ type: [MarketSourceDto] })
   @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => MarketSourceDto) sources!: MarketSourceDto[];
