@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useFetch } from '@/lib/hooks';
 import { reportSummaryPath, type ReportSummary } from '@/lib/api';
@@ -94,9 +94,11 @@ function CompareCard({
         <span className="text-[13px] font-semibold text-muted">{label}</span>
         {!loading && <Delta today={today} yesterday={yesterday} />}
       </div>
-      <div className="mt-2 text-2xl font-extrabold tnum">
-        {loading ? <span className="text-muted">…</span> : fmt(today)}
-      </div>
+      {loading ? (
+        <div aria-hidden className="surface-2 mt-2.5 h-7 w-24 max-w-full animate-pulse rounded-lg" />
+      ) : (
+        <div className="mt-2 text-2xl font-extrabold tnum">{fmt(today)}</div>
+      )}
       <div className="mt-1 text-[11.5px] text-muted">
         أمس: <span className="tnum font-semibold">{loading ? '…' : fmt(yesterday)}</span>
       </div>
@@ -181,7 +183,26 @@ function TodoCard({
   );
 }
 
+/** Lists on the dashboard show this many rows before "عرض الكل". */
+const CAP = 5;
+
+function ShowAll({ total, open, onToggle }: { total: number; open: boolean; onToggle: () => void }) {
+  if (total <= CAP) return null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="mt-2 min-h-10 w-full rounded-xl surface-2 text-sm font-bold text-teal transition hover:opacity-80"
+    >
+      {open ? 'عرض أقل' : `عرض الكل (${num(total)})`}
+    </button>
+  );
+}
+
 export default function DashboardPage() {
+  const [allStock, setAllStock] = useState(false);
+  const [allMargin, setAllMargin] = useState(false);
   const ov = useFetch<Overview>(`/admin/insights/overview?lowStock=${LOW_STOCK}&margin=${TARGET_MARGIN}`);
   const orders = useFetch<Paginated<OrderRow>>('/admin/orders?limit=6');
   const span = last14Days();
@@ -208,7 +229,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-extrabold">لوحة القيادة</h1>
           <p className="mt-1 text-sm text-muted">ملخّص {date(new Date().toISOString())}، مقارنةً بأمس.</p>
         </div>
@@ -218,7 +239,7 @@ export default function DashboardPage() {
             orders.reload();
             trend.reload();
           }}
-          className="rounded-xl border border-[rgb(var(--line))] px-3.5 py-2 text-sm font-semibold text-muted transition hover:text-[rgb(var(--text))]"
+          className="min-h-10 flex-none rounded-xl border border-[rgb(var(--line))] px-4 text-sm font-semibold text-muted transition hover:text-[rgb(var(--text))]"
         >
           تحديث
         </button>
@@ -275,7 +296,7 @@ export default function DashboardPage() {
       {!ov.error && (
         <section className="flex flex-col gap-3">
           <h2 className="text-base font-bold">اليوم وأمس</h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
             <CompareCard
               label="المبيعات"
               today={n(t?.revenue)}
@@ -301,6 +322,79 @@ export default function DashboardPage() {
           <p className="text-xs text-muted">بالدولار (العملة الأساسية)، من منتصف الليل.</p>
         </section>
       )}
+
+      {/* recent orders */}
+      <section className="surface overflow-hidden rounded-2xl shadow-card">
+        <div className="flex items-center justify-between px-5 py-4">
+          <h2 className="text-base font-bold">أحدث الطلبات</h2>
+          <Link href="/orders" className="text-sm font-semibold text-teal hover:underline">
+            عرض الكل
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="surface-2 text-muted">
+                <th className="px-5 py-2.5 text-start text-xs font-semibold">رقم الطلب</th>
+                <th className="hidden px-5 py-2.5 text-start text-xs font-semibold sm:table-cell">الحالة</th>
+                <th className="px-5 py-2.5 text-start text-xs font-semibold">الإجمالي</th>
+                <th className="hidden px-5 py-2.5 text-start text-xs font-semibold sm:table-cell">التاريخ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.loading &&
+                !orders.data &&
+                [0, 1, 2].map((i) => (
+                  <tr key={i} aria-hidden className="border-t hairline">
+                    <td colSpan={4} className="px-5 py-3">
+                      <div className="surface-2 h-9 animate-pulse rounded-lg" />
+                    </td>
+                  </tr>
+                ))}
+              {!orders.loading && (orders.data?.data?.length ?? 0) === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-5 py-6 text-center text-muted">
+                    {orders.error ? `تعذّر الجلب: ${orders.error}` : 'لا توجد طلبات بعد.'}
+                  </td>
+                </tr>
+              )}
+              {orders.data?.data?.map((o) => {
+                const chip = statusChip(o.status);
+                return (
+                  <tr key={o.id} className="border-t hairline">
+                    <td className="px-5 py-3 font-semibold">
+                      <Link
+                        href={`/orders/${o.id}`}
+                        className="inline-flex min-h-8 items-center whitespace-nowrap hover:underline"
+                        dir="ltr"
+                      >
+                        {o.orderNumber}
+                      </Link>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-normal text-muted sm:hidden">
+                        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 font-bold ${chip.cls}`}>
+                          {chip.label}
+                        </span>
+                        {date(o.createdAt)}
+                      </div>
+                    </td>
+                    <td className="hidden px-5 py-3 sm:table-cell">
+                      <span
+                        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${chip.cls}`}
+                      >
+                        {chip.label}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3 font-semibold tnum">
+                      {moneyIn(o.total, o.currency)}
+                    </td>
+                    <td className="hidden px-5 py-3 text-muted sm:table-cell">{date(o.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* the last 14 days, today included: net sales, profit, orders and the day-by-day trend */}
       <section className="flex flex-col gap-3" aria-busy={trend.loading}>
@@ -376,7 +470,7 @@ export default function DashboardPage() {
 
       {!ov.error && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="surface rounded-2xl p-5 shadow-card">
+          <section className="surface rounded-2xl p-4 shadow-card sm:p-5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-bold">مخزون الأكواد منخفض</h2>
               <span className="text-xs text-muted">{LOW_STOCK} أكواد أو أقل</span>
@@ -386,7 +480,7 @@ export default function DashboardPage() {
               <p className="mt-3 text-sm text-muted">كل المنتجات ذات المخزون فيها ما يكفي.</p>
             )}
             <div className="mt-3 flex flex-col divide-y divide-[rgb(var(--line))]">
-              {d?.lowStock.map((p) => (
+              {d?.lowStock.slice(0, allStock ? undefined : CAP).map((p) => (
                 <Link
                   key={p.productId}
                   href={`/products/${p.productId}`}
@@ -408,9 +502,10 @@ export default function DashboardPage() {
                 </Link>
               ))}
             </div>
+            <ShowAll total={d?.lowStock.length ?? 0} open={allStock} onToggle={() => setAllStock((v) => !v)} />
           </section>
 
-          <section className="surface rounded-2xl p-5 shadow-card">
+          <section className="surface rounded-2xl p-4 shadow-card sm:p-5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-bold">تنبيهات الهامش</h2>
               <span className="text-xs text-muted">أقل من {TARGET_MARGIN}% أو بخسارة</span>
@@ -420,7 +515,7 @@ export default function DashboardPage() {
               <p className="mt-3 text-sm text-muted">لا منتج يُباع بهامش ضعيف.</p>
             )}
             <div className="mt-3 flex flex-col divide-y divide-[rgb(var(--line))]">
-              {d?.marginAlerts.map((p) => {
+              {d?.marginAlerts.slice(0, allMargin ? undefined : CAP).map((p) => {
                 const loss = n(p.sellPrice) < n(p.costPrice);
                 return (
                   <div key={p.productId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
@@ -442,7 +537,7 @@ export default function DashboardPage() {
                       </span>
                       <Link
                         href={`/products/${p.productId}`}
-                        className="text-xs font-bold text-teal hover:underline"
+                        className="inline-flex min-h-9 items-center px-1 text-xs font-bold text-teal hover:underline"
                       >
                         إصلاح
                       </Link>
@@ -451,76 +546,10 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+            <ShowAll total={d?.marginAlerts.length ?? 0} open={allMargin} onToggle={() => setAllMargin((v) => !v)} />
           </section>
         </div>
       )}
-
-      {/* recent orders */}
-      <section className="surface overflow-hidden rounded-2xl shadow-card">
-        <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="text-base font-bold">أحدث الطلبات</h2>
-          <Link href="/orders" className="text-sm font-semibold text-teal hover:underline">
-            عرض الكل
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="surface-2 text-muted">
-                <th className="px-5 py-2.5 text-start text-xs font-semibold">رقم الطلب</th>
-                <th className="hidden px-5 py-2.5 text-start text-xs font-semibold sm:table-cell">الحالة</th>
-                <th className="px-5 py-2.5 text-start text-xs font-semibold">الإجمالي</th>
-                <th className="hidden px-5 py-2.5 text-start text-xs font-semibold sm:table-cell">التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.loading && (
-                <tr>
-                  <td colSpan={4} className="px-5 py-6 text-center text-muted">
-                    …
-                  </td>
-                </tr>
-              )}
-              {!orders.loading && (orders.data?.data?.length ?? 0) === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-5 py-6 text-center text-muted">
-                    {orders.error ? `تعذّر الجلب: ${orders.error}` : 'لا توجد طلبات بعد.'}
-                  </td>
-                </tr>
-              )}
-              {orders.data?.data?.map((o) => {
-                const chip = statusChip(o.status);
-                return (
-                  <tr key={o.id} className="border-t hairline">
-                    <td className="px-5 py-3 font-semibold">
-                      <Link href={`/orders/${o.id}`} className="whitespace-nowrap hover:underline" dir="ltr">
-                        {o.orderNumber}
-                      </Link>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-normal text-muted sm:hidden">
-                        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 font-bold ${chip.cls}`}>
-                          {chip.label}
-                        </span>
-                        {date(o.createdAt)}
-                      </div>
-                    </td>
-                    <td className="hidden px-5 py-3 sm:table-cell">
-                      <span
-                        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${chip.cls}`}
-                      >
-                        {chip.label}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3 font-semibold tnum">
-                      {moneyIn(o.total, o.currency)}
-                    </td>
-                    <td className="hidden px-5 py-3 text-muted sm:table-cell">{date(o.createdAt)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }

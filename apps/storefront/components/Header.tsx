@@ -6,39 +6,61 @@ import { usePathname } from 'next/navigation';
 import { useCart } from '@/lib/hooks';
 import { isAuthed } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { CartIcon, MenuIcon, CloseIcon, UserIcon } from './icons';
+import { CartIcon, MenuIcon, CloseIcon, UserIcon, HomeIcon, GridIcon } from './icons';
+import { BagIcon, BellIcon, ChatIcon, HeartIcon, KeyIcon, WalletIcon } from './my/icons';
 import ThemeToggle from './ThemeToggle';
 import CurrencySwitch from './CurrencySwitch';
 import NotificationBell from './NotificationBell';
 import BrandMark from './BrandMark';
 import UsdtNavLink from './usdt/UsdtNavLink';
 
-const NAV = [
-  { href: '/', label: 'الرئيسية' },
-  { href: '/products', label: 'كل المنتجات' },
-  { href: '/orders', label: 'طلباتي' },
+type Entry = { href: string; label: string; icon: (p: { size?: number; className?: string }) => React.ReactNode };
+
+const NAV: Entry[] = [
+  { href: '/', label: 'الرئيسية', icon: HomeIcon },
+  { href: '/products', label: 'كل المنتجات', icon: GridIcon },
+  { href: '/orders', label: 'طلباتي', icon: BagIcon },
 ];
 
 // the customer's own pages
-const ACCOUNT = [
-  { href: '/account', label: 'حسابي' },
-  { href: '/codes', label: 'أكوادي' },
-  { href: '/favorites', label: 'المفضّلة' },
-  { href: '/notifications', label: 'الإشعارات' },
-  { href: '/wallet', label: 'المحفظة' },
-  { href: '/support', label: 'الدعم' },
+const ACCOUNT: Entry[] = [
+  { href: '/account', label: 'حسابي', icon: UserIcon },
+  { href: '/codes', label: 'أكوادي', icon: KeyIcon },
+  { href: '/favorites', label: 'المفضّلة', icon: HeartIcon },
+  { href: '/notifications', label: 'الإشعارات', icon: BellIcon },
+  { href: '/wallet', label: 'المحفظة', icon: WalletIcon },
+  { href: '/support', label: 'الدعم', icon: ChatIcon },
 ];
 // a guest keeps hearts in this browser, so the favourites page works without an account
-const GUEST = [
-  { href: '/favorites', label: 'المفضّلة' },
-  { href: '/login', label: 'تسجيل الدخول' },
+const GUEST: Entry[] = [
+  { href: '/favorites', label: 'المفضّلة', icon: HeartIcon },
+  { href: '/login', label: 'تسجيل الدخول', icon: UserIcon },
 ];
+
+/** The page a link belongs to: "/orders/123" is still "طلباتي". */
+const isHere = (pathname: string, href: string) =>
+  href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 
 // icon buttons shrink a little under 360px so the bar fits a 320px phone
 const ICON =
   'grid h-9 w-9 min-[360px]:h-10 min-[360px]:w-10 place-items-center rounded-xl text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]';
 const ITEM =
-  'block rounded-lg px-3 py-2.5 text-[15px] font-semibold text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]';
+  'flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-[15px] font-semibold text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]';
+const HERE = 'bg-teal/10 !text-teal';
+
+/** One menu row: an icon in a soft tile, then the label. */
+function MenuLink({ entry, here, role }: { entry: Entry; here: boolean; role?: string }) {
+  const t = useT();
+  const Icon = entry.icon;
+  return (
+    <Link href={entry.href} role={role} aria-current={here ? 'page' : undefined} className={`${ITEM} ${here ? HERE : ''}`}>
+      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-[rgb(var(--surface-2))]">
+        <Icon size={18} />
+      </span>
+      <span className="min-w-0 truncate">{t(entry.label)}</span>
+    </Link>
+  );
+}
 
 /** Wide screens: the person icon opens the account pages. */
 function AccountMenu({ authed }: { authed: boolean }) {
@@ -73,17 +95,9 @@ function AccountMenu({ authed }: { authed: boolean }) {
         <UserIcon size={20} />
       </button>
       {open && (
-        <nav role="menu" className="surface absolute end-0 top-full z-50 mt-2 w-52 rounded-2xl p-1.5 shadow-float">
+        <nav role="menu" className="surface absolute end-0 top-full z-50 mt-2 w-56 rounded-2xl p-1.5 shadow-float">
           {links.map((l) => (
-            <Link
-              key={l.href}
-              role="menuitem"
-              href={l.href}
-              aria-current={pathname === l.href ? 'page' : undefined}
-              className={`${ITEM} py-2 text-sm ${pathname === l.href ? 'bg-teal/10 !text-teal' : ''}`}
-            >
-              {t(l.label)}
-            </Link>
+            <MenuLink key={l.href} entry={l} role="menuitem" here={isHere(pathname, l.href)} />
           ))}
         </nav>
       )}
@@ -120,7 +134,10 @@ export default function Header() {
             <Link
               key={n.label}
               href={n.href}
-              className="rounded-lg px-3 py-2 text-[15px] font-semibold text-muted transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
+              aria-current={isHere(pathname, n.href) ? 'page' : undefined}
+              className={`rounded-lg px-3 py-2 text-[15px] font-semibold transition hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))] ${
+                isHere(pathname, n.href) ? 'text-teal' : 'text-muted'
+              }`}
             >
               {t(n.label)}
             </Link>
@@ -158,22 +175,20 @@ export default function Header() {
       </div>
 
       {open && (
-        <nav className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-[rgb(var(--line))] bg-[rgb(var(--surface))] px-4 py-2 lg:hidden">
-          {NAV.map((n) => (
-            <Link key={n.label} href={n.href} className={ITEM}>
-              {t(n.label)}
-            </Link>
-          ))}
-          <UsdtNavLink className={ITEM} />
-          <div className="my-1.5 border-t border-[rgb(var(--line))]" />
-          <div className="grid grid-cols-2 gap-x-2">
+        <nav className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-[rgb(var(--line))] bg-[rgb(var(--surface))] px-4 pb-3 pt-2 shadow-float lg:hidden">
+          <div className="grid gap-0.5">
+            {NAV.map((n) => (
+              <MenuLink key={n.label} entry={n} here={isHere(pathname, n.href)} />
+            ))}
+            <UsdtNavLink className={ITEM} />
+          </div>
+          <div className="my-2 border-t border-[rgb(var(--line))]" />
+          <div className="grid grid-cols-2 gap-0.5 gap-x-2">
             {(authed ? ACCOUNT : GUEST).map((n) => (
-              <Link key={n.href} href={n.href} className={ITEM}>
-                {t(n.label)}
-              </Link>
+              <MenuLink key={n.href} entry={n} here={isHere(pathname, n.href)} />
             ))}
           </div>
-          <div className="flex items-center justify-between px-3 py-1.5 sm:hidden">
+          <div className="mt-2 flex min-h-11 items-center justify-between border-t border-[rgb(var(--line))] px-2.5 pt-2 sm:hidden">
             <span className="text-[15px] font-semibold text-muted">{t('الوضع الليلي')}</span>
             <ThemeToggle />
           </div>

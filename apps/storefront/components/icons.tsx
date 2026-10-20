@@ -24,6 +24,21 @@ export const CartIcon = ({ className, size }: P) => (
   </svg>
 );
 
+export const HomeIcon = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1v-8.5z" />
+  </svg>
+);
+
+export const GridIcon = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.6" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6" />
+  </svg>
+);
+
 export const MenuIcon = ({ className, size }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M4 6h16M4 12h16M4 18h16" />

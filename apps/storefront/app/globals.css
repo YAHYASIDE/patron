@@ -72,6 +72,46 @@
   .btn-brand:active {
     transform: translateY(1px);
   }
+
+  /*
+   * One set of controls for the whole store (V2): chips for filters and tabs,
+   * a quiet bordered button, an icon button and the skeleton block. Every
+   * interactive one is at least 40px tall (phone tap target).
+   */
+  .chip {
+    @apply inline-flex min-h-10 flex-none items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold transition;
+    background-color: rgb(var(--surface));
+    border: 1px solid rgb(var(--line));
+    color: rgb(var(--muted));
+  }
+  .chip:hover {
+    color: rgb(var(--text));
+    border-color: rgb(13 109 100 / 0.5);
+  }
+  .chip[aria-pressed='true'],
+  .chip[aria-selected='true'],
+  .chip[aria-current='page'] {
+    @apply border-teal bg-teal text-white;
+  }
+  .btn-quiet {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition active:translate-y-px;
+    background-color: rgb(var(--surface));
+    border: 1px solid rgb(var(--line));
+  }
+  .btn-quiet:hover {
+    background-color: rgb(var(--surface-2));
+  }
+  .skel {
+    @apply animate-pulse rounded-lg;
+    background-color: rgb(var(--surface-2));
+  }
+  /* a hidden scrollbar for rows of chips that scroll sideways on phones */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 ::-webkit-scrollbar {
