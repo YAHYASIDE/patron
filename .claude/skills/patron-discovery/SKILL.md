@@ -45,7 +45,8 @@ behind the JWT guard; the real issue was the pattern). Report «مؤكد» vs «
 
 ## 4. Known limits
 
-- `lib/source.mjs` splits classes/methods by braces; a `{` inside a regex literal can hide the
-  routes after it (reported in INTEL-001, see the PR follow-ups).
+- `lib/source.mjs` splits classes/methods by braces. Regex literals are skipped by the same
+  "previous token" rule a JS lexer uses (fixed in INTEL-002, fixture `regex-routes`); a regex right
+  after `)` (e.g. `if (x) /re/.test(s)`) is still read as a division.
 - Admin-route check reads decorators by text: `@RequirePermissions(...EMPTY)` spread from an empty
   array would count as guarded.
