@@ -157,6 +157,13 @@ describe('StaffEventsService', () => {
       expect(prisma.staffNotification.update.mock.calls[1][0].data.data.count).toBe(2);
     });
 
+    it('ignores health probes: a 503 while the database wakes is not for the owner', async () => {
+      await events.serverError(err('Service Unavailable', '/api/v1/health/ready'));
+      await events.serverError(err('Service Unavailable', '/api/v1/health'));
+      expect(staff.notify).not.toHaveBeenCalled();
+      expect(prisma.staffNotification.findFirst).not.toHaveBeenCalled();
+    });
+
     it('a payment taken twice is URGENT and never folded with another one', async () => {
       await events.serverError(err('Duplicate payment p-1 for order PTN-1: refund it to the customer', '/orders/o1'));
       await events.serverError(err('Duplicate payment p-2 for order PTN-2: refund it to the customer', '/orders/o2'));

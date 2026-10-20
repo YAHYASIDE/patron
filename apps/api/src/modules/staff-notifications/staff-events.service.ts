@@ -204,6 +204,9 @@ export class StaffEventsService {
    * the next occurrence reopens it. A payment taken twice is money: URGENT.
    */
   async serverError(r: { message: string; method: string; path: string; status: number }) {
+    // a health probe answering 503 (database waking up, disk threshold) is the platform's
+    // concern, not something the owner can act on: it would only keep a notice counting up
+    if (/\/health(\/|$)/.test(r.path)) return;
     try {
       const money = /^Duplicate payment/i.test(r.message);
       // each duplicate payment is its own refund to make: never folded together
