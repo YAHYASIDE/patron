@@ -52,6 +52,7 @@ test('an admin route without a permission decorator is caught (known issue)', ()
   assert.deepEqual(routes, [
     'admin-route-no-permission:DELETE_/admin/widgets/:id',
     'admin-route-no-permission:GET_/admin/widgets-export',
+    'admin-route-no-permission:GET_/admin/widgets/stats',
     'admin-route-no-permission:POST_/admin/widgets/import',
   ]);
   for (const d of byFp(known, 'admin-route-no-permission:')) {
@@ -62,6 +63,14 @@ test('an admin route without a permission decorator is caught (known issue)', ()
   const del = byFp(known, 'admin-route-no-permission:DELETE')[0];
   assert.match(del.evidence[0].ref, /widgets\.controller\.ts:\d+$/);
   assert.match(del.evidence[0].detail, /WidgetsAdminController\.remove/);
+});
+
+test('@RequireAnyPermission with at least one permission guards an admin route, an empty one does not', () => {
+  // WidgetsAdminController.summary has only @RequireAnyPermission('widgets.read', 'widgets.manage')
+  assert.equal(byFp(known, 'admin-route-no-permission:GET_/admin/widgets/summary').length, 0);
+  const stats = byFp(known, 'admin-route-no-permission:GET_/admin/widgets/stats');
+  assert.equal(stats.length, 1);
+  assert.match(stats[0].description, /@RequireAnyPermission\(\)/);
 });
 
 test('other known issues are reported', () => {
