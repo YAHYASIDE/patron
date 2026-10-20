@@ -1,9 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ServerErrorReport, setServerErrorSink } from '../../common/filters/server-error-sink';
 import { EventKind, ReportEventDto } from './dto/feedback.dto';
+import { StaffEventsService } from '../staff-notifications/staff-events.service';
 
 const DAY_MS = 86_400_000;
 const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
@@ -19,7 +20,10 @@ export class FeedbackService implements OnModuleInit, OnModuleDestroy {
   // one row per server error message a minute: a broken dependency fails every request
   private recentServerErrors = new Map<string, number>();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private staffEvents?: StaffEventsService,
+  ) {}
 
   onModuleInit() {
     setServerErrorSink((r) => void this.recordServerError(r));
@@ -75,7 +79,10 @@ export class FeedbackService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       // the database itself may be the failure; the log line is enough then
       this.logger.warn(`Could not record a server error: ${(err as Error).message}`);
+      return;
     }
+    // the owner's inbox: one notice per kind of error (never throws)
+    await this.staffEvents?.serverError({ message: r.message || 'Unknown error', method: r.method, path: r.path, status: r.status });
   }
 
   async opportunities(days = 30, now = new Date()) {

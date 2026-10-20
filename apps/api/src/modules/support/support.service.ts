@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateTicketDto, TicketStatus, UpdateTicketDto } from './dto/support.dto';
+import { StaffEventsService } from '../staff-notifications/staff-events.service';
 
 /** Open requests one customer may have waiting at once. */
 export const MAX_OPEN_TICKETS = 5;
@@ -34,6 +35,7 @@ export class SupportService {
     private prisma: PrismaService,
     private audit: AuditService,
     private notifications: NotificationsService,
+    @Optional() private staffEvents?: StaffEventsService,
   ) {}
 
   async create(userId: string, dto: CreateTicketDto) {
@@ -50,6 +52,7 @@ export class SupportService {
       data: { userId, orderId: dto.orderId ?? null, subject: dto.subject, message: dto.message },
       select: CUSTOMER_FIELDS,
     });
+    await this.staffEvents?.supportMessage({ ticketId: ticket.id, subject: ticket.subject, orderNumber: ticket.order?.orderNumber });
     return toCustomer(ticket);
   }
 
@@ -80,7 +83,7 @@ export class SupportService {
 
   /** A reply marks the request ANSWERED (unless it is closed at once) and rings the customer's bell. */
   async update(id: string, dto: UpdateTicketDto, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const after = await this.prisma.$transaction(async (tx) => {
       const before = await tx.supportTicket.findUnique({ where: { id } });
       if (!before) throw new NotFoundException('Request not found');
 
@@ -112,5 +115,8 @@ export class SupportService {
       }
       return after;
     });
+    // answered or closed: the owner's notice about it is dealt with
+    if (after.status !== 'OPEN') await this.staffEvents?.supportHandled(id);
+    return after;
   }
 }
