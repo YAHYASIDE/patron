@@ -273,12 +273,13 @@ export class MarketsService {
         currencies: unique([currency, ...(dto.currencies ?? before.currencies)]),
       }),
     };
+    const action = dto.enabled === undefined || dto.enabled === before.enabled
+      ? 'markets.country.update'
+      : dto.enabled ? 'markets.country.enable' : 'markets.country.disable';
+    const snapshot = { ...before };
     return this.prisma.$transaction(async (tx) => {
       const after = await tx.marketCountry.update({ where: { code: before.code }, data });
-      await this.audit.record(tx, {
-        actorId, action: dto.enabled !== undefined && dto.enabled !== before.enabled ? (dto.enabled ? 'markets.country.enable' : 'markets.country.disable') : 'markets.country.update',
-        entityType: 'MarketCountry', entityId: before.code, before, after,
-      });
+      await this.audit.record(tx, { actorId, action, entityType: 'MarketCountry', entityId: before.code, before: snapshot, after });
       return after;
     });
   }
