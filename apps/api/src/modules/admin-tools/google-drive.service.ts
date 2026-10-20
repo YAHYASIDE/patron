@@ -266,9 +266,19 @@ export class GoogleDriveService {
     this.assertConfigured();
     const enc = await this.setting<string>(GDRIVE_SETTING.refreshToken);
     if (!enc) throw new BadRequestException({ error: 'GDRIVE_NOT_CONNECTED', message: 'Google Drive is not connected' });
+    let refresh: string;
+    try {
+      refresh = this.crypto.decrypt(enc);
+    } catch {
+      // saved under another ENCRYPTION_KEY (or damaged): only a new consent fixes it
+      throw new BadRequestException({
+        error: 'GDRIVE_RECONNECT',
+        message: 'The saved Google Drive connection cannot be read (was ENCRYPTION_KEY changed?): disconnect and connect again',
+      });
+    }
     const { clientId, clientSecret } = this.env();
     const tokens = await this.tokenRequest(
-      { grant_type: 'refresh_token', refresh_token: this.crypto.decrypt(enc), client_id: clientId, client_secret: clientSecret },
+      { grant_type: 'refresh_token', refresh_token: refresh, client_id: clientId, client_secret: clientSecret },
       'signing in',
     );
     const token = String(tokens.access_token ?? '');

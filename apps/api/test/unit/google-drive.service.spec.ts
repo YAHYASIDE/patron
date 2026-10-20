@@ -264,6 +264,12 @@ describe('GoogleDriveService', () => {
     await expect(s.drive.upload('x', Buffer.from('x'), 'manual')).rejects.toThrow('(HTTP 500)');
   });
 
+  it('a connection saved under another ENCRYPTION_KEY asks to reconnect', async () => {
+    const s = setup();
+    s.rows.set(GDRIVE_SETTING.refreshToken, 'not.a.ciphertext');
+    expect(await errCode(s.drive.folderId())).toBe('GDRIVE_RECONNECT');
+  });
+
   it('a revoked connection fails clearly', async () => {
     const s = setup();
     connected(s);

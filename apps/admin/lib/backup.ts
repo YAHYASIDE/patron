@@ -63,7 +63,8 @@ export const MIN_PASSPHRASE = 12;
 const MESSAGES: Record<string, string> = {
   GDRIVE_NOT_CONFIGURED: 'Google Drive غير مُعدّ على الخادم بعد.',
   GDRIVE_NOT_CONNECTED: 'اربط Google Drive أولًا.',
-  GDRIVE_STATE_INVALID: 'انتهت صلاحية رابط الربط. اضغط «ربط Google Drive» من جديد.',
+  GDRIVE_RECONNECT: 'تعذّرت قراءة ربط Google Drive المحفوظ (ربما تغيّر ENCRYPTION_KEY): افصل Drive ثم اربطه من جديد.',
+  GDRIVE_STATE_INVALID:'انتهت صلاحية رابط الربط. اضغط «ربط Google Drive» من جديد.',
   BACKUP_KEY_NOT_CONFIGURED: 'مفتاح النسخ المجدولة (BACKUP_ENCRYPTION_KEY) غير مضبوط على الخادم.',
   BACKUP_KEY_INVALID: 'مفتاح BACKUP_ENCRYPTION_KEY على الخادم غير صالح (يجب أن يكون 64 حرفًا ست عشريًا).',
   PASSPHRASE_TOO_SHORT: `عبارة المرور قصيرة: ${MIN_PASSPHRASE} حرفًا على الأقل.`,
@@ -97,7 +98,8 @@ async function toError(res: Response): Promise<BackupError> {
   let text = (code && MESSAGES[code]) || raw || `خطأ ${res.status}`;
   if (code === 'GDRIVE_NOT_CONFIGURED' && body.missing?.length) text = `${text} ينقص: ${body.missing.join('، ')}`;
   if (code === 'GDRIVE_ERROR' && raw) text = `خطأ من Google Drive: ${raw}`;
-  if (res.status >= 500 && !code) text = `تعذّر الإتمام على الخادم (${res.status}). حاول بعد لحظات.`;
+  // an unexpected server error: its text is generic English, the log row has the detail
+  if (res.status >= 500) text = `تعذّر الإتمام على الخادم (${res.status}). راجع سجل النسخ أدناه، ثم حاول بعد لحظات.`;
   return new BackupError(res.status, text, code);
 }
 
