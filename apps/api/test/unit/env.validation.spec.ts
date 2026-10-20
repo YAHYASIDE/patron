@@ -79,6 +79,10 @@ describe('validateEnv', () => {
       })).not.toThrow();
     });
 
+    it('treats an empty setting (copied from .env.example) as unset', () => {
+      expect(() => validateEnv({ ...valid(), OTP_PROVIDER: '', EMAIL_PROVIDER: '', TWILIO_VERIFY_CHANNEL: '', RESEND_API_KEY: '' })).not.toThrow();
+    });
+
     it('rejects an unknown provider and a wrong SID prefix', () => {
       expect(() => validateEnv({ ...valid(), OTP_PROVIDER: 'carrier-pigeon' })).toThrow(/OTP_PROVIDER/);
       expect(() => validateEnv({

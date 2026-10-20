@@ -32,7 +32,7 @@ class EnvVars {
    * Who delivers phone codes. Choosing Twilio without its three settings must
    * stop the boot: otherwise every sign-in code would fail at the first customer.
    */
-  @IsOptional() @IsIn(['owner_relay', 'twilio_verify', 'capture']) OTP_PROVIDER?: string;
+  @ValidateIf((o) => !!o.OTP_PROVIDER) @IsIn(['owner_relay', 'twilio_verify', 'capture']) OTP_PROVIDER?: string;
   @ValidateIf((o) => o.OTP_PROVIDER === 'twilio_verify')
   @IsString() @Matches(/^AC[0-9a-zA-Z]{8,}$/, { message: 'TWILIO_ACCOUNT_SID must start with AC' })
   TWILIO_ACCOUNT_SID?: string;
@@ -41,10 +41,10 @@ class EnvVars {
   @ValidateIf((o) => o.OTP_PROVIDER === 'twilio_verify')
   @IsString() @Matches(/^VA[0-9a-zA-Z]{8,}$/, { message: 'TWILIO_VERIFY_SERVICE_SID must start with VA' })
   TWILIO_VERIFY_SERVICE_SID?: string;
-  @IsOptional() @IsIn(['sms', 'whatsapp']) TWILIO_VERIFY_CHANNEL?: string;
+  @ValidateIf((o) => !!o.TWILIO_VERIFY_CHANNEL) @IsIn(['sms', 'whatsapp']) TWILIO_VERIFY_CHANNEL?: string;
 
   /** Email codes: Resend when a key is set (or EMAIL_PROVIDER=resend), else off. */
-  @IsOptional() @IsIn(['resend', 'capture', 'disabled']) EMAIL_PROVIDER?: string;
+  @ValidateIf((o) => !!o.EMAIL_PROVIDER) @IsIn(['resend', 'capture', 'disabled']) EMAIL_PROVIDER?: string;
   @ValidateIf((o) => o.EMAIL_PROVIDER === 'resend')
   @IsString() @Length(8) RESEND_API_KEY?: string;
   @ValidateIf((o) => o.EMAIL_PROVIDER === 'resend' || (!o.EMAIL_PROVIDER && !!o.RESEND_API_KEY))

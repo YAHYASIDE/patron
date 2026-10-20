@@ -61,23 +61,23 @@ export default () => ({
   },
   auth: {
     /** owner_relay (default: the owner sends codes by WhatsApp) | twilio_verify | capture (tests) */
-    otpProvider: process.env.OTP_PROVIDER ?? 'owner_relay',
+    otpProvider: process.env.OTP_PROVIDER || 'owner_relay',
     twilio: {
       accountSid: process.env.TWILIO_ACCOUNT_SID,
       authToken: process.env.TWILIO_AUTH_TOKEN,
       verifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
       /** sms (default) or whatsapp — Twilio Verify delivers on either. */
-      channel: process.env.TWILIO_VERIFY_CHANNEL ?? 'sms',
+      channel: process.env.TWILIO_VERIFY_CHANNEL || 'sms',
     },
     /** resend | capture (tests) | disabled; unset = resend when RESEND_API_KEY is present. */
-    emailProvider: process.env.EMAIL_PROVIDER,
-    resendApiKey: process.env.RESEND_API_KEY,
-    emailFrom: process.env.EMAIL_FROM,
+    emailProvider: process.env.EMAIL_PROVIDER || undefined,
+    resendApiKey: process.env.RESEND_API_KEY || undefined,
+    emailFrom: process.env.EMAIL_FROM || undefined,
     webauthn: {
-      rpId: process.env.WEBAUTHN_RP_ID,
+      rpId: process.env.WEBAUTHN_RP_ID || undefined,
       rpName: process.env.WEBAUTHN_RP_NAME ?? 'patron',
       /** The store's address(es); comma-separated when there are several. */
-      origins: process.env.WEBAUTHN_ORIGINS ?? process.env.STOREFRONT_URL,
+      origins: process.env.WEBAUTHN_ORIGINS || process.env.STOREFRONT_URL,
     },
   },
 });
