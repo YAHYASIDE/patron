@@ -7,7 +7,40 @@ import { useCurrency } from '@/lib/currency';
 import { useT } from '@/lib/i18n';
 import { sectionOf } from '@/lib/sections';
 import { noteCatalog } from '@/lib/fresh';
+import { useBrandRestriction } from '@/lib/markets';
+import { useRegion } from '@/lib/regions';
+import { useMe } from '@/lib/session';
 import BrandView from './BrandView';
+import { ShieldIcon } from './icons';
+
+const NOTICE = {
+  UNAVAILABLE: 'هذا المنتج غير متاح للاستخدام في بلدك. تأكّد قبل الشراء.',
+  REGION_ACCOUNT_REQUIRED:
+    'هذا المنتج يعمل فقط مع حساب من منطقته (مثل حساب أمريكي لبطاقة أمريكية). تأكّد من منطقة حسابك قبل الشراء.',
+} as const;
+
+/**
+ * A short notice when the owner approved a rule saying this brand does not work
+ * in the customer's region, or needs an account from its own region. Shows
+ * nothing while loading, when there is no such rule, or when the call fails.
+ */
+function MarketNotice({ brandKey }: { brandKey: string }) {
+  const t = useT();
+  const { me } = useMe();
+  const restriction = useBrandRestriction(brandKey, useRegion(me));
+  if (!restriction) return null;
+  return (
+    <div className="mx-auto max-w-page px-4 pt-4">
+      <p
+        role="note"
+        className="flex items-start gap-2 rounded-xl bg-warn/10 px-3 py-2 text-sm font-semibold leading-relaxed text-warn"
+      >
+        <ShieldIcon size={16} className="mt-0.5 flex-none" />
+        {t(NOTICE[restriction])}
+      </p>
+    </div>
+  );
+}
 
 /**
  * Loads the catalog and shows one brand: by its key (/brands/gc-apple-us), or
@@ -54,5 +87,10 @@ export default function BrandPage({ brandKey, productRef }: { brandKey?: string;
 
   const section = sectionOf(brand).id;
   const related = brands.filter((b) => sectionOf(b).id === section && b.key !== brand.key).slice(0, 8);
-  return <BrandView key={brand.key} brand={brand} initialId={product?.id} related={related} />;
+  return (
+    <>
+      <MarketNotice brandKey={brand.key} />
+      <BrandView key={brand.key} brand={brand} initialId={product?.id} related={related} />
+    </>
+  );
 }
