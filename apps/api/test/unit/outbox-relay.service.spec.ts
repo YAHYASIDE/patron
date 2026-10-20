@@ -103,6 +103,22 @@ describe('OutboxRelay', () => {
       },
     );
 
+    it('hands order and refund events to the agents queue, once per event, when it is wired', async () => {
+      const agents = { add: jest.fn().mockResolvedValue({}) };
+      relay = new OutboxRelay(outbox, fulfilment, notifications, agents as any);
+      outbox.claimBatch.mockResolvedValue([
+        { id: 'e1', eventType: 'order.completed', payload: { orderId: 'o1', userId: 'u1' }, attempts: 0 },
+        { id: 'e2', eventType: 'refund.processed', payload: { orderId: 'o1', userId: 'u1' }, attempts: 0 },
+        { id: 'e3', eventType: 'order.created', payload: { orderId: 'o1', userId: 'u1' }, attempts: 0 },
+      ]);
+      await tick();
+      expect(agents.add.mock.calls.map((c: any[]) => [c[0], c[1], c[2].jobId])).toEqual([
+        ['sync-commission', { orderId: 'o1', eventType: 'order.completed' }, 'commission-e1'],
+        ['sync-commission', { orderId: 'o1', eventType: 'refund.processed' }, 'commission-e2'],
+      ]);
+      expect(outbox.markPublished).toHaveBeenCalledTimes(3);
+    });
+
     it('treats order.created as a published no-op (kept for the audit trail)', async () => {
       outbox.claimBatch.mockResolvedValue([
         { id: 'e2', eventType: 'order.created', payload: { orderId: 'o1' }, attempts: 0 },

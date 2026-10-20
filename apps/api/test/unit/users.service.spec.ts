@@ -61,6 +61,18 @@ describe('UsersService', () => {
       );
     });
 
+    it('adds the segments to a customers list and filters by one', async () => {
+      prisma.systemSetting = { findUnique: jest.fn().mockResolvedValue({ value: { vipSpendBase: 10, vipOrders: 0 } }) };
+      prisma.user.findMany.mockResolvedValue([{ id: 'u1', createdAt: new Date(), roles: [], _count: { orders: 2 } }]);
+      prisma.user.count.mockResolvedValue(1);
+      prisma.order.groupBy.mockResolvedValue([
+        { userId: 'u1', _sum: { totalBase: new Prisma.Decimal('12.5') }, _count: { _all: 2 }, _max: { createdAt: new Date() } },
+      ]);
+      const res = await service.findAll({ skip: 0, limit: 20, page: 1, order: 'desc', role: 'customer', segment: 'new' } as any);
+      expect((res.data[0] as any).segments).toEqual(['new', 'active', 'vip']);
+      expect(prisma.user.findMany.mock.calls[0][0].where.AND[0]).toEqual({ createdAt: { gt: expect.any(Date) } });
+    });
+
     it('builds a compound where clause from every filter', async () => {
       prisma.user.findMany.mockResolvedValue([]);
       prisma.user.count.mockResolvedValue(0);

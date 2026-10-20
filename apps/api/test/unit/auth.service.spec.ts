@@ -203,6 +203,17 @@ describe('AuthService · WhatsApp number sign-in', () => {
       expect(txUserCreate.mock.calls[0][0].data.country).toBe('MR');
     });
 
+    it('stores the referral code a new account came with, inside the same transaction', async () => {
+      const agentFind = jest.fn().mockResolvedValue({ id: 'ag1', userId: 'agent-user', isActive: true });
+      const userUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.$transaction.mockImplementation((fn: (tx: any) => unknown) =>
+        fn({ user: { create: txUserCreate, updateMany: userUpdateMany }, agent: { findUnique: agentFind }, auditLog: { create: jest.fn() } }),
+      );
+      await service.phoneStart({ phone: PHONE, fullName: 'سيدي أحمد', ref: 'k7mxq2' }, META);
+      expect(agentFind).toHaveBeenCalledWith(expect.objectContaining({ where: { code: 'K7MXQ2' } }));
+      expect(userUpdateMany).toHaveBeenCalledWith({ where: { id: 'new-user', referredByAgentId: null }, data: { referredByAgentId: 'ag1' } });
+    });
+
     it('asks a new number for a name', async () => {
       await expect(service.phoneStart({ phone: PHONE }, META)).rejects.toMatchObject({ response: { error: 'NAME_REQUIRED' } });
     });
