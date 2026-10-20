@@ -9,31 +9,109 @@ import WakeBanner from '@/components/WakeBanner';
 import ErrorReporter from '@/components/ErrorReporter';
 import { usePulse, beep, soundOn, systemNotify, AlertsButton, Toast, type PulseEvent } from '@/components/Pulse';
 
-const NAV = [
-  { href: '/', label: 'لوحة القيادة', icon: 'grid' },
-  { href: '/products', label: 'المنتجات', icon: 'box' },
-  { href: '/orders', label: 'الطلبات', icon: 'receipt' },
-  { href: '/notifications', label: 'مركز الإشعارات', icon: 'alert' },
-  { href: '/bank-notices', label: 'إشعارات البنك', icon: 'card' },
-  { href: '/usdt', label: 'طلبات USDT', icon: 'coins' },
-  { href: '/customers', label: 'الزبائن', icon: 'users' },
-  { href: '/agents', label: 'المندوبون', icon: 'users' },
-  { href: '/recovery', label: 'استعادة الحسابات', icon: 'shield' },
-  { href: '/locations', label: 'مواقع الزبائن', icon: 'pin' },
-  { href: '/support', label: 'طلبات الدعم', icon: 'chat' },
-  { href: '/reviews', label: 'التقييمات', icon: 'star' },
-  { href: '/coupons', label: 'القسائم', icon: 'ticket' },
-  { href: '/broadcast', label: 'رسالة للزبائن', icon: 'megaphone' },
-  { href: '/reports', label: 'التقارير', icon: 'chart' },
-  { href: '/opportunities', label: 'الفرص', icon: 'bulb' },
-  { href: '/banners', label: 'العروض', icon: 'tag' },
-  { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
-  { href: '/verifications', label: 'رموز التحقق', icon: 'shield' },
-  { href: '/currencies', label: 'أسعار الصرف', icon: 'coins' },
-  { href: '/activity', label: 'سجل النشاط', icon: 'history' },
-  { href: '/errors', label: 'الأخطاء', icon: 'alert' },
-  { href: '/settings', label: 'الإعدادات', icon: 'gear' },
-] as const;
+type NavItem = { href: string; label: string; icon: string };
+type NavGroup = { id: string; label: string | null; items: NavItem[] };
+
+/**
+ * The side menu, in labelled sections in the order the owner works: the
+ * day's operations first, then money, sales, customers, the shop's own
+ * content and the system. Sections fold (remembered on this device); the
+ * one holding the current page is always open.
+ */
+const NAV: NavGroup[] = [
+  { id: 'home', label: null, items: [{ href: '/', label: 'لوحة القيادة', icon: 'grid' }] },
+  {
+    id: 'ops',
+    label: 'التشغيل',
+    items: [
+      { href: '/orders', label: 'الطلبات', icon: 'receipt' },
+      { href: '/notifications', label: 'مركز الإشعارات', icon: 'bell' },
+      { href: '/verifications', label: 'رموز التحقق', icon: 'key' },
+      { href: '/support', label: 'طلبات الدعم', icon: 'chat' },
+      { href: '/recovery', label: 'استعادة الحسابات', icon: 'lifebuoy' },
+    ],
+  },
+  {
+    id: 'money',
+    label: 'المالية',
+    items: [
+      { href: '/bank-notices', label: 'إشعارات البنك', icon: 'bank' },
+      { href: '/usdt', label: 'طلبات USDT', icon: 'coins' },
+      { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
+      { href: '/currencies', label: 'أسعار الصرف', icon: 'exchange' },
+    ],
+  },
+  {
+    id: 'sales',
+    label: 'المبيعات',
+    items: [
+      { href: '/reports', label: 'التقارير', icon: 'chart' },
+      { href: '/opportunities', label: 'الفرص', icon: 'bulb' },
+      { href: '/coupons', label: 'القسائم', icon: 'ticket' },
+    ],
+  },
+  {
+    id: 'people',
+    label: 'الزبائن',
+    items: [
+      { href: '/customers', label: 'الزبائن', icon: 'users' },
+      { href: '/agents', label: 'المندوبون', icon: 'badge' },
+      { href: '/reviews', label: 'التقييمات', icon: 'star' },
+      { href: '/broadcast', label: 'رسالة للزبائن', icon: 'megaphone' },
+      { href: '/locations', label: 'مواقع الزبائن', icon: 'pin' },
+    ],
+  },
+  {
+    id: 'shop',
+    label: 'المتجر',
+    items: [
+      { href: '/products', label: 'المنتجات', icon: 'box' },
+      { href: '/banners', label: 'العروض', icon: 'tag' },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'النظام',
+    items: [
+      { href: '/settings', label: 'الإعدادات', icon: 'gear' },
+      { href: '/activity', label: 'سجل النشاط', icon: 'history' },
+      { href: '/errors', label: 'الأخطاء', icon: 'alert' },
+    ],
+  },
+];
+
+// highlight the section on its sub-pages too (e.g. /products/new)
+const isActive = (pathname: string, href: string) =>
+  href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
+
+const FOLD_KEY = 'patron.nav.folded';
+
+/** Folded sections, remembered on this device. */
+function useFolded(): [Set<string>, (id: string) => void] {
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(FOLD_KEY) ?? '[]');
+      if (Array.isArray(saved)) setFolded(new Set(saved.filter((x): x is string => typeof x === 'string')));
+    } catch {
+      // nothing saved, or storage blocked: every section open
+    }
+  }, []);
+  const toggle = useCallback((id: string) => {
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(FOLD_KEY, JSON.stringify([...next]));
+      } catch {
+        // storage blocked: the fold lasts until reload
+      }
+      return next;
+    });
+  }, []);
+  return [folded, toggle];
+}
 
 function Icon({ name }: { name: string }) {
   const common = {
@@ -177,6 +255,54 @@ function Icon({ name }: { name: string }) {
           <path d="M12 9.5v4M12 17h.01" />
         </svg>
       );
+    case 'bell':
+      return (
+        <svg {...common}>
+          <path d="M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z" />
+          <path d="M10 20a2.2 2.2 0 0 0 4 0" />
+        </svg>
+      );
+    case 'key':
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="15" r="4" />
+          <path d="m11 12 9-9M17 6l2.5 2.5M14.5 8.5 16.5 10.5" />
+        </svg>
+      );
+    case 'lifebuoy':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="m5.6 5.6 3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9" />
+        </svg>
+      );
+    case 'bank':
+      return (
+        <svg {...common}>
+          <path d="M3 9.5 12 4l9 5.5M4.5 10v8M9.5 10v8M14.5 10v8M19.5 10v8M3 20.5h18" />
+        </svg>
+      );
+    case 'exchange':
+      return (
+        <svg {...common}>
+          <path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" />
+        </svg>
+      );
+    case 'badge':
+      return (
+        <svg {...common}>
+          <rect x="4" y="3" width="16" height="18" rx="2.5" />
+          <circle cx="12" cy="10" r="2.8" />
+          <path d="M7.5 17.5c.9-2 2.5-3 4.5-3s3.6 1 4.5 3" />
+        </svg>
+      );
+    case 'chevron':
+      return (
+        <svg {...common} width={16} height={16}>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      );
     default:
       return <svg {...common} />;
   }
@@ -187,6 +313,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
+  const [folded, toggleFold] = useFolded();
+  // the phone drawer closes with Escape, like any dialog
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [open]);
   const [toast, setToast] = useState<PulseEvent | null>(null);
   const closeToast = useCallback(() => setToast(null), []);
   // new order or transfer while the dashboard is open: sound, toast, browser notification
@@ -229,30 +363,66 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           patron<span className="text-gold">.</span>
         </span>
       </div>
-      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
-        {NAV.map((item) => {
-          // highlight the section on its sub-pages too (e.g. /products/new)
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+      <nav aria-label="القائمة الرئيسية" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-2">
+        {NAV.map((group) => {
+          const here = group.items.some((it) => isActive(pathname, it.href));
+          const shut = !!group.label && folded.has(group.id) && !here;
+          // a folded section still shows that something inside waits
+          const waiting = group.items.reduce((n, it) => n + (badges[it.href] ?? 0), 0);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={
-                'flex flex-none items-center gap-3 rounded-xl px-3 py-2 text-[15px] font-semibold transition ' +
-                (active
-                  ? 'bg-teal/12 text-teal'
-                  : 'text-muted hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]')
-              }
-            >
-              <Icon name={item.icon} />
-              {item.label}
-              {(badges[item.href] ?? 0) > 0 && (
-                <span className="ms-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1.5 text-[11px] font-bold text-white tnum">
-                  {badges[item.href]}
-                </span>
+            <div key={group.id} className={group.label ? 'mt-3' : 'mt-1'}>
+              {group.label && (
+                <button
+                  type="button"
+                  onClick={() => toggleFold(group.id)}
+                  aria-expanded={!shut}
+                  aria-controls={`nav-${group.id}`}
+                  disabled={here}
+                  className="flex min-h-8 w-full items-center gap-2 rounded-lg px-3 text-xs font-bold text-muted transition hover:text-[rgb(var(--text))] disabled:cursor-default disabled:hover:text-muted"
+                >
+                  <span>{group.label}</span>
+                  {shut && waiting > 0 && (
+                    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-[10px] font-bold text-white tnum">
+                      {waiting}
+                    </span>
+                  )}
+                  {!here && (
+                    <span className={`ms-auto opacity-60 transition ${shut ? 'ltr:-rotate-90 rtl:rotate-90' : ''}`}>
+                      <Icon name="chevron" />
+                    </span>
+                  )}
+                </button>
               )}
-            </Link>
+              {!shut && (
+                <div id={`nav-${group.id}`} className="flex flex-col gap-0.5">
+                  {group.items.map((item) => {
+                    const active = isActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        aria-current={active ? 'page' : undefined}
+                        className={
+                          'flex min-h-10 flex-none items-center gap-3 rounded-xl px-3 py-1.5 text-[15px] font-semibold transition ' +
+                          (active
+                            ? 'bg-teal/12 text-teal'
+                            : 'text-muted hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]')
+                        }
+                      >
+                        <Icon name={item.icon} />
+                        {item.label}
+                        {(badges[item.href] ?? 0) > 0 && (
+                          <span className="ms-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1.5 text-[11px] font-bold text-white tnum">
+                            {badges[item.href]}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
@@ -276,7 +446,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="surface absolute inset-y-0 start-0 flex w-64 flex-col">{SidebarInner}</aside>
+          <aside className="surface absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col shadow-2xl">{SidebarInner}</aside>
         </div>
       )}
 
