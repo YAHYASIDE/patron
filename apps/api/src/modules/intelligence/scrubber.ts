@@ -41,10 +41,10 @@ function looksLikeToken(s: string) {
 export function scrubText(input: string): string {
   if (!input) return input;
   return input
+    .replace(BEARER, (_m, scheme: string) => `${scheme} ${REDACTED}`)
     .replace(SECRET_ASSIGNMENT, (whole, name: string, sep: string) =>
       sep.includes(':') && COLON_SAFE.has(name.toLowerCase()) ? whole : `${name}${sep}${REDACTED}`,
     )
-    .replace(BEARER, (_m, scheme: string) => `${scheme} ${REDACTED}`)
     .replace(EMAIL, (_m, first: string, domain: string) => `${first}***@${domain}`)
     .replace(HEX_TOKEN, REDACTED)
     .replace(B64_TOKEN, (m) => (looksLikeToken(m) ? REDACTED : m))
