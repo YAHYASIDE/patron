@@ -1,8 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { StaffNotificationsService } from './staff-notifications.service';
 
-/** Platform V2 — filled in by its feature work. */
+/** The owner's notification inbox. Global: any module can raise a notice. */
+@Global()
 @Module({
   controllers: [],
-  providers: [],
+  providers: [StaffNotificationsService],
+  exports: [StaffNotificationsService],
 })
 export class StaffNotificationsModule {}
