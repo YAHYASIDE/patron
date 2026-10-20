@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 
-/** Platform V2 — filled in by its feature work. */
+import { BankNoticesController } from './bank-notices.controller';
+import { BankNoticesService } from './bank-notices.service';
+
+/** Bank notifications from the Android admin app: evidence for the owner, never approval. */
 @Module({
-  controllers: [],
-  providers: [],
+  controllers: [BankNoticesController],
+  providers: [BankNoticesService],
 })
 export class BankNoticesModule {}
