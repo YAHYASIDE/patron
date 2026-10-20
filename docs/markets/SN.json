@@ -1,0 +1,195 @@
+{
+  "code": "SN",
+  "researchedAt": "2026-10-20",
+  "country": {
+    "nameAr": "السنغال",
+    "nameFr": "Sénégal",
+    "nameEn": "Senegal",
+    "currency": "XOF",
+    "currencies": ["XOF"],
+    "languages": ["fr", "wo"],
+    "dialCode": "+221",
+    "numberFormat": {
+      "nationalDigits": 9,
+      "regex": "^7[0-9]{8}$",
+      "display": "+221 7X XXX XX XX",
+      "note": "Closed 9-digit plan (SA BPQ MCDU) per the ARTP communication published by the ITU (3.X.2023); blocks starting with 7 are reserved for mobile networks (77/78 Orange-Sonatel, 76 Free/Yas, 70 several operators). Page not fetched (network blocked); seen in search results only."
+    },
+    "notes": "Constitution of 22 January 2001, article 1: French is the official language; Diola, Malinké, Pular, Sérère, Soninké and Wolof are national languages (search results only, not fetched). XOF (franc CFA) issued by BCEAO, whose seat is in Dakar.",
+    "sources": [
+      { "url": "https://www.bceao.int/fr/content/presentation-de-lumoa", "title": "UMOA", "publisher": "BCEAO", "accessedAt": "2026-10-20" },
+      { "url": "https://www.bceao.int/fr/content/histoire-du-franc-cfa", "title": "Franc CFA", "publisher": "BCEAO", "accessedAt": "2026-10-20" },
+      { "url": "https://www.itu.int/dms_pub/itu-t/oth/02/02/T02020000B80006PDFF.pdf", "title": "Sénégal (indicatif de pays +221) Communication du 3.X.2023", "publisher": "ITU (communication of ARTP)", "accessedAt": "2026-10-20" },
+      { "url": "https://primature.sn/publications/lois-et-reglements/loi-ndeg-2001-03-du-22-janvier-2001-portant-constitution-modifiee", "title": "LOI N° 2001-03 DU 22 JANVIER 2001 PORTANT CONSTITUTION, MODIFIÉE", "publisher": "Primature du Sénégal", "accessedAt": "2026-10-20" }
+    ]
+  },
+  "methods": [
+    {
+      "key": "orange-money-sn",
+      "name": "Orange Money Sénégal (paiement marchand)",
+      "provider": "Sonatel / Orange Sénégal (Orange Finances Mobiles Sénégal)",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.orange.sn/actualite/paiement-marchand-2", "title": "Paiement Marchand", "publisher": "Orange Sénégal", "accessedAt": "2026-10-20" },
+        { "url": "https://orange.sn/actualite/conditions-dutilisation-maxi-business", "title": "| Orange SN (conditions d'utilisation Maxi Business)", "publisher": "Orange Sénégal", "accessedAt": "2026-10-20" },
+        { "url": "https://assistance.orange.sn/questions/1968610-pieces-fournir-code-marchand-orange-money", "title": "Quelles sont les pièces à fournir pour avoir un code marchand Orange Money?", "publisher": "Assistance Orange Sénégal", "accessedAt": "2026-10-20" },
+        { "url": "https://developer.orange.com/apis/om-webpay", "title": "Orange Money Web Payment / M Payment (1.0) API", "publisher": "Orange Developer", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bceao.int/fr/content/etablissements-de-monnaie-electronique", "title": "Etablissements de Monnaie Electronique", "publisher": "BCEAO", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. Receiving needs an Orange Money MERCHANT account (code marchand); the assistance page (Q&A, possibly old) lists NINEA, RCCM, RIB and ID, i.e. a registered business. Merchant app: Maxi Business (needs an active merchant account). The same assistance page mentions a 1% commission per collection: not recorded as a fact (Q&A page, not an official tariff). OM Web Pay lists Senegal (old page)."
+    },
+    {
+      "key": "wave-sn",
+      "name": "Wave Sénégal (Wave Business)",
+      "provider": "Wave Mobile Money / Wave Digital Finance",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.wave.com/fr/business/", "title": "Augmentez votre portée et vos revenus avec Wave Business", "publisher": "Wave", "accessedAt": "2026-10-20" },
+        { "url": "https://www.wave.com/fr/blog/sn-emi/index.html", "title": "Wave Mobile Money devient la première fintech opérant dans plusieurs pays de l'UEMOA à être Établissement de Monnaie Électronique", "publisher": "Wave Blog", "accessedAt": "2026-10-20" },
+        { "url": "https://www.wave.com/fr/terms_wdf_sn/", "title": "Conditions Générales d'Utilisation « Wave", "publisher": "Wave", "accessedAt": "2026-10-20" },
+        { "url": "https://docs.wave.com/business", "title": "API Reference", "publisher": "Wave", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. A Wave Business account is needed to receive (shop and online; a Business API exists). The search extract of the Wave Business page (flagged ~885 days old) says the first 20,000 FCFA per day are free, then 1%: not recorded as a fact; the owner must read the current page or app. Wave Digital Finance holds a BCEAO e-money licence (2022 blog)."
+    },
+    {
+      "key": "mixx-by-yas-sn",
+      "name": "Mixx by Yas (ex Free Money)",
+      "provider": "Yas Sénégal (ex Free Sénégal)",
+      "kind": "mobile",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://yas.sn/mixx-by-yas/", "title": "mixx by yas - Yas Senegal", "publisher": "Yas Sénégal", "accessedAt": "2026-10-20" },
+        { "url": "https://www.yas.sn/business-faqs/", "title": "Business Faqs - Yas Senegal", "publisher": "Yas Sénégal", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bceao.int/fr/content/etablissements-de-monnaie-electronique", "title": "Etablissements de Monnaie Electronique", "publisher": "BCEAO", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked): seen in search results only. free.sn is now Yas (yas.sn); Free Money became Mixx by Yas (existing accounts kept). Yas mentions an online payment button and API for merchants. The search extract of the Yas tariff grid shows merchant payment free for the payer and 1% when the merchant bears the fee: not recorded as a fact until read. BCEAO lists Mobile Cash (Free Money) as e-money issuer (search extract). Merchant account needed."
+    },
+    {
+      "key": "bank-transfer-sn",
+      "name": "Virement bancaire (banque au Sénégal)",
+      "provider": "Banques agréées au Sénégal (liste BCEAO)",
+      "kind": "bank",
+      "currency": "XOF",
+      "fees": null,
+      "sources": [
+        { "url": "https://www.bceao.int/sites/default/files/2026-04/LISTE%20DES%20%C3%89TABLISSEMENTS%20DE%20CR%C3%89DIT%20AGR%C3%89%C3%89S%20DANS%20L'UMOA%20au%2031%20d%C3%A9cembre%202025.pdf", "title": "LISTE DES ÉTABLISSEMENTS DE CRÉDIT AGRÉÉS DANS L'UMOA AU 31 DÉCEMBRE 2025", "publisher": "BCEAO", "accessedAt": "2026-10-20" },
+        { "url": "https://www.bceao.int/sites/default/files/2026-08/Liste_des_participants_PI-SPI_au_31_juillet_2026.pdf", "title": "Liste des participants autorisés à ouvrir les services de PI-SPI au public", "publisher": "BCEAO", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25,
+      "verifiedBy": "market-scout",
+      "note": "NOT FETCHED (network blocked). Generic method: needs a bank account in Senegal (business account depends on the bank). Fees depend on the bank; none recorded. The BCEAO PI-SPI list (July 2026) is said to count 24 Senegal participants (search extract only)."
+    }
+  ],
+  "rules": [
+    {
+      "scope": "brand", "ref": "gc-apple-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة آبل الأمريكية تعمل فقط على حساب Apple مسجّل في الولايات المتحدة. (مصدر Apple لم يُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.apple.com/en-us/108285", "title": "If you can't redeem your Apple Gift Card or App Store & iTunes Gift Card", "publisher": "Apple Support", "accessedAt": "2026-10-20" },
+        { "url": "https://support.apple.com/en-us/118205", "title": "Availability of Apple Media Services", "publisher": "Apple Support", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-gplay-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة جوجل بلاي تُستعمل فقط في بلد وعملة الشراء: تحتاج حساب Google Play أمريكي. (لم تُفتح الصفحة، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.google.com/googleplay/answer/3422734?hl=en", "title": "About Google Play gift cards & where to buy them", "publisher": "Google Play Help", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-psn-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "قسيمة بلايستيشن يجب أن تطابق بلد الحساب: تحتاج حساب PSN أمريكي. لم نؤكد وجود متجر PSN للسنغال. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.playstation.com/en-us/support/account/check-account-country-region/", "title": "How to check your account's country/region on PlayStation (US)", "publisher": "PlayStation", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-xbox-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "رموز إكس بوكس تُستعمل في بلد الشراء: تحتاج حساب Microsoft أمريكي. قائمة دول Xbox لم تُفتح. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.xbox.com/en-ME/help/subscriptions-billing/manage-subscriptions/ensure-xbox-subscription-is-valid-for-your-country", "title": "Making sure your XBOX digital subscription is valid for your country or region", "publisher": "Xbox Support", "accessedAt": "2026-10-20" },
+        { "url": "https://xbox.com/en-CA/live/regions", "title": "Xbox Supported Countries & Regions", "publisher": "Xbox", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-steam", "availability": "AVAILABLE",
+      "note": "حسب صفحة Steam تُحوَّل قيمة البطاقة إلى عملة محفظة الحساب أينما اشتُريت. (الصفحة لم تُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://store.steampowered.com/account/redeemwalletcode", "title": "Redeem a Steam Gift Card or Wallet Code", "publisher": "Valve / Steam", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-netflix-us", "availability": "UNKNOWN",
+      "note": "نتفلكس تشترط أن تطابق عملة البطاقة (دولار) عملة فاتورة الحساب. لم نتحقق من عملة فوترة نتفلكس في السنغال. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://help.netflix.com/en/node/59987", "title": "Can't redeem Netflix gift card", "publisher": "Netflix Help Center", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "sub-nflx", "availability": "UNKNOWN",
+      "note": "نتفلكس تقول إنها متاحة في أكثر من 190 دولة، لكن لم نجد قائمة رسمية تذكر السنغال. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://about.netflix.com/en/news/netflix-is-now-available-around-the-world?data1=v2", "title": "Netflix Is Now Available Around the World", "publisher": "Netflix", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 25, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-spotify-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة سبوتيفاي تعمل فقط على حساب من بلد الشراء (أمريكا). وتقول سبوتيفاي إنها توقفت عن بيع بطاقات جديدة. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.spotify.com/us/article/gift-cards/", "title": "Spotify gift cards", "publisher": "Spotify Support", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "sub-spotify", "availability": "AVAILABLE",
+      "note": "سبوتيفاي تذكر السنغال ضمن الدول المتاحة. إن سُلِّم الاشتراك برمز مقيد ببلد فيجب أن يطابق بلد الحساب. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://support.spotify.com/us/article/where-spotify-is-available/", "title": "Where is Spotify available?", "publisher": "Spotify Support", "accessedAt": "2026-10-20" },
+        { "url": "https://newsroom.spotify.com/2021-02-22/spotify-expands-international-footprint-bringing-audio-to-80-new-markets/", "title": "Spotify Expands International Footprint, Bringing Audio to 80+ New Markets", "publisher": "Spotify Newsroom", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "free-fire", "availability": "UNKNOWN",
+      "note": "الشحن بمعرّف اللاعب؛ لم نجد مصدرًا رسميًا لخادم السنغال أو قيود منطقة لدى Garena. يُرجَّح أنه يعمل لكن غير مؤكد.",
+      "sources": [
+        { "url": "https://ffsupport.garena.com/hc/en-us/articles/4412920947866-Free-Fire-Customer-Service-Teams", "title": "Free Fire Customer Service Teams", "publisher": "Garena", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 15, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "pubg-mobile", "availability": "AVAILABLE",
+      "note": "متجر Midasbuy الرسمي يذكر السنغال ضمن مناطق الشحن. الشحن بمعرّف اللاعب. (الصفحة لم تُفتح، نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.midasbuy.com/ot/pubg", "title": "Midasbuy Top-Up Center", "publisher": "Midasbuy (Tencent)", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 35, "verifiedBy": "market-scout"
+    },
+    {
+      "scope": "brand", "ref": "gc-amazon-us", "availability": "REGION_ACCOUNT_REQUIRED",
+      "note": "بطاقة أمازون الأمريكية تُصرف فقط على amazon.com ولا تنتقل لمتجر بلد آخر. الشحن إلى السنغال غير متحقق منه. (نتيجة بحث فقط)",
+      "sources": [
+        { "url": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GNG9PXYZUMQT72QK", "title": "Amazon.com Balance and Amazon.com Gift Card Terms and Conditions", "publisher": "Amazon", "accessedAt": "2026-10-20" }
+      ],
+      "confidence": 40, "verifiedBy": "market-scout"
+    }
+  ]
+}
