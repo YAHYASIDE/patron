@@ -1,3 +1,4 @@
+import { StreamableFile } from '@nestjs/common';
 import { PERMISSIONS_KEY } from '../../src/common/decorators/require-permissions.decorator';
 import {
   AuditLogController, BroadcastController, CatalogToolsController, CouponsAdminController, CustomersAdminController,
@@ -23,7 +24,7 @@ describe('admin-tools controllers', () => {
     const exporter: any = {
       ordersCsv: jest.fn().mockResolvedValue({ filename: 'o.csv', csv: '﻿a\r\n' }),
       customersCsv: jest.fn().mockResolvedValue({ filename: 'c.csv', csv: '﻿b\r\n' }),
-      backup: jest.fn().mockResolvedValue({ filename: 'b.json', body: { version: 1 } }),
+      backup: jest.fn().mockResolvedValue({ filename: 'b.json', body: Buffer.from('{"version":3}') }),
     };
     const c = new DataExportController(exporter);
 
@@ -41,7 +42,10 @@ describe('admin-tools controllers', () => {
       expect(await c.customers(r1)).toBe('﻿b\r\n');
       expect(r1.setHeader).toHaveBeenCalledWith('content-disposition', 'attachment; filename="c.csv"');
       const r2 = res();
-      expect(await c.backup(r2)).toEqual({ version: 1 });
+      const file = await c.backup(r2, 'owner-1');
+      expect(file).toBeInstanceOf(StreamableFile);
+      expect(file.options.length).toBe(13);
+      expect(exporter.backup).toHaveBeenCalledWith('owner-1');
       expect(r2.setHeader).toHaveBeenCalledWith('content-type', 'application/json; charset=utf-8');
       expect(r2.setHeader).toHaveBeenCalledWith('content-disposition', 'attachment; filename="b.json"');
     });

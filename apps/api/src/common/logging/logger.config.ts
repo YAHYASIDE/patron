@@ -42,6 +42,7 @@ export const loggerConfig = (isProduction: boolean): Params => ({
         'req.body.refreshToken',
         'req.body.apiKey',
         'req.body.apiSecret',
+        'req.body.passphrase',
         'res.headers["set-cookie"]',
         '*.passwordHash',
         '*.apiKeyEnc',
@@ -72,7 +73,8 @@ export const loggerConfig = (isProduction: boolean): Params => ({
       // alone does not declare it, hence the intersection rather than `any`.
       req: (req: IncomingMessage & { remoteAddress?: string }) => ({
         method: req.method,
-        url: req.url,
+        // an OAuth redirect carries a one-time code and our signed state in the query
+        url: req.url?.replace(/([?&](?:code|state)=)[^&]*/g, '$1[REDACTED]'),
         ip: req.remoteAddress,
       }),
       res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
