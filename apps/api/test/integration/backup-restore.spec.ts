@@ -35,6 +35,8 @@ describe('Backup and restore', () => {
     ]) await prisma.currency.upsert({ where: { code: c.code }, update: {}, create: c });
     const rate = await prisma.fxRate.create({ data: { baseCurrency: 'USD', quoteCurrency: 'MRU', rate: 39.8, source: 'MANUAL' } });
     const role = await prisma.role.create({ data: { name: 'customer', isSystem: true } });
+    const ordersRead = await prisma.permission.create({ data: { key: 'orders.read', module: 'orders' } });
+    await prisma.rolePermission.create({ data: { roleId: role.id, permissionId: ordersRead.id } });
     const owner = await prisma.user.create({
       data: { email: 'owner@shop.test', fullName: 'Owner', passwordHash: '$argon2id$secret-hash', twoFaSecretEnc: 'enc-2fa' },
     });
@@ -167,6 +169,18 @@ describe('Backup and restore', () => {
     // …a new one is migrated (which seeds a currency, a rate and a setting of its own)
     await prisma.currency.create({ data: { code: 'XOF', nameAr: 'فرنك', nameEn: 'CFA', symbol: 'F', decimals: 0 } });
     await prisma.systemSetting.create({ data: { key: 'payments.manual_note', value: 'default' } });
+    // …and its own roles and permissions: the same customer role and orders.read (other ids), plus
+    // what newer migrations add and this backup predates: the agent role and backup.manage
+    await prisma.role.create({
+      data: {
+        name: 'customer',
+        permissions: { create: [
+          { permission: { create: { key: 'orders.read', module: 'orders' } } },
+          { permission: { create: { key: 'backup.manage', module: 'system' } } },
+        ] },
+      },
+    });
+    await prisma.role.create({ data: { name: 'agent', isSystem: true } });
 
     const written = await backups.restore(file, { ownerEmail: 'owner@shop.test', ownerPasswordHash: '$argon2id$new-hash' });
     expect(written.order).toBe(1);
@@ -182,8 +196,24 @@ describe('Backup and restore', () => {
     expect(after.counts).toMatchObject({
       passkey: 1, accountRecoveryRequest: 1, usdtOrder: 1, usdtOrderEvent: 2, agent: 1, agentPayout: 1, commission: 1, bankNotification: 1,
     });
-    // the secret settings stayed behind; every other row came back
-    expect(after.counts).toEqual({ ...before.counts, systemSetting: before.counts.systemSetting - 2 });
+    // the secret settings stayed behind; every other row came back, plus the newer role and permission
+    expect(after.counts).toEqual({
+      ...before.counts,
+      systemSetting: before.counts.systemSetting - 2,
+      role: before.counts.role + 1,
+      permission: before.counts.permission + 1,
+      rolePermission: before.counts.rolePermission + 1,
+    });
+    const access = await prisma.role.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, permissions: { select: { permission: { select: { key: true } } }, orderBy: { permission: { key: 'asc' } } } },
+    });
+    expect(access.map((r) => [r.name, r.permissions.map((p) => p.permission.key)])).toEqual([
+      ['agent', []],
+      ['customer', ['backup.manage', 'orders.read']],
+    ]);
+    // the customer role kept the backup's id: user roles still point at it
+    expect((await prisma.userRole.findFirstOrThrow()).roleId).toBe(access[1].id);
     // the agent links survived the users ↔ agents circle
     expect((await prisma.user.findUniqueOrThrow({ where: { id: customer.id } })).referredByAgentId).toBe(agent.id);
     expect((await prisma.order.findFirstOrThrow()).agentId).toBe(agent.id);

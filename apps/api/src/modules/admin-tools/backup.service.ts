@@ -122,6 +122,19 @@ const TABLES: TableSpec[] = [
 /** Tables a fresh, migrated database already has rows in; the backup's rows replace them. */
 const REPLACED_ON_RESTORE = ['systemSetting', 'fxRate', 'currency'];
 
+/**
+ * Roles and permissions are seeded by migrations too (Platform V2 adds the agent
+ * role and permissions such as backup.manage). The backup's rows replace them,
+ * but whatever the migrations know and the backup does not (a backup taken
+ * before those migrations) is put back with its grants, so a restored shop
+ * keeps every feature of the code it runs.
+ */
+interface SeededAccess {
+  roles: Row[];
+  permissions: Row[];
+  grants: Array<{ role: string; key: string }>;
+}
+
 /** Json columns per model: a null there must be written as DbNull, not as a JSON null. */
 const JSON_FIELDS: Record<string, string[]> = Object.fromEntries(
   Prisma.dmmf.datamodel.models.map((m) => [
@@ -272,6 +285,13 @@ export class BackupService {
         for (const model of REPLACED_ON_RESTORE) {
           if (file.tables[model]?.length) await db[model].deleteMany({});
         }
+        const replacesAccess = !!(file.tables.role?.length || file.tables.permission?.length);
+        const seeded = replacesAccess ? await this.seededAccess(tx) : null;
+        if (replacesAccess) {
+          await tx.rolePermission.deleteMany({});
+          await tx.permission.deleteMany({});
+          await tx.role.deleteMany({});
+        }
         // column → value → ids, set once the table they point at is in
         const later: Array<{ model: string; column: string; byValue: Map<string, string[]> }> = [];
         for (const spec of TABLES) {
@@ -301,6 +321,7 @@ export class BackupService {
             await db[model].updateMany({ where: { id: { in: ids } }, data: { [column]: value } });
           }
         }
+        if (seeded) await this.keepSeededAccess(tx, seeded);
         // the owner signs in again with the seeded password; everyone else resets theirs
         if (opts.ownerEmail && opts.ownerPasswordHash) {
           await tx.user.updateMany({
@@ -312,6 +333,37 @@ export class BackupService {
       { timeout: 300_000, maxWait: 30_000 },
     );
     return written;
+  }
+
+  private async seededAccess(tx: Prisma.TransactionClient): Promise<SeededAccess> {
+    const [roles, permissions, grants] = await Promise.all([
+      tx.role.findMany(),
+      tx.permission.findMany(),
+      tx.rolePermission.findMany({ select: { role: { select: { name: true } }, permission: { select: { key: true } } } }),
+    ]);
+    return {
+      roles: roles as unknown as Row[],
+      permissions: permissions as unknown as Row[],
+      grants: grants.map((g) => ({ role: g.role.name, key: g.permission.key })),
+    };
+  }
+
+  /** Put back the roles and permissions the backup does not know, with their grants. */
+  private async keepSeededAccess(tx: Prisma.TransactionClient, seeded: SeededAccess) {
+    const roleIds = new Map((await tx.role.findMany({ select: { id: true, name: true } })).map((r) => [r.name, r.id]));
+    const permIds = new Map((await tx.permission.findMany({ select: { id: true, key: true } })).map((p) => [p.key, p.id]));
+    const newRoles = seeded.roles.filter((r) => !roleIds.has(String(r.name)));
+    const newPerms = seeded.permissions.filter((p) => !permIds.has(String(p.key)));
+    if (newRoles.length) await tx.role.createMany({ data: newRoles as never });
+    if (newPerms.length) await tx.permission.createMany({ data: newPerms as never });
+    for (const r of newRoles) roleIds.set(String(r.name), String(r.id));
+    for (const p of newPerms) permIds.set(String(p.key), String(p.id));
+    const added = new Set([...newRoles.map((r) => `r:${r.name}`), ...newPerms.map((p) => `p:${p.key}`)]);
+    const grants = seeded.grants
+      .filter((g) => added.has(`r:${g.role}`) || added.has(`p:${g.key}`))
+      .map((g) => ({ roleId: roleIds.get(g.role), permissionId: permIds.get(g.key) }))
+      .filter((g): g is { roleId: string; permissionId: string } => !!g.roleId && !!g.permissionId);
+    if (grants.length) await tx.rolePermission.createMany({ data: grants, skipDuplicates: true });
   }
 
   /** Numbers that must survive a backup and restore unchanged. */
