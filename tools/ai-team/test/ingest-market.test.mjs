@@ -15,6 +15,7 @@ for (const code of ['ML', 'SN', 'MR']) {
     assert.ok(body.market.methods.length > 0);
     for (const m of body.market.methods) {
       assert.ok(m.sources.length > 0 && m.sources.every((s) => /^https:\/\//.test(s.url) && s.accessedAt), m.key);
+      assert.ok(!m.note || m.note.length <= 1000, `${m.key}: note longer than the API accepts`);
       assert.ok(m.confidence <= 40, `${m.key}: no page was fetched, confidence must stay ≤ 40`);
       if (code !== 'MR') assert.doesNotMatch(`${m.key} ${m.name}`, MR_ONLY, `${code} must not list a Mauritanian method`);
     }

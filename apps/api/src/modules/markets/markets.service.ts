@@ -497,7 +497,7 @@ function cleanMethod(item: MarketMethodInput, index: number, actor: MarketActor)
     provider: optionalText(item.provider, 120),
     currency: currency || null,
     fees: optionalText(item.fees, 500),
-    note: optionalText(item.note, 500),
+    note: optionalText(item.note, 1000),
     sources: cleanSources(item.sources, index),
     confidence: cleanConfidence(item.confidence),
     verifiedBy: cleanText(item.verifiedBy, 80) || actor.label,

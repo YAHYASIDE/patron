@@ -105,7 +105,7 @@ export class MarketMethodItemDto extends ResearchedDto implements MarketMethodIn
   @ApiPropertyOptional({ description: 'As the source states them' })
   @IsOptional() @Transform(trim) @IsString() @MaxLength(500) fees?: string;
   @ApiPropertyOptional({ description: 'What the research could not confirm' })
-  @IsOptional() @Transform(trim) @IsString() @MaxLength(500) note?: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(1000) note?: string;
 }
 
 export class UpsertMethodsDto {
