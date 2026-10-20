@@ -22,6 +22,7 @@ import type {
   TokenPair,
 } from './types';
 import { getLang, tNow } from './i18n';
+import { withRef } from './ref-store';
 
 /**
  * In French or English the catalogue shows the English names: products carry
@@ -273,7 +274,8 @@ export const auth = {
   async phoneStart(body: { phone: string; fullName?: string }) {
     const res = await request<({ status: 'SIGNED_IN' } & TokenPair) | { status: 'CODE_REQUIRED' }>(
       '/auth/phone/start',
-      { method: 'POST', body },
+      // the ?ref code a visitor came with: kept by the server only when this creates the account
+      { method: 'POST', body: withRef(body) },
     );
     if (res.status === 'SIGNED_IN') storeTokens(res);
     return res.status;

@@ -22,6 +22,7 @@ import { WalletModule } from '../wallet/wallet.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { CustomerModule } from '../customer/customer.module';
 import { AdminToolsModule } from '../admin-tools/admin-tools.module';
+import { AgentsModule } from '../agents/agents.module';
 
 /**
  * In production the workers run as a separate process (`npm run start:worker`)
@@ -67,6 +68,7 @@ import { AdminToolsModule } from '../admin-tools/admin-tools.module';
     MaintenanceModule,
     CustomerModule,
     AdminToolsModule,
+    AgentsModule, // its queue: the relay hands it order events
   ],
   providers: [
     OutboxRelay,
