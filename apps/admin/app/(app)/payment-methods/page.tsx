@@ -190,7 +190,11 @@ function AccountCard({
             </button>
           ))}
         </div>
-        {a.countries.length === 0 && <span className="text-xs text-muted">بلا اختيار = تظهر في كل الدول.</span>}
+        {a.countries.length === 0 && (
+          <p role="note" className="rounded-xl bg-warn/10 px-3 py-2 text-xs font-semibold text-warn">
+            هذا الحساب يظهر في كل الدول — حدّد الدول.
+          </p>
+        )}
       </div>
 
       <div className="mt-3">
