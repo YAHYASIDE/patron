@@ -178,7 +178,43 @@ describe('QuotesService', () => {
       pricing.convert.mockResolvedValue({ amount: D(999) });
 
       await service.create('u1', dto({ currency: 'EUR', couponCode: 'BIG' }));
-      expect(tx.checkoutQuote.create.mock.calls[0][0].data.discount.toString()).toBe('20');
+      // subtotal 20, cost 4: the coupon stops at the margin (16), so the total never falls below cost
+      expect(tx.checkoutQuote.create.mock.calls[0][0].data.discount.toString()).toBe('16');
+    });
+
+    it('a coupon never sells below cost, in the quote currency too', async () => {
+      prisma.coupon.findUnique.mockResolvedValue({
+        id: 'c1', isActive: true, startsAt: null, expiresAt: null,
+        maxUses: null, usedCount: 0, maxUsesPerUser: null, minOrderTotal: null,
+        discountType: 'PERCENT', discountValue: D(10), maxDiscount: null, currency: null,
+      });
+      // sells 10 a unit; costs 9.5 a unit (base) → margin 1 for two units
+      prisma.product.findFirst.mockResolvedValue(makeProduct({ costPrice: D(9.5) }));
+      await service.create('u1', dto({ couponCode: 'WELCOME10' }));
+      let data = tx.checkoutQuote.create.mock.calls[0][0].data;
+      expect(data.discount.toString()).toBe('1'); // 10% would be 2
+      expect(data.total.toString()).toBe('19');
+
+      // in MRU at 40 per USD: subtotal 800, cost 9.5 × 2 × 40 = 760 → at most 40 off
+      pricing.priceProduct.mockResolvedValue({ amount: D(400), baseAmount: D(10) });
+      pricing.getRate.mockResolvedValue({ rate: D(40), id: 'fx-mru' });
+      await service.create('u1', dto({ currency: 'MRU', couponCode: 'WELCOME10' }));
+      data = tx.checkoutQuote.create.mock.calls[1][0].data;
+      expect(data.discount.toString()).toBe('40');
+      expect(data.total.toString()).toBe('760');
+    });
+
+    it('refuses a coupon on products that leave no margin, instead of using it up for nothing', async () => {
+      prisma.coupon.findUnique.mockResolvedValue({
+        id: 'c1', isActive: true, startsAt: null, expiresAt: null,
+        maxUses: null, usedCount: 0, maxUsesPerUser: null, minOrderTotal: null,
+        discountType: 'PERCENT', discountValue: D(10), maxDiscount: null, currency: null,
+      });
+      prisma.product.findFirst.mockResolvedValue(makeProduct({ costPrice: D(10) }));
+      await expect(service.create('u1', dto({ couponCode: 'WELCOME10' }))).rejects.toMatchObject({
+        response: { error: 'COUPON_NO_MARGIN' },
+      });
+      expect(tx.checkoutQuote.create).not.toHaveBeenCalled();
     });
 
     it('prefers the live provider cost over the catalog cost', async () => {

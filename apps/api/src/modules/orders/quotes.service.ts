@@ -67,18 +67,28 @@ export class QuotesService {
     const subtotal = sum(priced.map((p) => p.lineTotal));
     const totalCostBase = sum(priced.map((p) => p.unitCostBase.mul(p.quantity)));
 
+    const { rate, id: fxRateId } = await this.pricing.getRate(currency);
+
     const coupon = dto.couponCode ? await this.resolveCoupon(dto.couponCode, userId, subtotal, currency) : null;
-    const discount = coupon
-      ? await this.discountFor(coupon, subtotal, currency, currencyRow.decimals)
-      : ZERO();
+    let discount = coupon ? await this.discountFor(coupon, subtotal, currency, currencyRow.decimals) : ZERO();
+    if (coupon && discount.gt(0)) {
+      // The owner's rule: a coupon never sells below cost. It can take at most
+      // this order's margin (what we sell for minus what the goods cost us).
+      const margin = Prisma.Decimal.max(subtotal.minus(totalCostBase.mul(rate)), ZERO());
+      discount = Prisma.Decimal.min(discount, margin).toDecimalPlaces(currencyRow.decimals, Prisma.Decimal.ROUND_DOWN);
+      if (discount.lte(0)) {
+        throw new BadRequestException({
+          message: 'This coupon cannot be used on these products',
+          error: 'COUPON_NO_MARGIN',
+        });
+      }
+    }
 
     // Tax is 0 in MVP but flows through the same arithmetic, so switching it on
     // later needs no change to totals or to the CHECK constraint.
     const taxAmount = ZERO();
     const fees = ZERO();
     const total = subtotal.minus(discount).plus(fees).plus(taxAmount);
-
-    const { rate, id: fxRateId } = await this.pricing.getRate(currency);
 
     return this.prisma.$transaction(async (tx) => {
       const quote = await tx.checkoutQuote.create({
