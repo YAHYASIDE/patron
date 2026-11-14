@@ -264,7 +264,7 @@ export default function BrandView({
               />
               <div className="grid gap-3 sm:grid-cols-2">
                 {schema.map((f) => (
-                  <label key={f.key} className="flex flex-col gap-1.5">
+                  <label key={f.key} className="flex min-w-0 flex-col gap-1.5">
                     <span className="text-sm font-semibold">
                       {labelOf(f)}
                       {f.required && <span className="text-bad"> *</span>}
@@ -282,7 +282,9 @@ export default function BrandView({
                           setErr(null);
                           setFieldErr(null);
                         }}
-                        className={`surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal ${fieldErr?.key === f.key ? 'border-bad' : ''}`}
+                        // w-full + min-w-0: a select is as wide as its longest option, which on a
+                        // 320 px phone in French pushed the page sideways
+                        className={`surface-2 hairline w-full min-w-0 rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal ${fieldErr?.key === f.key ? 'border-bad' : ''}`}
                       >
                         <option value="">{t('اختر…')}</option>
                         {f.options.map((o) => (
