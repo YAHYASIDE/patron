@@ -5,6 +5,7 @@ import { CryptoService } from '../../common/crypto/crypto.service';
 import { ProviderAdapter, ProviderCredentials } from './adapters/provider-adapter.interface';
 import { FazerCardsAdapter } from './adapters/fazercards.adapter';
 import { FoxReloadAdapter } from './adapters/foxreload.adapter';
+import { GamesDropAdapter } from './adapters/gamesdrop.adapter';
 
 /**
  * Maps a provider row to its adapter implementation and decrypts credentials
@@ -22,7 +23,7 @@ export class ProviderRegistry implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    for (const type of [FazerCardsAdapter, FoxReloadAdapter]) {
+    for (const type of [FazerCardsAdapter, FoxReloadAdapter, GamesDropAdapter]) {
       const adapter = this.moduleRef.get(type, { strict: false });
       this.adapters.set(adapter.code, adapter);
     }

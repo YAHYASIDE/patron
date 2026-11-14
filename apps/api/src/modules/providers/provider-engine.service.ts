@@ -60,6 +60,18 @@ export class ProviderEngine {
     for (const candidate of candidates) {
       const { adapter, creds, code } = await this.registry.credentialsFor(candidate.providerId);
 
+      // The owner's daily cap: once reached, this supplier buys nothing more today
+      // and the item falls through to the next supplier or to manual delivery.
+      const cap = dailyLimit(creds.config);
+      if (cap !== null) {
+        const spent = await this.spentToday(candidate.providerId);
+        if (spent + Number(candidate.providerCost) * item.quantity > cap) {
+          lastError = `daily_limit: ${code} reached its daily limit (${cap})`;
+          previousProviderCode = code;
+          continue;
+        }
+      }
+
       // Distinguishing a failover from a first attempt is what makes
       // "the primary is degraded" visible before customers notice.
       if (previousProviderCode) {
@@ -94,6 +106,7 @@ export class ProviderEngine {
                 quantity: item.quantity,
                 inputs,
                 reference: item.id,
+                maxUnitCost: Number(candidate.providerCost),
               },
               creds,
             );
@@ -186,6 +199,18 @@ export class ProviderEngine {
 
   // ─────────────── internals ───────────────
 
+  /** Spent at this supplier today (UTC) at the agreed costs: delivered or in flight. */
+  async spentToday(providerId: string): Promise<number> {
+    const [row] = await this.prisma.$queryRaw<Array<{ spent: Prisma.Decimal | null }>>`
+      SELECT COALESCE(SUM(pp."providerCost" * oi.quantity), 0) AS spent
+      FROM order_items oi
+      JOIN product_providers pp ON pp."productId" = oi."productId" AND pp."providerId" = oi."fulfilledByProviderId"
+      WHERE oi."fulfilledByProviderId" = ${providerId}::uuid
+        AND oi.status IN ('DELIVERED', 'PROCESSING')
+        AND oi."updatedAt" >= date_trunc('day', now() AT TIME ZONE 'UTC')`;
+    return Number(row?.spent ?? 0);
+  }
+
   /**
    * Atomically take ownership. The conditional update is the concurrency
    * guard: two workers handed the same job can't both start fulfilment,
@@ -274,4 +299,10 @@ export class ProviderEngine {
       await this.prisma.provider.update({ where: { id: providerId }, data: { isHealthy: false } });
     }
   }
+}
+
+/** providers.extraConfig.dailyLimit, when the owner set one. */
+function dailyLimit(config: Record<string, unknown> | undefined): number | null {
+  const v = config?.dailyLimit;
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 }
