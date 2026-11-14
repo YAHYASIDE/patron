@@ -75,14 +75,27 @@ class ApiClient {
 
   // ─── Staff endpoints ───
 
-  Future<AttentionSummary> attention() async =>
-      AttentionSummary.fromJson(_asMap(await _send('GET', '/admin/orders/attention')));
-
-  Future<StaffNoticePage> staffNotifications({String state = 'open', int limit = 50}) async {
-    final json = await _send('GET', '/admin/staff-notifications',
-        query: {'state': state, 'limit': '$limit'});
-    return StaffNoticePage.fromJson(_asMap(json));
+  /// Render's free plan puts the server to sleep; this starts waking it while
+  /// the owner is still on the fingerprint prompt. Failures are ignored: the
+  /// screens report them.
+  Future<void> wake() async {
+    try {
+      await _http.get(_uri('/health/live', null)).timeout(timeout);
+    } on Object {
+      // nothing to do: the next real request shows the error
+    }
   }
+
+  Future<AttentionSummary> attention() async => AttentionSummary.fromJson(await attentionJson());
+
+  /// The raw response, kept by the home screen so it can open instantly next time.
+  Future<Map<String, dynamic>> attentionJson() async => _asMap(await _send('GET', '/admin/orders/attention'));
+
+  Future<StaffNoticePage> staffNotifications({String state = 'open', int limit = 50}) async =>
+      StaffNoticePage.fromJson(await staffNotificationsJson(state: state, limit: limit));
+
+  Future<Map<String, dynamic>> staffNotificationsJson({String state = 'open', int limit = 50}) async =>
+      _asMap(await _send('GET', '/admin/staff-notifications', query: {'state': state, 'limit': '$limit'}));
 
   Future<void> markNotificationRead(String id) async {
     await _send('POST', '/admin/staff-notifications/${Uri.encodeComponent(id)}/read');

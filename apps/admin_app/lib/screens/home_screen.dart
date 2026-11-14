@@ -1,12 +1,23 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../api/api_client.dart';
 import '../api/models.dart';
 import '../app.dart';
+import '../settings.dart';
 import '../theme.dart';
 import '../widgets/states.dart';
 
+/// How long a first load may take before the screen says the server is waking up.
+abstract final class HomeScreenSlow {
+  static const after = Duration(seconds: 6);
+}
+
 /// What needs the owner now: attention counts and open staff notifications.
+///
+/// It opens at once on the last answer the server gave (kept on the phone) and
+/// refreshes behind it, so a sleeping server never means an empty screen.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -20,27 +31,77 @@ class _HomeScreenState extends State<HomeScreen> {
   Object? _error;
   bool _loading = true;
 
+  /// When the shown data was saved, while it is the phone's copy (null once fresh).
+  DateTime? _savedAt;
+
+  /// Set when a load without anything to show takes long: the server is waking up.
+  bool _slow = false;
+  Timer? _slowTimer;
+
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showSaved();
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showSaved() {
+    final saved = Services.of(context).settings.homeSnapshot;
+    if (saved == null) return;
+    try {
+      setState(() {
+        _attention = AttentionSummary.fromJson(saved.attention);
+        _notices = StaffNoticePage.fromJson(saved.notices);
+        _savedAt = saved.savedAt;
+      });
+    } on Object {
+      // an old copy the app can no longer read: wait for the server
+    }
   }
 
   Future<void> _load() async {
-    final api = Services.of(context).api;
-    setState(() => _loading = true);
+    final s = Services.of(context);
+    setState(() {
+      _loading = true;
+      _slow = false;
+    });
+    _slowTimer?.cancel();
+    _slowTimer = Timer(HomeScreenSlow.after, () {
+      if (mounted && _loading) setState(() => _slow = true);
+    });
     try {
-      final results = await Future.wait([api.attention(), api.staffNotifications()]);
+      final results = await Future.wait([s.api.attentionJson(), s.api.staffNotificationsJson()]);
+      final attention = AttentionSummary.fromJson(results[0]);
+      final notices = StaffNoticePage.fromJson(results[1]);
+      await s.settings.saveHomeSnapshot(
+        HomeSnapshot(attention: results[0], notices: results[1], savedAt: DateTime.now()),
+      );
       if (!mounted) return;
       setState(() {
-        _attention = results[0] as AttentionSummary;
-        _notices = results[1] as StaffNoticePage;
+        _attention = attention;
+        _notices = notices;
+        _savedAt = null;
         _error = null;
       });
     } on Object catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      _slowTimer?.cancel();
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _slow = false;
+        });
+      }
     }
   }
 
@@ -79,7 +140,9 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
+            if (_savedAt != null) _SavedBanner(savedAt: _savedAt!, refreshing: _loading),
             if (_loading && a == null) const LoadingBlock(),
+            if (_slow && a == null) const _WakingNote(),
             if (_error != null) ErrorBlock(error: _error!, onRetry: _load),
             if (a != null) ...[
               _Counters(summary: a),
@@ -289,4 +352,56 @@ class StaffNoticeTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Shown over the phone's copy: how old it is, and that a fresh one is coming.
+class _SavedBanner extends StatelessWidget {
+  const _SavedBanner({required this.savedAt, required this.refreshing});
+
+  final DateTime savedAt;
+  final bool refreshing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          if (refreshing)
+            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            const Icon(Icons.history, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${refreshing ? 'جار التحديث… ' : ''}آخر تحديث ${savedAgo(savedAt, DateTime.now())}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WakingNote extends StatelessWidget {
+  const _WakingNote();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 8),
+        child: Text(
+          'الخادم يستيقظ بعد فترة توقف، قد يستغرق ذلك حتى دقيقة. سيظهر كل شيء تلقائيا.',
+          textAlign: TextAlign.center,
+        ),
+      );
+}
+
+/// "قبل 5 دقائق", "قبل ساعتين"…: how long ago the phone's copy was saved.
+String savedAgo(DateTime savedAt, DateTime now) {
+  final d = now.difference(savedAt);
+  if (d.inMinutes < 1) return 'الآن';
+  if (d.inMinutes < 60) return 'قبل ${d.inMinutes} دقيقة';
+  if (d.inHours < 24) return 'قبل ${d.inHours} ساعة';
+  return 'قبل ${d.inDays} يوم';
 }

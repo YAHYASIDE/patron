@@ -187,7 +187,7 @@ void main() {
     // Lock again, then choose the password instead.
     services.session.didEnterBackground();
     await tester.pump();
-    unawaited(services.session.didResume()); // within 5 min: stays open
+    unawaited(services.session.didResume()); // within the relock delay: stays open
     await tester.pumpAndSettle();
     expect(services.session.state, SessionState.signedIn);
   });

@@ -11,14 +11,15 @@ enum SessionState { loading, signedOut, locked, signedIn }
 /// - A fresh install shows the login (staff email + password).
 /// - A saved session reopens behind the fingerprint when the lock is on and
 ///   the phone supports it; "use the password" drops the saved session.
-/// - Coming back after [relockAfter] in the background locks again.
+/// - Coming back after the owner's chosen time in the background (settings,
+///   30 minutes by default) locks again.
 class SessionController extends ChangeNotifier {
   SessionController({
     required this._api,
     required this._biometric,
     required this._settings,
     DateTime Function()? clock,
-    this.relockAfter = const Duration(minutes: 5),
+    this._relockAfter,
   }) : _clock = clock ?? DateTime.now {
     _api.onSessionExpired = _expired;
   }
@@ -27,7 +28,9 @@ class SessionController extends ChangeNotifier {
   final BiometricGate _biometric;
   final AppSettings _settings;
   final DateTime Function() _clock;
-  final Duration relockAfter;
+  final Duration? _relockAfter;
+
+  Duration get relockAfter => _relockAfter ?? Duration(minutes: _settings.relockMinutes);
 
   SessionState _state = SessionState.loading;
   SessionState get state => _state;
@@ -60,6 +63,7 @@ class SessionController extends ChangeNotifier {
 
   Future<void> logout() async {
     await _api.logout();
+    await _settings.clearHomeSnapshot();
     _set(SessionState.signedOut);
   }
 
@@ -80,6 +84,7 @@ class SessionController extends ChangeNotifier {
 
   void _expired() {
     expired = true;
+    _settings.clearHomeSnapshot();
     _set(SessionState.signedOut);
   }
 

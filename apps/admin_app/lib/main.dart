@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:http/http.dart' as http;
 
@@ -20,6 +22,8 @@ Future<void> main() async {
     baseUrl: () => settings.apiUrl,
     tokens: SecureTokenStore(),
   );
+  // Start waking the server now: it overlaps the fingerprint prompt.
+  unawaited(api.wake());
   final session = SessionController(api: api, biometric: LocalAuthGate(), settings: settings);
   final bank = BankSync(
     platform: MethodChannelBankListener(),
