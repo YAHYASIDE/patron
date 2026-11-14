@@ -30,6 +30,10 @@ function couponProblem(err: ApiError): string | null {
   if (/not active yet|not started/i.test(m)) return tNow('هذا الكود لم يبدأ بعد. جرّبه لاحقًا.');
   if (/fully redeemed|no uses left|limit/i.test(m)) return tNow('نفدت مرات استخدام هذا الكود.');
   if (/already used/i.test(m)) return tNow('لقد استخدمت هذا الكود من قبل.');
+  // the coupon would sell these products below cost (COUPON_NO_MARGIN)
+  if (err.code === 'COUPON_NO_MARGIN' || /cannot be used on these products/i.test(m)) {
+    return tNow('هذا الكود لا ينطبق على المنتجات التي في سلّتك.');
+  }
   const min = m.match(/minimum order total[^\d]*([\d.,]+)\s*([A-Z]{3})?/i);
   if (min) {
     const amount = money(min[1].replace(/,/g, ''), min[2] ?? getCurrency());
