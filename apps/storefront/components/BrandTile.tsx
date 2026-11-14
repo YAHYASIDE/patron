@@ -9,7 +9,7 @@ import FavoriteButton from './FavoriteButton';
 
 const SIZES = {
   // four to a row on phones, like app icons
-  sm: { radius: 'rounded-xl', name: 'text-[11px] min-[360px]:text-[12px] sm:text-[13px]', price: 'text-[11px]', gap: 'gap-1.5' },
+  sm: { radius: 'rounded-xl', name: 'text-[12px] sm:text-[13px]', price: 'text-[11px] min-[360px]:text-[12px]', gap: 'gap-1.5' },
   md: { radius: 'rounded-2xl', name: 'text-[14px]', price: 'text-xs', gap: 'gap-2.5' },
 } as const;
 
@@ -72,10 +72,12 @@ export default function BrandTile({ brand, size = 'md' }: { brand: Brand; size?:
 
 export function BrandTileSkeleton() {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="aspect-square animate-pulse rounded-xl bg-[rgb(var(--surface-2))]" />
-      <div className="h-3.5 w-3/4 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
-      <div className="h-3 w-1/2 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
+    // the tile's own shape: square art, two lines of name, the price line
+    <div aria-hidden className="flex flex-col gap-1.5">
+      <div className="skel aspect-square rounded-xl" />
+      <div className="skel mt-0.5 h-3.5 w-3/4" />
+      <div className="skel h-3.5 w-1/3" />
+      <div className="skel h-3 w-1/2" />
     </div>
   );
 }

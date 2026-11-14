@@ -1,0 +1,175 @@
+# Patron Discovery Engine — daily, read-only analysis of the repository.
+#
+# Job `discover` tests and runs tools/discovery (see tools/discovery/README.md), audits the
+# production dependencies of the API, dashboard and store, and uploads report.json + report.md
+# (Arabic) as the `discovery-report` artifact; the Markdown also goes to the run summary.
+#
+# Optional repository secrets (the workflow runs without any of them):
+#   INTEL_API_URL       API base including /api/v1. Together with INTEL_INGEST_TOKEN it sends the
+#                       report to POST /admin/intelligence/ingest, so the findings appear in the
+#                       dashboard's «مركز الذكاء والتطوير».
+#   INTEL_INGEST_TOKEN  the API's INTEL_INGEST_TOKEN, sent as the x-intel-token header.
+#   ANTHROPIC_API_KEY   enables job `ai-review`: Claude, acting as patron-manager
+#                       (.claude/agents/patron-manager.md), reads the report and writes a
+#                       prioritised Arabic summary, uploaded as the `ai-review` artifact.
+#
+# It never pushes, comments, opens pull requests or deploys: the token is read-only.
+
+name: Intelligence
+
+on:
+  schedule: [{ cron: '23 4 * * *' }]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intelligence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discovery engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      ai_review: ${{ steps.flags.outputs.ai_review }}
+    env:
+      # secrets cannot be used in `if:` directly, so steps test these flags instead
+      INGEST_ENABLED: ${{ secrets.INTEL_API_URL != '' && secrets.INTEL_INGEST_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Optional features
+        id: flags
+        env:
+          HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          # reports live outside the checkout, so the scan never reads its own output
+          echo "REPORT_DIR=$RUNNER_TEMP/discovery" >> "$GITHUB_ENV"
+          echo "ai_review=$HAS_ANTHROPIC_KEY" >> "$GITHUB_OUTPUT"
+          echo "ingest: $INGEST_ENABLED, ai-review: $HAS_ANTHROPIC_KEY"
+
+      - name: Discovery engine tests
+        run: node --test tools/discovery/test/*.test.mjs
+
+      # npm audit exits non-zero when it finds something; the CLI reads the JSON either way.
+      - name: Dependency audit (api)
+        continue-on-error: true
+        working-directory: apps/api
+        run: mkdir -p "$REPORT_DIR" && npm audit --omit=dev --json > "$REPORT_DIR/audit-api.json"
+      - name: Dependency audit (admin)
+        continue-on-error: true
+        working-directory: apps/admin
+        run: mkdir -p "$REPORT_DIR" && npm audit --omit=dev --json > "$REPORT_DIR/audit-admin.json"
+      - name: Dependency audit (storefront)
+        continue-on-error: true
+        working-directory: apps/storefront
+        run: mkdir -p "$REPORT_DIR" && npm audit --omit=dev --json > "$REPORT_DIR/audit-storefront.json"
+
+      - name: Run the discovery engine
+        run: |
+          mkdir -p "$REPORT_DIR"
+          node tools/discovery/index.mjs --root . \
+            --audit "api=$REPORT_DIR/audit-api.json" \
+            --audit "admin=$REPORT_DIR/audit-admin.json" \
+            --audit "storefront=$REPORT_DIR/audit-storefront.json" \
+            --out "$REPORT_DIR/report.json" --md "$REPORT_DIR/report.md"
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$REPORT_DIR/report.md" ]; then cat "$REPORT_DIR/report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: discovery-report
+          path: |
+            ${{ runner.temp }}/discovery/report.json
+            ${{ runner.temp }}/discovery/report.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Send to the intelligence API
+        if: env.INGEST_ENABLED == 'true'
+        env:
+          INTEL_API_URL: ${{ secrets.INTEL_API_URL }}
+          INTEL_INGEST_TOKEN: ${{ secrets.INTEL_INGEST_TOKEN }}
+        run: |
+          node tools/discovery/index.mjs --root . \
+            --audit "api=$REPORT_DIR/audit-api.json" \
+            --audit "admin=$REPORT_DIR/audit-admin.json" \
+            --audit "storefront=$REPORT_DIR/audit-storefront.json" \
+            --out "$REPORT_DIR/report-ingested.json" --ingest
+
+  ai-review:
+    name: AI review (patron-manager)
+    needs: discover
+    # runs only when the ANTHROPIC_API_KEY secret is set (flag computed in `discover`)
+    if: needs.discover.outputs.ai_review == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: discovery-report
+          path: .discovery
+
+      - name: Claude reads the report
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          # read-only: no edits, no shell, no git, no pull requests
+          claude_args: >-
+            --max-turns 20
+            --allowedTools Read,Glob,Grep
+            --disallowedTools Edit,Write,MultiEdit,NotebookEdit,Bash,WebFetch,WebSearch
+          prompt: |
+            Act as patron-manager exactly as defined in .claude/agents/patron-manager.md, and follow
+            .claude/agents/_shared-rules.md. Read-only: do not edit any file, run commands, commit,
+            push, comment or open pull requests.
+
+            Input: the Discovery Engine report of this run in .discovery/report.json (and the
+            Arabic rendering in .discovery/report.md). Each discovery has a fingerprint, severity,
+            confidence and evidence (file:line); verified=false means a hypothesis.
+
+            Produce, in Arabic, for the owner (who is not technical):
+            1. A prioritised list P0…P3 (money safety → security → data safety → broken customer
+               journeys → markets → UX → growth), each item with its fingerprint and evidence,
+               and whether it is «مؤكد» or «تقدير».
+            2. The task board: id, title, owner agent, files, reviewer, acceptance test.
+            3. What needs the owner's decision.
+            Read the cited files to check the evidence before ranking. Never include secrets,
+            phone or account numbers or customer data. Reply with the summary only, as Markdown.
+
+      - name: Save the summary
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-review"
+          out="$RUNNER_TEMP/ai-review/summary.md"
+          if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+            jq -r '[.[] | select(.type == "result")] | last | .result // "لا يوجد ملخّص."' "$EXECUTION_FILE" > "$out"
+          else
+            echo "لم يُنتج Claude ملخّصًا في هذا التشغيل." > "$out"
+          fi
+          cat "$out" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-review
+          path: ${{ runner.temp }}/ai-review/summary.md
+          retention-days: 30
+          if-no-files-found: warn

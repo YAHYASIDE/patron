@@ -63,6 +63,18 @@ const PERMISSIONS: Array<[string, string, string]> = [
 
   ['settings.manage', 'system', 'Change platform settings'],
   ['audit.read', 'system', 'Read audit logs'],
+
+  ['usdt.read', 'usdt', 'View USDT orders'],
+  ['usdt.manage', 'usdt', 'Review, approve, send and reject USDT orders'],
+  ['agents.manage', 'agents', 'Manage agents, commission rules and payouts'],
+  ['agents.self', 'agents', 'An agent: see their own referrals and commissions'],
+  ['staff.notifications', 'system', 'Read the staff notification inbox'],
+  ['bank.review', 'payments', 'Review bank notifications read by the admin phone'],
+  ['backup.manage', 'system', 'Download, schedule and verify backups'],
+  ['recovery.review', 'users', 'Review account recovery requests'],
+  ['markets.manage', 'markets', 'Manage countries, payment-method suggestions and product availability'],
+  ['intelligence.read', 'intelligence', 'Read the intelligence and development center'],
+  ['intelligence.decide', 'intelligence', 'Approve, reject or defer discoveries and suggestions'],
 ];
 
 const ROLE_PERMISSIONS: Record<string, string[] | '*'> = {
@@ -75,16 +87,21 @@ const ROLE_PERMISSIONS: Record<string, string[] | '*'> = {
     'providers.read', 'providers.write',
     'coupons.manage', 'banners.manage', 'notifications.send',
     'reports.read', 'reports.export', 'audit.read',
+    'usdt.read', 'usdt.manage', 'agents.manage', 'staff.notifications', 'bank.review', 'recovery.review',
+    'markets.manage', 'intelligence.read', 'intelligence.decide',
   ],
   support: [
     'users.read', 'catalog.read',
     'orders.read', 'orders.retry',
     'payments.read', 'notifications.send',
+    'staff.notifications', 'recovery.review', 'intelligence.read',
   ],
   finance: [
     'orders.read', 'payments.read', 'payments.refund', 'wallet.adjust',
     'providers.read', 'reports.read', 'reports.export',
+    'usdt.read', 'staff.notifications', 'bank.review', 'intelligence.read',
   ],
+  agent: ['agents.self'],
   customer: [],
 };
 

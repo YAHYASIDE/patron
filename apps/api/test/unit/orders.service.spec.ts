@@ -70,6 +70,8 @@ describe('OrdersService', () => {
       orderItem: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       orderResult: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       coupon: { update: jest.fn().mockResolvedValue({}) },
+      // the customer's referring agent, read when the order is made
+      user: { findUnique: jest.fn().mockResolvedValue({ referredByAgent: null }) },
     };
     prisma = {
       checkoutQuote: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
@@ -90,6 +92,25 @@ describe('OrdersService', () => {
 
   describe('createFromQuote', () => {
     const meta = { ip: '1.2.3.4', userAgent: 'jest' };
+
+    it('credits the order to the customer\'s active referring agent', async () => {
+      prisma.checkoutQuote.findUnique.mockResolvedValue(makeQuote());
+      tx.user.findUnique.mockResolvedValue({ referredByAgent: { id: 'ag1', userId: 'agent-user', isActive: true } });
+      await service.createFromQuote('u1', 'q1', meta);
+      expect(tx.order.create.mock.calls[0][0].data.agentId).toBe('ag1');
+    });
+
+    it('credits nobody when the referring agent was deactivated, or is the customer', async () => {
+      prisma.checkoutQuote.findUnique.mockResolvedValue(makeQuote());
+      tx.user.findUnique.mockResolvedValueOnce({ referredByAgent: { id: 'ag1', userId: 'agent-user', isActive: false } });
+      await service.createFromQuote('u1', 'q1', meta);
+      expect(tx.order.create.mock.calls[0][0].data.agentId).toBeNull();
+
+      prisma.checkoutQuote.findUnique.mockResolvedValue(makeQuote());
+      tx.user.findUnique.mockResolvedValueOnce({ referredByAgent: { id: 'ag1', userId: 'u1', isActive: true } });
+      await service.createFromQuote('u1', 'q1', meta);
+      expect(tx.order.create.mock.calls[1][0].data.agentId).toBeNull();
+    });
 
     it('creates an order copying frozen values and emits an event', async () => {
       prisma.checkoutQuote.findUnique.mockResolvedValue(makeQuote());

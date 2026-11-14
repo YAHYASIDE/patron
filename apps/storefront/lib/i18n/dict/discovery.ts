@@ -8,7 +8,7 @@ import type { Dict } from '.';
 const dict: Dict = {
   fr: {
     // Splash, InstallPrompt
-    'بطاقات وشحن رقمي فوري': 'Cartes et recharges numériques instantanées',
+    'بطاقات وشحن رقمي موثوق': 'Cartes et recharges numériques de confiance',
     'ثبّت تطبيق patron': "Installez l'application patron",
     'افتح المتجر من شاشتك الرئيسية بلمسة، حتى مع اتصال ضعيف.':
       "Ouvrez la boutique depuis votre écran d'accueil en un geste, même avec une connexion faible.",
@@ -69,7 +69,7 @@ const dict: Dict = {
   },
   en: {
     // Splash, InstallPrompt
-    'بطاقات وشحن رقمي فوري': 'Instant digital cards and top-ups',
+    'بطاقات وشحن رقمي موثوق': 'Trusted digital cards and top-ups',
     'ثبّت تطبيق patron': 'Install the patron app',
     'افتح المتجر من شاشتك الرئيسية بلمسة، حتى مع اتصال ضعيف.':
       'Open the shop from your home screen in one tap, even on a weak connection.',

@@ -53,20 +53,15 @@ export function SectionTabs({
   );
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div role="tablist" className="flex w-max gap-2">
+    <div className="no-scrollbar -mx-4 overflow-x-auto px-4">
+      <div role="tablist" aria-label={t('الأقسام')} className="flex w-max gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id ?? 'all'}
             role="tab"
             aria-selected={value === tab.id}
             onClick={() => onChange(tab.id)}
-            className={
-              'min-h-10 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ' +
-              (value === tab.id
-                ? 'bg-teal text-white'
-                : 'surface text-muted hover:border-teal hover:text-[rgb(var(--text))]')
-            }
+            className="chip"
           >
             {tab.label}
           </button>

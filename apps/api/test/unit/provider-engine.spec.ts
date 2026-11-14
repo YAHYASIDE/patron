@@ -159,4 +159,58 @@ describe('ProviderEngine', () => {
     expect(data[0].valueEnc).toBe('enc(ABC-123)');
     expect(JSON.stringify(data)).not.toContain('"ABC-123"');
   });
+
+  describe('owner limits', () => {
+    it('passes the agreed cost to the adapter as the most it may pay', async () => {
+      registry.candidatesFor.mockResolvedValue([{ providerId: 'prov-1', providerSku: 'SKU_A', providerCost: '0.9900', priority: 0 }]);
+      primary.fulfil.mockResolvedValue(delivered());
+      await engine.fulfilItem('item-1');
+      expect(primary.fulfil.mock.calls[0][0]).toMatchObject({ providerSku: 'SKU_A', maxUnitCost: 0.99 });
+      // recorded with the call, so today's spend never depends on a cost changed later
+      expect(prisma.providerCall.create.mock.calls[0][0].data.requestBody).toMatchObject({ quantity: 1, maxUnitCost: 0.99 });
+    });
+
+    it('skips a supplier whose daily limit would be passed, and uses the next one', async () => {
+      registry.candidatesFor.mockResolvedValue([
+        { providerId: 'prov-1', providerSku: 'SKU_A', providerCost: '30', priority: 0 },
+        { providerId: 'prov-2', providerSku: 'sku-a', providerCost: '31', priority: 1 },
+      ]);
+      registry.credentialsFor.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === 'prov-1'
+            ? { adapter: primary, creds: { config: { dailyLimit: 100 } }, code: 'gamesdrop' }
+            : { adapter: secondary, creds: {}, code: 'foxreload' },
+        ),
+      );
+      prisma.$queryRaw = jest.fn().mockResolvedValue([{ spent: '80' }]); // 80 + 30 > 100
+      secondary.fulfil.mockResolvedValue(delivered('fox-1'));
+
+      const result = await engine.fulfilItem('item-1');
+
+      expect(primary.fulfil).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ status: 'DELIVERED', providerId: 'prov-2' });
+    });
+
+    it('with no other supplier, the item fails for manual handling and nothing is bought', async () => {
+      registry.candidatesFor.mockResolvedValue([{ providerId: 'prov-1', providerSku: 'SKU_A', providerCost: '30', priority: 0 }]);
+      registry.credentialsFor.mockResolvedValue({ adapter: primary, creds: { config: { dailyLimit: 50 } }, code: 'gamesdrop' });
+      prisma.$queryRaw = jest.fn().mockResolvedValue([{ spent: '25' }]);
+
+      const result = await engine.fulfilItem('item-1');
+
+      expect(primary.fulfil).not.toHaveBeenCalled();
+      expect(result.status).toBe('FAILED');
+      expect(prisma.orderItem.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'FAILED', lastError: expect.stringContaining('daily_limit') }),
+      }));
+    });
+
+    it('under the limit it buys as usual', async () => {
+      registry.candidatesFor.mockResolvedValue([{ providerId: 'prov-1', providerSku: 'SKU_A', providerCost: '30', priority: 0 }]);
+      registry.credentialsFor.mockResolvedValue({ adapter: primary, creds: { config: { dailyLimit: 100 } }, code: 'gamesdrop' });
+      prisma.$queryRaw = jest.fn().mockResolvedValue([{ spent: '10' }]);
+      primary.fulfil.mockResolvedValue(delivered());
+      expect((await engine.fulfilItem('item-1')).status).toBe('DELIVERED');
+    });
+  });
 });

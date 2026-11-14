@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma, RefundStatus, WalletTxnType } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -8,6 +8,7 @@ import { GatewayRegistry } from '../payments/gateways/gateway.registry';
 import { D } from '../../common/money/money';
 import { LockRank, acquireLocks } from '../../common/locking/lock-order';
 import { toAuditJson } from '../../common/audit/audit.service';
+import { StaffEventsService } from '../staff-notifications/staff-events.service';
 
 @Injectable()
 export class RefundsService {
@@ -16,6 +17,7 @@ export class RefundsService {
     private wallet: WalletService,
     private gateways: GatewayRegistry,
     private outbox: OutboxService,
+    @Optional() private staffEvents?: StaffEventsService,
   ) {}
 
   /**
@@ -55,7 +57,7 @@ export class RefundsService {
     // wallet money can only go back to the wallet
     if (payment.gateway === 'WALLET') toWallet = true;
 
-    return this.prisma.refund.create({
+    const refund = await this.prisma.refund.create({
       data: {
         orderId,
         paymentId: payment.id,
@@ -70,6 +72,12 @@ export class RefundsService {
         requestedById,
       },
     });
+    // closed by refund.processed (outbox) or by a rejection below
+    await this.staffEvents?.refundRequested({
+      refundId: refund.id, orderId, orderNumber: order.orderNumber,
+      amount: refund.amount.toString(), currency: refund.currency,
+    });
+    return refund;
   }
 
   /**
@@ -205,8 +213,8 @@ export class RefundsService {
     });
   }
 
-  reject(refundId: string, processedById: string, reason: string) {
-    return this.prisma.refund.update({
+  async reject(refundId: string, processedById: string, reason: string) {
+    const rejected = await this.prisma.refund.update({
       where: { id: refundId },
       data: {
         status: RefundStatus.REJECTED,
@@ -215,6 +223,8 @@ export class RefundsService {
         reason: reason.slice(0, 500),
       },
     });
+    await this.staffEvents?.refundClosed(refundId);
+    return rejected;
   }
 
   findAll(status?: RefundStatus) {

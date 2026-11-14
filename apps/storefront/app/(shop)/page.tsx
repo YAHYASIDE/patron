@@ -39,7 +39,7 @@ export default function HomePage() {
       {/* hero: what this is, and the fastest way in (search) */}
       <section className="border-b border-[rgb(var(--line))] bg-[rgb(var(--surface))]">
         <div className="mx-auto max-w-page px-4 py-6 md:py-10">
-          <h1 className="text-2xl font-extrabold leading-[1.25] md:text-4xl">
+          <h1 className="text-balance text-2xl font-extrabold leading-[1.3] md:text-4xl">
             {t('اشتراكاتك وشحن ألعابك')} <span className="text-teal">{t('في مكان واحد')}</span>
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted md:text-[15px]">
@@ -51,7 +51,9 @@ export default function HomePage() {
             onChange={setQ}
             onSubmit={(v) => router.push(v ? `/products?q=${encodeURIComponent(v)}` : '/products')}
             placeholder={t('عن ماذا تبحث؟')}
-            className="surface-2 mt-5 flex max-w-xl items-center gap-2 rounded-2xl p-1.5 ps-4"
+            popular={top}
+            missNote
+            className="surface-2 mt-5 flex min-h-[52px] max-w-xl items-center gap-2 rounded-2xl border border-transparent p-1.5 ps-4 transition focus-within:border-teal/60"
             button={
               <button type="submit" className="btn-brand flex-none rounded-xl px-4 py-2.5 text-sm font-bold min-[360px]:px-5">
                 {t('بحث')}
@@ -95,7 +97,7 @@ export default function HomePage() {
         {loading &&
           Array.from({ length: 4 }).map((_, i) => (
             <section key={i} aria-hidden className="surface rounded-2xl p-4 shadow-card sm:p-5">
-              <div className="h-6 w-1/3 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
+              <div className="skel h-6 w-1/3" />
               <div className="mt-4 grid grid-cols-4 gap-x-2.5 gap-y-4">
                 {Array.from({ length: PER_SECTION }).map((__, j) => (
                   <BrandTileSkeleton key={j} />
@@ -110,7 +112,7 @@ export default function HomePage() {
               {list.length > PER_SECTION && (
                 <Link
                   href={`/products?s=${section.id}`}
-                  className="text-sm font-bold text-teal hover:underline"
+                  className="-my-2 inline-flex min-h-10 items-center text-sm font-bold text-teal hover:underline"
                 >
                   {t('عرض الكل ({n})', { n: list.length })}
                 </Link>

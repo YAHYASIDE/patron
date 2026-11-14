@@ -468,20 +468,27 @@ export default function BrandView({
       )}
 
       {/* phones: the total and the buy button stay in reach */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[rgb(var(--line))] bg-[rgb(var(--surface))]/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="mx-auto flex max-w-page items-center gap-3">
+      {/* (the bottom padding clears the home indicator on notched phones) */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[rgb(var(--line))] bg-[rgb(var(--surface))]/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-page items-center gap-2 min-[360px]:gap-3">
           <div className="min-w-0 flex-1">
             <div className="line-clamp-1 text-xs text-muted">{denominationLabel(product, brand)}</div>
-            <div className="tnum text-lg font-extrabold text-teal">{money(total, product.currency)}</div>
+            {/* the amount never breaks between the number and the currency */}
+            <div className="tnum whitespace-nowrap text-base font-extrabold text-teal min-[360px]:text-lg">
+              {money(total, product.currency)}
+            </div>
           </div>
           <button
             onClick={onAdd}
             aria-label={t('أضف إلى السلّة')}
-            className="rounded-xl border border-[rgb(var(--line))] px-3.5 py-3 text-sm font-bold"
+            className="min-h-11 whitespace-nowrap rounded-xl border border-[rgb(var(--line))] px-3 text-sm font-bold min-[360px]:px-3.5"
           >
             {added ? t('أُضيف') : t('للسلّة')}
           </button>
-          <button onClick={onBuyNow} className="btn-brand rounded-xl px-6 py-3 text-[15px] font-bold">
+          <button
+            onClick={onBuyNow}
+            className="btn-brand min-h-11 whitespace-nowrap rounded-xl px-4 text-[15px] font-bold min-[360px]:px-6"
+          >
             {t('اشترِ الآن')}
           </button>
         </div>

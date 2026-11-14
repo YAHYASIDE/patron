@@ -525,6 +525,20 @@ describe('PaymentsService', () => {
       expect(call.data).toEqual(expect.objectContaining({ status: 'FAILED', failureCode: 'rejected_by_staff', failureReason: 'No transfer found' }));
     });
 
+    it("raises the owner's payment.pending notice when a transfer is reported, and closes it on rejection", async () => {
+      const staffEvents = { transferReported: jest.fn(), transferReviewed: jest.fn() };
+      const withStaff = new PaymentsService(prisma, gateways, outbox, metrics, audit, manual, uploads, wallet, staffEvents as any);
+      prisma.payment.findUnique.mockResolvedValue(manualPayment({ orderId: 'ord1', amount: { toString: () => '1500' }, currency: 'MRU', order: { status: 'PENDING_PAYMENT', orderNumber: 'ORD-7' } }));
+      await withStaff.submitTransfer('pay1', 'u1', { accountId: 'acc1', payerPhone: '22244455' });
+      expect(staffEvents.transferReported).toHaveBeenCalledWith({
+        paymentId: 'pay1', orderId: 'ord1', orderNumber: 'ORD-7', amount: '1500', currency: 'MRU', method: 'Bankily',
+      });
+
+      prisma.payment.findUnique.mockResolvedValue(manualPayment({ status: 'AUTHORIZED', orderId: 'ord1' }));
+      await withStaff.rejectManual('pay1', 'No transfer found', 'admin1');
+      expect(staffEvents.transferReviewed).toHaveBeenCalledWith('pay1');
+    });
+
     it('rejecting tells the customer why, with a link back to the order', async () => {
       prisma.payment.findUnique.mockResolvedValue(manualPayment({ status: 'AUTHORIZED', orderId: 'ord1' }));
       await service.rejectManual('pay1', 'No transfer found', 'admin1');

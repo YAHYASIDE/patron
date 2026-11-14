@@ -23,7 +23,7 @@ describe('csv', () => {
 
 describe('DataExportService', () => {
   let prisma: any;
-  let backups: any;
+  let runs: any;
   let service: DataExportService;
 
   beforeEach(() => {
@@ -42,8 +42,8 @@ describe('DataExportService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
       },
     };
-    backups = { export: jest.fn() };
-    service = new DataExportService(prisma, backups);
+    runs = { plainDownload: jest.fn() };
+    service = new DataExportService(prisma, runs);
   });
 
   describe('ordersCsv', () => {
@@ -124,17 +124,14 @@ describe('DataExportService', () => {
   });
 
   describe('backup', () => {
-    it('hands out the full backup and remembers when it was downloaded', async () => {
-      const body = { version: 2, exportedAt: '2026-10-20T08:15:30.000Z', counts: {}, tables: {} };
-      backups.export.mockResolvedValue(body);
+    it('hands out the full backup through the logged download', async () => {
+      const body = Buffer.from('{"version":3}');
+      runs.plainDownload.mockResolvedValue({ filename: 'patron-backup-2026-10-20T08-15-30.json', body, file: {}, run: {} });
 
-      const res = await service.backup();
+      const res = await service.backup('owner-1');
 
       expect(res).toEqual({ filename: 'patron-backup-2026-10-20T08-15-30.json', body });
-      expect(prisma.systemSetting.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        where: { key: 'backup.last_downloaded_at' },
-        update: { value: '2026-10-20T08:15:30.000Z' },
-      }));
+      expect(runs.plainDownload).toHaveBeenCalledWith('owner-1');
     });
 
     it('says when the last backup was downloaded, or null', async () => {

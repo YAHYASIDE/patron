@@ -22,6 +22,7 @@ import type {
   TokenPair,
 } from './types';
 import { getLang, tNow } from './i18n';
+import { withRef } from './ref-store';
 
 /**
  * In French or English the catalogue shows the English names: products carry
@@ -75,7 +76,7 @@ function getRefresh(): string | null {
     return null;
   }
 }
-function storeTokens(t: TokenPair) {
+export function storeTokens(t: TokenPair) {
   try {
     localStorage.setItem(ACCESS_KEY, t.accessToken);
     localStorage.setItem(REFRESH_KEY, t.refreshToken);
@@ -159,7 +160,7 @@ async function fetchWaking(url: string, init: RequestInit, retryable: boolean): 
   }
 }
 
-async function request<T>(path: string, opts: Opts = {}): Promise<T> {
+export async function request<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = 'GET', body, auth = false, idempotent = false, retry = true } = opts;
   const headers: Record<string, string> = { Accept: 'application/json' };
   // a file goes as multipart; the browser sets the boundary itself
@@ -273,7 +274,8 @@ export const auth = {
   async phoneStart(body: { phone: string; fullName?: string }) {
     const res = await request<({ status: 'SIGNED_IN' } & TokenPair) | { status: 'CODE_REQUIRED' }>(
       '/auth/phone/start',
-      { method: 'POST', body },
+      // the ?ref code a visitor came with: kept by the server only when this creates the account
+      { method: 'POST', body: withRef(body) },
     );
     if (res.status === 'SIGNED_IN') storeTokens(res);
     return res.status;

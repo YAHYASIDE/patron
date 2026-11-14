@@ -3,3 +3,17 @@
 # A made-up password for a throwaway test account, created and deleted inside
 # the e2e run. The test now generates a random one; this pins the old commit only.
 c7aba28e893db4b430d5dc05b4fb70a2360d7e64:apps/api/test/e2e/money-flows.e2e-spec.ts:generic-api-key:56
+
+# Made-up passwords in the V2 account unit tests (now generated per run); pins the two old commits only.
+15c22200ebe62ffb0912223b5563906e73662342:apps/api/test/unit/auth-helpers.spec.ts:generic-api-key:73
+15c22200ebe62ffb0912223b5563906e73662342:apps/api/test/unit/recovery.service.spec.ts:generic-api-key:199
+15c22200ebe62ffb0912223b5563906e73662342:apps/api/test/unit/recovery.service.spec.ts:generic-api-key:212
+15c22200ebe62ffb0912223b5563906e73662342:apps/api/test/unit/recovery.service.spec.ts:generic-api-key:219
+15c22200ebe62ffb0912223b5563906e73662342:apps/api/test/unit/recovery.service.spec.ts:generic-api-key:225
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth-accounts.service.spec.ts:generic-api-key:119
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth-accounts.service.spec.ts:generic-api-key:126
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth-accounts.service.spec.ts:generic-api-key:132
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth-accounts.service.spec.ts:generic-api-key:216
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth-accounts.service.spec.ts:generic-api-key:227
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth.controller.spec.ts:generic-api-key:138
+745d94e83ac5cab9c032b241e2645c62e1f99d18:apps/api/test/unit/auth.controller.spec.ts:generic-api-key:140

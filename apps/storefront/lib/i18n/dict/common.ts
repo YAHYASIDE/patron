@@ -4,9 +4,10 @@ import type { Dict } from '.';
 const dict: Dict = {
   fr: {
     // app/layout.tsx
-    'patron — بطاقات وشحن رقمي فوري': 'patron — Cartes et recharges numériques instantanées',
-    'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.':
-      'Achetez des recharges de jeux, des cartes cadeaux et des abonnements en ligne, livrés instantanément. Prix clairs et paiement sécurisé.',
+    'نسخة تجريبية للاختبار فقط — لا تحوّل أي مال هنا.': 'Version de test uniquement — n’envoyez aucun argent ici.',
+    'patron — بطاقات وشحن رقمي موثوق': 'patron — Cartes et recharges numériques de confiance',
+    'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، ونسلّمها لك بعد تأكيد الدفع. أسعار واضحة ودفع آمن.':
+      'Achetez des recharges de jeux, des cartes cadeaux et des abonnements en ligne, livrés après confirmation du paiement. Prix clairs et paiement sécurisé.',
 
     // Header, ThemeToggle
     'الرئيسية': 'Accueil',
@@ -110,10 +111,11 @@ const dict: Dict = {
     'حدث خطأ غير متوقّع.': 'Une erreur inattendue s’est produite.',
   },
   en: {
+    'نسخة تجريبية للاختبار فقط — لا تحوّل أي مال هنا.': 'Test copy only — do not send any money here.',
     // app/layout.tsx
-    'patron — بطاقات وشحن رقمي فوري': 'patron — Instant gift cards and digital top-ups',
-    'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، وتسلّمها فورًا. أسعار واضحة ودفع آمن.':
-      'Buy game top-ups, gift cards and subscriptions online and get them instantly. Clear prices and secure payment.',
+    'patron — بطاقات وشحن رقمي موثوق': 'patron — Trusted gift cards and digital top-ups',
+    'اشترِ شحن الألعاب وبطاقات الهدايا والاشتراكات رقميًّا، ونسلّمها لك بعد تأكيد الدفع. أسعار واضحة ودفع آمن.':
+      'Buy game top-ups, gift cards and subscriptions online delivered once the payment is confirmed. Clear prices and secure payment.',
 
     // Header, ThemeToggle
     'الرئيسية': 'Home',

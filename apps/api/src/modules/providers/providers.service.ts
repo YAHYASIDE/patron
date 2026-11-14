@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
 import { ProviderRegistry } from './provider-registry.service';
+import { StaffNotificationsService } from '../staff-notifications/staff-notifications.service';
 
 @Injectable()
 export class ProvidersService {
@@ -11,6 +12,7 @@ export class ProvidersService {
     private prisma: PrismaService,
     private registry: ProviderRegistry,
     private crypto: CryptoService,
+    private staff: StaffNotificationsService,
   ) {}
 
   /** Credentials are never returned, in any form, to any role. */
@@ -57,8 +59,21 @@ export class ProvidersService {
               where: { id: provider.id },
               data: { balance: balance.balance },
             });
+            const dedupeKey = `provider.low_balance:${provider.id}`;
             if (provider.lowBalanceAlert && balance.balance < Number(provider.lowBalanceAlert)) {
               this.logger.warn(`Provider ${provider.code} balance is low: ${balance.balance}`);
+              await this.staff.notify({
+                type: 'provider.low_balance',
+                priority: 'HIGH',
+                title: `رصيدك عند ${provider.name} منخفض`,
+                body: `الرصيد ${balance.balance} ${balance.currency}. اشحن الحساب حتى لا يتوقف التسليم التلقائي.`,
+                link: '/suppliers',
+                dedupeKey,
+                entityType: 'Provider',
+                entityId: provider.id,
+              });
+            } else {
+              await this.staff.resolve(dedupeKey);
             }
           }
         }

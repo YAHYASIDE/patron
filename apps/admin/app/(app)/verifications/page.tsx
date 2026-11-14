@@ -6,7 +6,7 @@ import { dateTime } from '@/lib/format';
 
 type Pending = {
   id: string;
-  purpose: 'PHONE_VERIFY' | 'PHONE_LOGIN';
+  purpose: 'PHONE_VERIFY' | 'PHONE_LOGIN' | 'PASSWORD_RESET';
   code: string;
   createdAt: string;
   expiresAt: string;
@@ -17,6 +17,7 @@ type Pending = {
 const PURPOSE: Record<Pending['purpose'], string> = {
   PHONE_VERIFY: 'توثيق الحساب',
   PHONE_LOGIN: 'دخول من جهاز جديد',
+  PASSWORD_RESET: 'نسي كلمة المرور',
 };
 
 function whatsappLink(p: Pending) {
@@ -93,7 +94,7 @@ export default function VerificationsPage() {
                 </div>
               </div>
               <span className="whitespace-nowrap rounded-full bg-teal/12 px-2.5 py-1 text-xs font-bold text-teal">
-                {PURPOSE[p.purpose]}
+                {PURPOSE[p.purpose] ?? 'رمز تحقق'}
               </span>
             </div>
 

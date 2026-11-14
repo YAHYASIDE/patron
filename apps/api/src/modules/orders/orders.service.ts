@@ -11,6 +11,7 @@ import { ReferenceService } from '../../common/reference/reference.service';
 import { cursorWhere, toCursorPage } from '../../common/dto/cursor.dto';
 import { assertTransition, deriveOrderStatus } from './order-state.machine';
 import { createdAtRange, ManualFulfilDto, QueryOrdersDto } from './dto/order.dto';
+import { agentForOrder } from '../agents/referrals';
 
 /**
  * The shape `present()` reads. Declared structurally rather than pulled from a
@@ -104,6 +105,8 @@ export class OrdersService {
           fxRateId: quote.fxRateId,
           totalBase: quote.totalBase,
           couponId: quote.couponId,
+          // credited to the customer's referring agent, if still active; fixed from here on
+          agentId: await agentForOrder(tx, userId),
           ipAddress: meta.ip,
           userAgent: meta.userAgent,
           items: {
@@ -683,7 +686,7 @@ export class OrdersService {
 }
 
 /** Order columns only staff may read; the customer's API never carries them. */
-const STAFF_ONLY_ORDER_FIELDS = ['adminNote', 'idempotencyKey', 'ipAddress', 'userAgent', 'fxRateId', 'quoteId', 'version'] as const;
+const STAFF_ONLY_ORDER_FIELDS = ['adminNote', 'idempotencyKey', 'ipAddress', 'userAgent', 'fxRateId', 'quoteId', 'version', 'agentId'] as const;
 /** Order line columns only staff may read: what it cost us and how it was routed. */
 const STAFF_ONLY_ITEM_FIELDS = ['unitCost', 'plannedProviderId', 'fulfilledByProviderId', 'attemptCount', 'lastError', 'version'] as const;
 

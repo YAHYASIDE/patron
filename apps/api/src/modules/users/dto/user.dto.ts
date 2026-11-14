@@ -79,4 +79,7 @@ export class QueryUsersDto extends PaginationDto {
 
   @ApiPropertyOptional({ description: 'Filter by role name' })
   @IsOptional() @IsString() role?: string;
+
+  @ApiPropertyOptional({ enum: ['new', 'active', 'vip', 'dormant'], description: 'Customer segment (dashboard)' })
+  @IsOptional() @IsIn(['new', 'active', 'vip', 'dormant']) segment?: 'new' | 'active' | 'vip' | 'dormant';
 }

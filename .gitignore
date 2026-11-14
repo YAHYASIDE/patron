@@ -44,6 +44,9 @@ pids/
 backup/
 *.dump
 *.sql.gz
+# shop backups (customers, wallets, orders): never in the repository
+*.patronbak
+patron-backup-*.json
 
 # ─── editors & OS ───
 .vscode/*
@@ -54,3 +57,6 @@ Thumbs.db
 
 # Redis persistence dumps from local test runs
 dump.rdb
+
+# Claude Code agent worktrees (local only)
+.claude/worktrees/

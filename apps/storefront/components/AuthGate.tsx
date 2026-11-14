@@ -6,7 +6,8 @@ import { isAuthed } from '@/lib/api';
 import { isGuest } from '@/lib/guest';
 
 // Pages a visitor can open before signing in.
-const OPEN = ['/login', '/register', '/help', '/terms'];
+// (forgot password and support recovery are for people who cannot sign in)
+const OPEN = ['/login', '/register', '/help', '/terms', '/reset-password', '/recover'];
 
 /**
  * The owner wants every visitor to meet the sign-in page first (WhatsApp

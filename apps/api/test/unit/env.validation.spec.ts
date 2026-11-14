@@ -68,4 +68,33 @@ describe('validateEnv', () => {
       expect(() => validateEnv(valid())).not.toThrow();
     });
   });
+
+  describe('sign-in code providers', () => {
+    const sid = (p: string) => `${p}${'0123456789abcdef'.repeat(2)}`;
+
+    it('needs the three Twilio settings when Twilio Verify is chosen', () => {
+      expect(() => validateEnv({ ...valid(), OTP_PROVIDER: 'twilio_verify' })).toThrow(/TWILIO_ACCOUNT_SID/);
+      expect(() => validateEnv({
+        ...valid(), OTP_PROVIDER: 'twilio_verify', TWILIO_ACCOUNT_SID: sid('AC'), TWILIO_AUTH_TOKEN: 'x'.repeat(32), TWILIO_VERIFY_SERVICE_SID: sid('VA'),
+      })).not.toThrow();
+    });
+
+    it('treats an empty setting (copied from .env.example) as unset', () => {
+      expect(() => validateEnv({ ...valid(), OTP_PROVIDER: '', EMAIL_PROVIDER: '', TWILIO_VERIFY_CHANNEL: '', RESEND_API_KEY: '' })).not.toThrow();
+    });
+
+    it('rejects an unknown provider and a wrong SID prefix', () => {
+      expect(() => validateEnv({ ...valid(), OTP_PROVIDER: 'carrier-pigeon' })).toThrow(/OTP_PROVIDER/);
+      expect(() => validateEnv({
+        ...valid(), OTP_PROVIDER: 'twilio_verify', TWILIO_ACCOUNT_SID: sid('XX'), TWILIO_AUTH_TOKEN: 'x'.repeat(32), TWILIO_VERIFY_SERVICE_SID: sid('VA'),
+      })).toThrow(/TWILIO_ACCOUNT_SID/);
+    });
+
+    it('needs a sender address once a Resend key is set', () => {
+      expect(() => validateEnv({ ...valid(), RESEND_API_KEY: 'x'.repeat(20) })).toThrow(/EMAIL_FROM/);
+      expect(() => validateEnv({ ...valid(), RESEND_API_KEY: 'x'.repeat(20), EMAIL_FROM: 'patron <no-reply@example.com>' })).not.toThrow();
+      // without a key, email is simply off
+      expect(() => validateEnv(valid())).not.toThrow();
+    });
+  });
 });
