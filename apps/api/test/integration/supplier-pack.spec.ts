@@ -7,6 +7,7 @@ import {
   GAMESDROP_NEW,
   listPriceFor,
   maxCost,
+  showNewSupplierProducts,
   SUPPLIER_PACK_KEY,
 } from '../../src/bootstrap/supplier-pack';
 
@@ -164,5 +165,29 @@ describe('GamesDrop supplier pack (Postgres)', () => {
     const links = await prisma.productProvider.count();
     expect(await applySupplierPack(prisma)).toBeNull();
     expect(await prisma.productProvider.count()).toBe(links);
+  });
+  it('shows the new products once, after the links pack, never a deleted one or one hidden again later', async () => {
+    expect(await showNewSupplierProducts(prisma)).toBeNull(); // nothing created yet
+    await provider();
+    await product('TOP-MLBB-86', 1.33);
+    await product('TOP-MLBB-344', 9, { deletedAt: new Date(), isActive: false });
+    await applySupplierPack(prisma);
+    expect((await prisma.product.findUniqueOrThrow({ where: { sku: 'TOP-MLBB-WEEKLY' } })).isActive).toBe(
+      false,
+    );
+
+    const shown = await showNewSupplierProducts(prisma);
+    expect(shown).toBe(6); // the six Mobile Legends products whose sibling exists, minus the deleted one
+    expect((await prisma.product.findUniqueOrThrow({ where: { sku: 'TOP-MLBB-WEEKLY' } })).isActive).toBe(
+      true,
+    );
+    expect((await prisma.product.findUniqueOrThrow({ where: { sku: 'TOP-MLBB-344' } })).isActive).toBe(false);
+
+    // the owner hides one again: a later start leaves it hidden
+    await prisma.product.update({ where: { sku: 'TOP-MLBB-WEEKLY' }, data: { isActive: false } });
+    expect(await showNewSupplierProducts(prisma)).toBeNull();
+    expect((await prisma.product.findUniqueOrThrow({ where: { sku: 'TOP-MLBB-WEEKLY' } })).isActive).toBe(
+      false,
+    );
   });
 });

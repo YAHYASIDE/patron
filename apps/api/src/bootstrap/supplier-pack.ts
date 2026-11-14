@@ -491,3 +491,35 @@ async function apply(prisma: Prisma.TransactionClient): Promise<Record<string, u
     return value;
   }
 }
+
+export const SUPPLIER_SHOW_KEY = 'supplier.pack.gamesdrop.show-new.v1';
+
+/**
+ * The owner then asked (14 Nov 2026) to show the 22 new products instead of
+ * reviewing them one by one. Once, after the links pack: every one still
+ * hidden is shown; a product the owner deleted stays deleted. A product hidden
+ * again later from the dashboard is not touched (the marker stops a re-run).
+ */
+export async function showNewSupplierProducts(client?: PrismaClient): Promise<number | null> {
+  const prisma = client ?? new PrismaClient();
+  try {
+    if (await prisma.systemSetting.findUnique({ where: { key: SUPPLIER_SHOW_KEY } })) return null;
+    if (!(await prisma.systemSetting.findUnique({ where: { key: SUPPLIER_PACK_KEY } }))) return null; // not created yet
+    const res = await prisma.product.updateMany({
+      where: { sku: { in: GAMESDROP_NEW.map((n) => n.sku) }, deletedAt: null, isActive: false },
+      data: { isActive: true },
+    });
+    await prisma.systemSetting.create({
+      data: {
+        key: SUPPLIER_SHOW_KEY,
+        group: 'catalog',
+        description: 'Showed the GamesDrop new products the owner asked to publish (once).',
+        value: { appliedAt: new Date().toISOString(), shown: res.count } as Prisma.InputJsonValue,
+      },
+    });
+    console.log(`supplier pack: showed ${res.count} new products`);
+    return res.count;
+  } finally {
+    if (!client) await prisma.$disconnect();
+  }
+}

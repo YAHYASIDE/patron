@@ -142,6 +142,7 @@ const dict: Dict = {
     'هذا الكود لم يبدأ بعد. جرّبه لاحقًا.': "Ce code n'est pas encore actif. Réessayez plus tard.",
     'نفدت مرات استخدام هذا الكود.': 'Ce code a atteint son nombre maximal d’utilisations.',
     'لقد استخدمت هذا الكود من قبل.': 'Vous avez déjà utilisé ce code.',
+    'هذا الكود لا ينطبق على المنتجات التي في سلّتك.': 'Ce code ne s’applique pas aux produits de votre panier.',
     'هذا الكود لطلب لا يقلّ عن {amount}. أضف منتجًا آخر لتستفيد منه.':
       "Ce code s'applique à partir de {amount} d'achat. Ajoutez un article pour en profiter.",
   },
@@ -284,6 +285,7 @@ const dict: Dict = {
     'هذا الكود لم يبدأ بعد. جرّبه لاحقًا.': "This code isn't active yet. Try it later.",
     'نفدت مرات استخدام هذا الكود.': 'This code has been used up.',
     'لقد استخدمت هذا الكود من قبل.': "You've already used this code.",
+    'هذا الكود لا ينطبق على المنتجات التي في سلّتك.': "This code doesn't apply to the products in your cart.",
     'هذا الكود لطلب لا يقلّ عن {amount}. أضف منتجًا آخر لتستفيد منه.':
       'This code needs an order of at least {amount}. Add another item to use it.',
   },
