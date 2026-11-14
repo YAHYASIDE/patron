@@ -1,13 +1,6 @@
 import type { Metadata } from 'next';
-import { Cairo } from 'next/font/google';
+import { cairoVariables } from './fonts/cairo';
 import './globals.css';
-
-const cairo = Cairo({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-cairo',
-  display: 'swap',
-});
 
 /** Set only by render.staging.yaml: a test copy of the dashboard, never the real one. */
 const STAGING = process.env.NEXT_PUBLIC_STAGING === 'true';
@@ -26,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar" dir="rtl" className={cairo.variable} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className={cairoVariables} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>

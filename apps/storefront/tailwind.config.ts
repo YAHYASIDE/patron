@@ -42,7 +42,7 @@ const config: Config = {
         bad: '#b91c1c',
       },
       fontFamily: {
-        sans: ['var(--font-cairo)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-cairo-arabic)', 'var(--font-cairo-latin-ext)', 'var(--font-cairo-latin)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         xl: '0.875rem',

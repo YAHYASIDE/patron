@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Cairo } from 'next/font/google';
+import { cairoVariables } from './fonts/cairo';
 import { dirOf, translate } from '@/lib/i18n/core';
 import { serverLang } from '@/lib/i18n/server';
 import { LangProvider } from '@/lib/i18n';
@@ -11,13 +11,6 @@ import '@/components/discovery.css';
 
 /** Set only by render.staging.yaml: a test copy of the shop, never the real one. */
 const STAGING = process.env.NEXT_PUBLIC_STAGING === 'true';
-
-const cairo = Cairo({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-cairo',
-  display: 'swap',
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const lang = await serverLang();
@@ -61,7 +54,7 @@ const themeInit = `(function(){try{var t=localStorage.getItem('patron-theme');va
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = await serverLang();
   return (
-    <html lang={lang} dir={dirOf(lang)} className={cairo.variable} suppressHydrationWarning>
+    <html lang={lang} dir={dirOf(lang)} className={cairoVariables} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit + SPLASH_INIT + INSTALL_INIT }} />
         {/* without JavaScript the opening would replay on every page */}
