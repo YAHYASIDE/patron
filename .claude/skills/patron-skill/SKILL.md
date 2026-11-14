@@ -108,7 +108,14 @@ Every error is one envelope (ADR 019):
 Product **delivery** kinds: `CODE_POOL` (pull a pre-stocked code),
 `MANUAL` (admin fulfils), `AUTO_PROVIDER` (call a top-up provider).
 
-**Known gap:** only HTTP provider adapters exist (fazercards, foxreload),
+**Suppliers (automatic delivery):** GamesDrop is connected from the dashboard
+«المورّدون» (`/suppliers`, `ProviderSetupService`, `GamesDropAdapter`): token
+stored encrypted, links start with automatic delivery OFF, never buys above the
+link's `providerCost`, a daily limit per supplier (counted from provider_calls),
+and a timeout on create-order is looked up by the same transactionId — never a
+second purchase. Test offer 999 proves the token without real stock.
+
+**Known gap:** the older HTTP adapters (fazercards, foxreload) are unverified,
 mapped to game top-ups. There is **no CODE_POOL auto-dispenser** yet, so a
 CODE_POOL purchase currently ends unfulfilled (`no_provider`). This is a
 feature to build, not a bug to hide.
