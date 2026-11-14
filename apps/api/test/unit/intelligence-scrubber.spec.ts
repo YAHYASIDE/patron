@@ -25,6 +25,15 @@ describe('intelligence scrubber', () => {
     expect(scrubText(text)).toBe(text);
   });
 
+  it('leaves a uuid whose groups are all digits alone, but still masks a phone next to it', () => {
+    // randomUUID() starts with 8 digits about 2% of the time; that used to mask it as a phone
+    const id = `${digits(8)}-${digits(4)}-4${digits(3)}-8${digits(3)}-${digits(12)}`;
+    const phone = `+222${digits(8)}`;
+    const out = scrubText(`id ${id} client ${phone}`);
+    expect(out).toContain(`id ${id} client`);
+    expect(out).not.toContain(phone);
+  });
+
   it('masks emails to their first letter and domain', () => {
     const user = `x${randomUUID().slice(0, 8)}`;
     expect(scrubText(`écrire à ${user}@example.com svp`)).toBe(`écrire à x***@example.com svp`);

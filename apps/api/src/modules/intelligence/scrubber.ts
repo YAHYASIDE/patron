@@ -24,6 +24,8 @@ const HEX_TOKEN = /\b[0-9a-fA-F]{32,}\b/g;
 const B64_TOKEN = /[A-Za-z0-9_+-]{32,}={0,2}/g;
 /** `+` then 8–15 digits (spaces allowed between them), or 8–15 digits in a row. */
 const PHONE = /(?<![\w+])(?:\+\d(?: ?\d){7,14}|\d{8,15})(?![\w])/g;
+/** Ids, not people: a uuid whose first group happens to be all digits is not a phone number. */
+const UUID = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
 
 /** `key:` alone is ordinary prose ("key: orange-money-ml"); only `key=` counts for it. */
 const COLON_SAFE = new Set(['key']);
@@ -33,6 +35,17 @@ function maskPhone(match: string) {
   return `${match.startsWith('+') ? '+' : ''}${'•'.repeat(Math.max(digits.length - 2, 1))}${digits.slice(-2)}`;
 }
 
+/** Phone masking on everything except uuids, which are copied as they are. */
+function maskPhones(s: string) {
+  let out = '';
+  let last = 0;
+  for (const m of s.matchAll(UUID)) {
+    out += s.slice(last, m.index).replace(PHONE, maskPhone) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + s.slice(last).replace(PHONE, maskPhone);
+}
+
 function looksLikeToken(s: string) {
   return /[a-z]/.test(s) && /[A-Z]/.test(s) && /\d/.test(s);
 }
@@ -40,15 +53,15 @@ function looksLikeToken(s: string) {
 /** One string, cleaned. */
 export function scrubText(input: string): string {
   if (!input) return input;
-  return input
+  const cleaned = input
     .replace(BEARER, (_m, scheme: string) => `${scheme} ${REDACTED}`)
     .replace(SECRET_ASSIGNMENT, (whole, name: string, sep: string) =>
       sep.includes(':') && COLON_SAFE.has(name.toLowerCase()) ? whole : `${name}${sep}${REDACTED}`,
     )
     .replace(EMAIL, (_m, first: string, domain: string) => `${first}***@${domain}`)
     .replace(HEX_TOKEN, REDACTED)
-    .replace(B64_TOKEN, (m) => (looksLikeToken(m) ? REDACTED : m))
-    .replace(PHONE, maskPhone);
+    .replace(B64_TOKEN, (m) => (looksLikeToken(m) ? REDACTED : m));
+  return maskPhones(cleaned);
 }
 
 /** Any JSON-like value: every string inside it is scrubbed, keys included. */
