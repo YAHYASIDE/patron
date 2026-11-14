@@ -8,12 +8,14 @@ describe('ProviderRegistry', () => {
   let registry: ProviderRegistry;
   let fazer: any;
   let fox: any;
+  let gamesdrop: any;
 
   beforeEach(() => {
     fazer = { code: 'fazercards' };
     fox = { code: 'foxreload' };
-    // onModuleInit resolves adapters in the order [FazerCards, FoxReload].
-    moduleRef = { get: jest.fn().mockReturnValueOnce(fazer).mockReturnValueOnce(fox) };
+    gamesdrop = { code: 'gamesdrop' };
+    // onModuleInit resolves adapters in the order [FazerCards, FoxReload, GamesDrop].
+    moduleRef = { get: jest.fn().mockReturnValueOnce(fazer).mockReturnValueOnce(fox).mockReturnValueOnce(gamesdrop) };
     prisma = {
       provider: { findUniqueOrThrow: jest.fn() },
       productProvider: { findMany: jest.fn().mockResolvedValue([]) },
@@ -24,10 +26,11 @@ describe('ProviderRegistry', () => {
   });
 
   describe('onModuleInit / getAdapter / listCodes', () => {
-    it('registers both adapters keyed by their code', () => {
+    it('registers every adapter keyed by its code', () => {
       expect(registry.getAdapter('fazercards')).toBe(fazer);
       expect(registry.getAdapter('foxreload')).toBe(fox);
-      expect(registry.listCodes().sort()).toEqual(['fazercards', 'foxreload']);
+      expect(registry.getAdapter('gamesdrop')).toBe(gamesdrop);
+      expect(registry.listCodes().sort()).toEqual(['fazercards', 'foxreload', 'gamesdrop']);
     });
 
     it('throws NotFound for an unknown provider code', () => {

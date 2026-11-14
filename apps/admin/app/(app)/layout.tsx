@@ -47,6 +47,7 @@ const NAV: NavGroup[] = [
       { href: '/payment-methods', label: 'وسائل الدفع', icon: 'card' },
       { href: '/currencies', label: 'أسعار الصرف', icon: 'exchange' },
       { href: '/markets', label: 'الدول والأسواق', icon: 'pin' },
+      { href: '/suppliers', label: 'المورّدون', icon: 'exchange' },
     ],
   },
   {
