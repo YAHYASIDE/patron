@@ -7,6 +7,9 @@ import { useFetch } from '@/lib/hooks';
 import { date, dateTime, money, moneyIn, num, statusChip } from '@/lib/format';
 import { countryName, flagOf } from '@/lib/countries';
 import Notice from '@/components/Notice';
+import {
+  ReferralCard, RefundsCard, SegmentChips, type CustomerRefund, type ReferringAgent, type Segment,
+} from '@/components/CustomerSegments';
 
 type Customer = {
   id: string;
@@ -33,6 +36,11 @@ type Customer = {
   // absent on an API without the wallet yet
   wallets?: { currencyCode: string; balance: string; updatedAt: string }[];
   ledger?: LedgerRow[];
+  // staff only: segments, refunds on their orders, who referred them, whether they are an agent
+  segments?: Segment[];
+  refunds?: CustomerRefund[];
+  referredByAgent?: ReferringAgent;
+  agent?: { id: string; code: string; isActive: boolean } | null;
 };
 
 type LedgerType = 'TOPUP' | 'ORDER_PAYMENT' | 'REFUND' | 'ADMIN_ADJUSTMENT' | 'CASHBACK';
@@ -127,6 +135,7 @@ function Profile({ c, onSaved }: { c: Customer; onSaved: () => void }) {
             {c.isBlocked && (
               <span className="rounded-full bg-bad/12 px-2 py-0.5 text-[11px] font-bold text-bad">موقوف</span>
             )}
+            <SegmentChips segments={c.segments} />
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
             {c.phone && <span dir="ltr">{c.phone}</span>}
@@ -171,8 +180,9 @@ function Profile({ c, onSaved }: { c: Customer; onSaved: () => void }) {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-5">
-        <div className="lg:col-span-2">
+        <div className="flex flex-col gap-5 lg:col-span-2">
           <NotesAndTags c={c} onSaved={onSaved} />
+          <ReferralCard referredBy={c.referredByAgent} agent={c.agent} phone={c.phone} name={c.fullName} />
         </div>
 
         <section className="surface overflow-hidden rounded-2xl shadow-card lg:col-span-3">
@@ -217,6 +227,8 @@ function Profile({ c, onSaved }: { c: Customer; onSaved: () => void }) {
           </div>
         </section>
       </div>
+
+      <RefundsCard refunds={c.refunds} />
     </>
   );
 }

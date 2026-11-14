@@ -77,6 +77,8 @@ export default function OrdersPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const filtered = !!(gateway || country || from || to);
+  const activeFilters = [gateway, country, from, to].filter(Boolean).length;
+  const [showFilters, setShowFilters] = useState(false);
   const pending = useFetch<PendingTransfer[]>('/admin/payments/manual/pending');
   // only the latest request may fill the list: a tab opened from a link
   // reloads while the first, unfiltered load is still on its way
@@ -201,19 +203,45 @@ export default function OrdersPage() {
         </section>
       )}
 
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="ابحث برقم الطلب أو اسم الزبون أو رقم واتساب"
-        className="surface hairline rounded-xl border px-4 py-3 text-[15px] outline-none focus:border-teal"
-      />
+      <div className="flex gap-2">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="رقم الطلب أو الاسم أو واتساب"
+          aria-label="بحث في الطلبات"
+          className="surface hairline min-h-12 min-w-0 flex-1 rounded-xl border px-4 text-[15px] outline-none focus:border-teal"
+        />
+        {/* phones: the four filters fold behind this button; wide screens always show them */}
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters || filtered}
+          aria-controls="order-filters"
+          className={
+            'relative inline-flex min-h-12 flex-none items-center gap-1.5 rounded-xl border px-3.5 text-sm font-bold transition md:hidden ' +
+            (showFilters || filtered ? 'border-teal bg-teal/10 text-teal' : 'hairline surface text-muted')
+          }
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <path d="M4 6h16M7 12h10M10 18h4" />
+          </svg>
+          تصفية
+          {activeFilters > 0 && (
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-teal px-1 text-[11px] text-white tnum">
+              {activeFilters}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* phones: the tabs scroll sideways instead of wrapping into many rows */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setStatus(f.key)}
+            aria-pressed={status === f.key}
             className={
               'inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition ' +
               (status === f.key ? 'bg-teal text-white' : 'surface-2 text-muted hover:text-[rgb(var(--text))]')
@@ -224,7 +252,10 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div
+        id="order-filters"
+        className={`${showFilters || filtered ? 'grid' : 'hidden'} grid-cols-2 gap-2 sm:grid-cols-4 md:grid`}
+      >
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-xs font-semibold text-muted">طريقة الدفع</span>
           <select value={gateway} onChange={(e) => setGateway(e.target.value)} className={select}>
@@ -280,7 +311,7 @@ export default function OrdersPage() {
             setFrom('');
             setTo('');
           }}
-          className="self-start text-xs font-bold text-teal hover:underline"
+          className="-my-2 inline-flex min-h-10 items-center self-start text-xs font-bold text-teal hover:underline"
         >
           مسح الفلاتر
         </button>
@@ -292,9 +323,22 @@ export default function OrdersPage() {
 
       {/* phones: one card per order, so the total and date stay visible without scrolling */}
       <div className="flex flex-col gap-2 md:hidden">
-        {first && loading && (
-          <div className="surface rounded-2xl px-5 py-8 text-center text-sm text-muted shadow-card">جارٍ التحميل…</div>
-        )}
+        {/* the cards' own shape while the first page loads, so nothing jumps */}
+        {first &&
+          loading &&
+          [0, 1, 2].map((i) => (
+            <div key={i} aria-hidden className="surface flex flex-col gap-2.5 rounded-2xl p-4 shadow-card">
+              <div className="flex justify-between gap-2">
+                <div className="surface-2 h-4 w-40 animate-pulse rounded" />
+                <div className="surface-2 h-4 w-16 animate-pulse rounded-full" />
+              </div>
+              <div className="flex justify-between gap-2">
+                <div className="surface-2 h-4 w-28 animate-pulse rounded" />
+                <div className="surface-2 h-4 w-20 animate-pulse rounded" />
+              </div>
+              <div className="surface-2 h-3 w-24 animate-pulse rounded" />
+            </div>
+          ))}
         {!loading && rows.length === 0 && !error && (
           <div className="surface rounded-2xl px-5 py-8 text-center text-sm text-muted shadow-card">
             لا توجد طلبات هنا.

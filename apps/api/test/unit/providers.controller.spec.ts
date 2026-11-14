@@ -12,7 +12,7 @@ describe('ProvidersController', () => {
       rotateKey: jest.fn().mockResolvedValue({ message: 'Credentials rotated' }),
     };
     engine = { fulfilItem: jest.fn().mockResolvedValue({ status: 'DELIVERED' }) };
-    controller = new ProvidersController(providers, engine);
+    controller = new ProvidersController(providers, engine, {} as any);
   });
 
   it('lists providers', async () => {

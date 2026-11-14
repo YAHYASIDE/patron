@@ -3,7 +3,10 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
-import { OrderNoteDto, UpdateCustomerDto } from './admin-tools.dto';
+import { OrderNoteDto, SegmentSettingsDto, UpdateCustomerDto } from './admin-tools.dto';
+import {
+  readSegmentSettings, SEGMENT_SETTINGS_KEY, SegmentSettings, segmentsOf,
+} from './customer-segments';
 
 /** Orders that count as a sale (paid, being delivered, or done), as on the customers list. */
 export const SOLD_STATUSES = ['PAID', 'PROCESSING', 'PARTIALLY_COMPLETED', 'COMPLETED'] as const;
@@ -22,11 +25,14 @@ export class CustomersAdminService {
       select: {
         id: true, fullName: true, phone: true, email: true, country: true, city: true, adminNote: true, tags: true,
         phoneVerifiedAt: true, isBlocked: true, createdAt: true, lastLoginAt: true,
+        // who brought them, and whether they bring others: staff only
+        referredByAgent: { select: { id: true, code: true, isActive: true, user: { select: { id: true, fullName: true } } } },
+        agent: { select: { id: true, code: true, isActive: true } },
       },
     });
     if (!user) throw new NotFoundException('Customer not found');
 
-    const [orders, totalOrders, sold, wallets, ledger] = await Promise.all([
+    const [orders, totalOrders, sold, wallets, ledger, refunds, segmentSettings] = await Promise.all([
       this.prisma.order.findMany({
         where: { userId: id },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -51,16 +57,34 @@ export class CustomersAdminService {
           referenceType: true, referenceId: true, createdAt: true, createdById: true,
         },
       }),
+      // money that went back to them, on any of their orders (newest first)
+      this.prisma.refund.findMany({
+        where: { order: { userId: id } },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: {
+          id: true, amount: true, currency: true, status: true, reason: true, toWallet: true,
+          createdAt: true, processedAt: true, order: { select: { id: true, orderNumber: true } },
+        },
+      }),
+      readSegmentSettings(this.prisma),
     ]);
 
+    const totalSpentBase = sold._sum.totalBase ?? new Prisma.Decimal(0);
+    const lastOrderAt = sold._max.createdAt ?? null;
     return {
       ...user,
+      segments: segmentsOf(
+        { createdAt: user.createdAt, lastOrderAt, paidOrders: sold._count._all, totalSpentBase },
+        segmentSettings,
+      ),
       stats: {
         orders: totalOrders,
         paidOrders: sold._count._all,
-        totalSpentBase: (sold._sum.totalBase ?? new Prisma.Decimal(0)).toFixed(2),
-        lastOrderAt: sold._max.createdAt ?? null,
+        totalSpentBase: totalSpentBase.toFixed(2),
+        lastOrderAt,
       },
+      refunds,
       orders,
       wallets,
       ledger: await this.withStaffNames(ledger),
@@ -96,6 +120,28 @@ export class CustomersAdminService {
       await this.audit.record(tx, { actorId, action: 'customers.update', entityType: 'User', entityId: id, before, after });
     });
     return this.findOne(id);
+  }
+
+  segmentSettings(): Promise<SegmentSettings> {
+    return readSegmentSettings(this.prisma);
+  }
+
+  /** The VIP thresholds the owner chooses (the other segments are fixed day counts). */
+  async setSegmentSettings(dto: SegmentSettingsDto, actorId: string): Promise<SegmentSettings> {
+    const value: SegmentSettings = { vipSpendBase: dto.vipSpendBase, vipOrders: dto.vipOrders };
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.systemSetting.findUnique({ where: { key: SEGMENT_SETTINGS_KEY } });
+      await tx.systemSetting.upsert({
+        where: { key: SEGMENT_SETTINGS_KEY },
+        create: { key: SEGMENT_SETTINGS_KEY, value: { ...value }, group: 'customers', description: 'Customer segments: VIP thresholds' },
+        update: { value: { ...value } },
+      });
+      await this.audit.record(tx, {
+        actorId, action: 'customers.segments', entityType: 'SystemSetting', entityId: SEGMENT_SETTINGS_KEY,
+        before: before?.value ?? null, after: value,
+      });
+    });
+    return value;
   }
 
   async setOrderNote(orderId: string, dto: OrderNoteDto, actorId: string) {

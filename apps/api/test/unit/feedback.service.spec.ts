@@ -90,6 +90,19 @@ describe('FeedbackService', () => {
       await expect(service.recordServerError({ ...report, message: 'other' }, 70_000)).resolves.toBeUndefined();
     });
 
+    it("raises the owner's system.error notice for a recorded error, not for a throttled or unstored one", async () => {
+      const staffEvents = { serverError: jest.fn() };
+      const withStaff = new FeedbackService(prisma, staffEvents as any);
+      await withStaff.recordServerError(report, 1_000);
+      await withStaff.recordServerError(report, 2_000);
+      expect(staffEvents.serverError).toHaveBeenCalledTimes(1);
+      expect(staffEvents.serverError).toHaveBeenCalledWith({ message: 'DB down', method: 'GET', path: '/api/v1/orders', status: 500 });
+
+      prisma.storeEvent.create.mockRejectedValueOnce(new Error('connection refused'));
+      await withStaff.recordServerError({ ...report, message: 'other' }, 3_000);
+      expect(staffEvents.serverError).toHaveBeenCalledTimes(1);
+    });
+
     it('forgets old messages once it has seen many', async () => {
       for (let i = 0; i < 202; i++) await service.recordServerError({ ...report, message: `m${i}` }, 1_000);
       await service.recordServerError({ ...report, message: 'm0' }, 2_000);

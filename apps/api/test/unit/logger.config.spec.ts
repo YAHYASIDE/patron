@@ -112,6 +112,11 @@ describe('loggerConfig', () => {
       expect(out).toEqual({ method: 'POST', url: '/orders', ip: '2.2.2.2' });
     });
 
+    it('hides an OAuth code and state in the query', () => {
+      const out = opts(false).serializers.req({ method: 'GET', url: '/cb?state=s1&code=c1&scope=x', remoteAddress: '1.1.1.1' });
+      expect(out.url).toBe('/cb?state=[REDACTED]&code=[REDACTED]&scope=x');
+    });
+
     it('projects the response down to its status code', () => {
       expect(opts(false).serializers.res({ statusCode: 201 } as any)).toEqual({ statusCode: 201 });
     });

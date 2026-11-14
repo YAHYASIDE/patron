@@ -9,8 +9,11 @@ const cairo = Cairo({
   display: 'swap',
 });
 
+/** Set only by render.staging.yaml: a test copy of the dashboard, never the real one. */
+const STAGING = process.env.NEXT_PUBLIC_STAGING === 'true';
+
 export const metadata: Metadata = {
-  title: 'لوحة تحكم patron',
+  title: STAGING ? 'نسخة تجريبية — لوحة تحكم patron' : 'لوحة تحكم patron',
   description: 'لوحة إدارة منصة patron للمنتجات الرقمية.',
 };
 
@@ -27,7 +30,14 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        {STAGING && (
+          <div role="status" className="sticky top-0 z-50 bg-amber-400 px-4 py-1.5 text-center text-sm font-bold text-black">
+            نسخة تجريبية: بياناتها منفصلة عن المتجر الحقيقي، وأرقام الاستلام فيها أرقام اختبار.
+          </div>
+        )}
+        {children}
+      </body>
     </html>
   );
 }

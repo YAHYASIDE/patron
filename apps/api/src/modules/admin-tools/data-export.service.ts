@@ -5,13 +5,13 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { createdAtRange } from '../orders/dto/order.dto';
 import { SOLD_STATUSES } from './customers-admin.service';
 import { toCsv } from './csv';
-import { BackupService } from './backup.service';
+import { BackupRunsService, LAST_DOWNLOAD_KEY } from './backup-runs.service';
 
 /** A spreadsheet is not a database: past this many rows, narrow the dates. */
 export const EXPORT_MAX_ROWS = 50_000;
 
 /** System setting holding when the owner last downloaded a full backup. */
-export const LAST_BACKUP_KEY = 'backup.last_downloaded_at';
+export const LAST_BACKUP_KEY = LAST_DOWNLOAD_KEY;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -19,11 +19,12 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
  * CSV exports (#39) and the full backup (#40).
  *
  * The backup is the owner's copy of the shop in case the free database goes
- * away; BackupService builds it and restores from it.
+ * away; BackupService builds it and restores from it, BackupRunsService logs
+ * every copy taken.
  */
 @Injectable()
 export class DataExportService {
-  constructor(private prisma: PrismaService, private backups: BackupService) {}
+  constructor(private prisma: PrismaService, private runs: BackupRunsService) {}
 
   async ordersCsv(from?: string, to?: string) {
     const createdAt = createdAtRange(from, to);
@@ -97,21 +98,13 @@ export class DataExportService {
   }
 
   /**
-   * The full backup (see BackupService for what it holds and leaves out).
-   * The download time is remembered so the dashboard can remind the owner
-   * when the last copy is getting old.
+   * The full backup as JSON bytes (see BackupService for what it holds and
+   * leaves out). The run is logged and the download time remembered, so the
+   * dashboard can remind the owner when the last copy is getting old.
    */
-  async backup() {
-    const body = await this.backups.export();
-    await this.prisma.systemSetting.upsert({
-      where: { key: LAST_BACKUP_KEY },
-      update: { value: body.exportedAt },
-      create: { key: LAST_BACKUP_KEY, value: body.exportedAt, group: 'backup', description: 'When the owner last downloaded a full backup' },
-    });
-    return {
-      filename: `patron-backup-${body.exportedAt.slice(0, 19).replace(/:/g, '-')}.json`,
-      body,
-    };
+  async backup(actorId?: string) {
+    const { filename, body } = await this.runs.plainDownload(actorId);
+    return { filename, body };
   }
 
   /** When the last full backup was downloaded (null: never). */

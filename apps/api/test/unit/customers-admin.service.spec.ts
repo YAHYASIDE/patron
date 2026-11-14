@@ -43,6 +43,12 @@ describe('CustomersAdminService', () => {
           _count: { _all: 2 }, _sum: { totalBase: new Prisma.Decimal('41.5') }, _max: { createdAt: new Date('2026-10-01') },
         }),
       },
+      refund: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'r1', amount: new Prisma.Decimal('5'), currency: 'MRU', status: 'PROCESSED', order: { id: 'o1', orderNumber: 'PTN-1' } },
+        ]),
+      },
+      systemSetting: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn((fn: (t: unknown) => unknown) => fn(tx)),
     };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
@@ -79,6 +85,24 @@ describe('CustomersAdminService', () => {
       expect(res.stats).toEqual({ orders: 3, paidOrders: 0, totalSpentBase: '0.00', lastOrderAt: null });
     });
 
+    it('shows the refunds on their orders, the referring agent and the segments', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        ...user,
+        createdAt: new Date(Date.now() - 200 * 86_400_000),
+        referredByAgent: { id: 'ag1', code: 'K7MXQ2', isActive: true, user: { id: 'au', fullName: 'Sidi' } },
+        agent: null,
+      });
+      prisma.order.aggregate.mockResolvedValue({
+        _count: { _all: 12 }, _sum: { totalBase: new Prisma.Decimal('80') }, _max: { createdAt: new Date() },
+      });
+      const res: any = await service.findOne('u1');
+      expect(res.refunds).toHaveLength(1);
+      expect(prisma.refund.findMany.mock.calls[0][0].where).toEqual({ order: { userId: 'u1' } });
+      expect(res.referredByAgent).toMatchObject({ code: 'K7MXQ2' });
+      // 12 paid orders ≥ the default 10 → VIP; ordered today → active; joined long ago → not new
+      expect(res.segments).toEqual(['active', 'vip']);
+    });
+
     it('404s for a missing or deleted customer', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
       await expect(service.findOne('nope')).rejects.toThrow(NotFoundException);
@@ -111,6 +135,18 @@ describe('CustomersAdminService', () => {
     it('404s for a missing customer', async () => {
       tx.user.findFirst.mockResolvedValue(null);
       await expect(service.update('nope', { tags: [] }, 'a')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('segment settings', () => {
+    it('falls back to the defaults, then stores and audits the owner\'s thresholds', async () => {
+      expect(await service.segmentSettings()).toEqual({ vipSpendBase: 500, vipOrders: 10 });
+      tx.systemSetting = { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) };
+      expect(await service.setSegmentSettings({ vipSpendBase: 250, vipOrders: 0 }, 'admin-1')).toEqual({ vipSpendBase: 250, vipOrders: 0 });
+      expect(tx.systemSetting.upsert.mock.calls[0][0]).toMatchObject({
+        where: { key: 'customers.segments' }, update: { value: { vipSpendBase: 250, vipOrders: 0 } },
+      });
+      expect(audit.record.mock.calls[0][1]).toMatchObject({ action: 'customers.segments', actorId: 'admin-1' });
     });
   });
 

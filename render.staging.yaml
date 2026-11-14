@@ -1,0 +1,148 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Patron — STAGING Blueprint (a test copy that never touches the real shop)
+#
+# A second, separate stack: its own API, dashboard and store, its own database
+# and Key Value, on its own branch. Nothing here shares data, secrets or URLs
+# with render.yaml. Create it in Render as a new Blueprint and set the
+# "Blueprint file path" to render.staging.yaml (docs/STAGING.md, Arabic steps).
+#
+# Database: Render allows ONE free PostgreSQL per workspace and the real shop
+# already uses it, so DATABASE_URL is pasted by hand (sync: false): either a
+# free external Postgres (e.g. a Neon free project) or a paid Render database
+# (uncomment the block below and the fromDatabase lines).
+#
+# Staging shows a "نسخة تجريبية" banner, is not indexed by search engines, and
+# starts from an empty database seeded with test data only. The migrations copy
+# the shop's receiving accounts into every new database, so with STAGING=true
+# the API's entrypoint replaces every receiving number with a test value once
+# (src/bootstrap/staging-guard.ts) before it starts: no money can land there.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# databases:
+#   - name: patron-staging-db
+#     plan: basic-256mb          # paid; the free plan allows one database per workspace
+#     databaseName: patron_staging
+#     user: patron
+#     region: frankfurt
+#     ipAllowList: []
+
+services:
+  - type: keyvalue
+    name: patron-staging-kv
+    plan: free
+    region: frankfurt
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: patron-staging-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: apps/api
+    branch: claude/patron-staging
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/v1/health/live
+    buildFilter:
+      paths:
+        - apps/api/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: STAGING
+        value: "true"             # test numbers instead of the shop's real ones (entrypoint)
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        sync: false               # a separate test database, never the shop's
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: patron-staging-kv
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: patron-staging-kv
+          property: port
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: METRICS_TOKEN
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false               # a NEW 64-hex value, different from the shop's
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_ON_BOOT
+        value: "true"             # empty test database: seed it (test data only)
+      - key: SEED_DEMO_CATALOG
+        value: "true"
+      - key: CATALOG_PACK
+        value: "true"
+      - key: STOREFRONT_URL
+        value: https://patron-staging-store.onrender.com
+      - key: BASE_CURRENCY
+        value: USD
+      - key: CORS_ORIGINS
+        value: https://patron-staging-admin.onrender.com,https://patron-staging-store.onrender.com
+      - key: OTEL_ENABLED
+        value: "false"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: INTEL_INGEST_TOKEN
+        generateValue: true       # lets the daily discovery workflow report into staging
+
+  - type: web
+    name: patron-staging-admin
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: apps/admin/Dockerfile
+    dockerContext: apps/admin
+    branch: claude/patron-staging
+    autoDeployTrigger: checksPass
+    healthCheckPath: /login
+    buildFilter:
+      paths:
+        - apps/admin/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: NEXT_PUBLIC_API_URL
+        value: https://patron-staging-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_STORE_URL
+        value: https://patron-staging-store.onrender.com
+      - key: NEXT_PUBLIC_STAGING
+        value: "true"
+
+  - type: web
+    name: patron-staging-store
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: apps/storefront/Dockerfile
+    dockerContext: apps/storefront
+    branch: claude/patron-staging
+    autoDeployTrigger: checksPass
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - apps/storefront/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: NEXT_PUBLIC_API_URL
+        value: https://patron-staging-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_STAGING
+        value: "true"

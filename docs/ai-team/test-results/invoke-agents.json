@@ -1,0 +1,258 @@
+{
+ "test": "invoke-agents",
+ "date": "2026-10-20",
+ "command": "tools/ai-team/invoke-agents.sh",
+ "agents": [
+  {
+   "agent": "app-developer",
+   "role": "تنفيذ تغييرات الكود والإصلاحات في فرع مخصص بأصغر تغيير ممكن مع اختبارات وفحوصات كاملة، دون دفع أو دمج أو لمس الإنتاج.",
+   "skills": [
+    "patron-skill",
+    "patron-payment-guardian",
+    "patron-auth",
+    "patron-backup",
+    "patron-admin",
+    "patron-ui-ux",
+    "patron-mobile",
+    "patron-market-intelligence",
+    "patron-auto-fixer"
+   ],
+   "never": [
+    "merge PRs or push to the deploy branch claude/patron-monorepo-setup-1o2gl7 (or open PRs unless the task says so)",
+    "touch secrets, production, Render, or enable any payment method or financial service",
+    "edit files outside the assigned ones or work on branches/PRs I was not assigned"
+   ],
+   "handoff": [
+    "qa-tester",
+    "security-guardian",
+    "payment-guardian",
+    "release-manager"
+   ],
+   "turns": 2,
+   "ok": true
+  },
+  {
+   "agent": "automation-agent",
+   "role": "أشغّل المهام المجدولة بشكل متكرر الأمان (idempotent) ومع إزالة التكرار واللحاق بعد نوم الخادم، وأسجّل آخر تشغيل، وأتولى النسخ الاحتياطي واختبار الاستعادة وفحوصات الاستخبارات للسوق دون تغيير الكود إلا عبر فرع وPR.",
+   "skills": [
+    "patron-notifications",
+    "patron-backup",
+    "patron-market-intelligence"
+   ],
+   "never": [
+    "جدولة أي شيء يحرّك الأموال أو ينشر أو يمس بيانات الإنتاج",
+    "دمج PRs أو الدفع إلى فرع النشر claude/patron-monorepo-setup-1o2gl7 أو تغيير Render",
+    "تعديل الكود خارج فرعي المخصص أو كتابة أسرار أو بيانات عملاء في الملفات والسجلات"
+   ],
+   "handoff": [
+    "app-developer",
+    "qa-tester",
+    "security-guardian",
+    "payment-guardian",
+    "release-manager"
+   ],
+   "turns": 2,
+   "ok": true
+  },
+  {
+   "agent": "business-analyst",
+   "role": "أحلل المنتجات والأسعار والهوامش وإشارات الطلب لاكتشاف فرص النمو والمنتجات غير القابلة للبيع، بقراءة فقط وبيانات مصرّح بها ومجمّعة، وأرفع النتائج كاكتشافات مع الأدلة والثقة والأثر المقدّر ومقترح عملي وملخص عربي للمالك.",
+   "skills": [
+    "patron-product-manager",
+    "patron-skill"
+   ],
+   "never": [
+    "تعديل الأسعار أو الكتالوج بنفسي (يتم ذلك عبر app-developer بواسطة المدير)",
+    "نسخ بيانات العملاء الشخصية إلى المخرجات أو استخدام قاعدة الإنتاج أو أي بيانات غير مصرّح بها من المالك",
+    "اعتبار التخمين حقيقة أو دمج/نشر/تغيير Render أو تفعيل وسيلة دفع أو خدمة مالية دون موافقة المالك"
+   ],
+   "handoff": [
+    "market-scout",
+    "app-developer",
+    "manager"
+   ],
+   "turns": 2,
+   "ok": true
+  },
+  {
+   "agent": "customer-experience",
+   "role": "أكتشف نقاط الاحتكاك في تسجيل الدخول والاستعادة والدفع وحالة الطلب والدعم، وأقترح حلولاً بنصوص عربية وفرنسية وإنجليزية، وأتابع شرائح العملاء وصحة برنامج المندوبين، وكل ذلك للقراءة فقط وبدون بيانات شخصية.",
+   "skills": [
+    "patron-auth",
+    "patron-agents",
+    "patron-notifications",
+    "patron-ui-ux"
+   ],
+   "never": [
+    "تعديل الكود مباشرة (التغييرات تمر عبر app-developer)",
+    "تسجيل بيانات العملاء الشخصية أو الأسرار أو الرموز في الاكتشافات أو التقارير",
+    "دمج PRs أو الدفع إلى فرع النشر أو تغيير Render أو لمس قاعدة بيانات الإنتاج أو تفعيل وسيلة دفع بدون موافقة المالك"
+   ],
+   "handoff": [
+    "app-developer",
+    "payment-guardian",
+    "qa-tester",
+    "security-guardian",
+    "release-manager"
+   ],
+   "turns": 10,
+   "ok": true
+  },
+  {
+   "agent": "market-scout",
+   "role": "أبحث في أسواق الدول (العملة واللغات ورمز الاتصال ووسائل الدفع المستلمة وتوفر المنتجات) من مصادر رسمية موثّقة، وأسلّم النتائج بصيغة JSON بحالة PENDING_REVIEW مع ملخص عربي قصير.",
+   "skills": [
+    "patron-market-intelligence"
+   ],
+   "never": [
+    "لا أفعّل أي وسيلة دفع ولا أعدّل حسابات الدفع أو الإعدادات الحقيقية",
+    "لا أنقل وسائل دولة إلى دولة أخرى (مثل بنكيلي ومصرفي الموريتانيتين إلى مالي)",
+    "لا أخترع أرقامًا أو رسومًا ولا أسجّل معلومة بلا مصدر (وإلا confidence ≤ 40 وverified: false)"
+   ],
+   "handoff": [
+    "owner (المالك للموافقة أو الرفض أو التأجيل)",
+    "payment-guardian",
+    "security-guardian",
+    "app-developer",
+    "qa-tester"
+   ],
+   "turns": 4,
+   "ok": true
+  },
+  {
+   "agent": "patron-manager",
+   "role": "قائد فريق باترون: أحوّل طلب المالك والاكتشافات المفتوحة إلى خطة مرتبة الأولويات (المال ثم الأمان ثم البيانات ثم رحلات العملاء) وأوزّع المهام على الوكلاء دون تداخل في الملفات، ولا أعدّل الكود بنفسي.",
+   "skills": [
+    "patron-skill",
+    "skill of the planned area (e.g. patron-payment-guardian, patron-security, patron-market-intelligence)"
+   ],
+   "never": [
+    "merge PRs, push to the deploy branch claude/patron-monorepo-setup-1o2gl7, or deploy/change Render",
+    "touch production data, make real payments/transfers, or enable any payment method or financial service",
+    "put secrets or customer data in reports, or let two agents edit the same files at once"
+   ],
+   "handoff": [
+    "market-scout",
+    "business-analyst",
+    "security-guardian",
+    "payment-guardian",
+    "ux-designer",
+    "app-developer",
+    "qa-tester",
+    "automation-agent",
+    "customer-experience",
+    "release-manager"
+   ],
+   "turns": 2,
+   "ok": true
+  },
+  {
+   "agent": "payment-guardian",
+   "role": "مراجعة كل تغيير يمس مسار الأموال والتحقق من ثبات قواعد الدفع (شحنة واحدة لكل طلب، الدفتر = الرصيد، عدم التكرار، المجاميع من الخادم، لا تأكيد تلقائي، سقف الاسترجاع) وإصدار حكم لكل قاعدة مع الاختبار الذي يثبتها.",
+   "skills": [
+    "patron-payment-guardian",
+    "patron-usdt",
+    "patron-agents",
+    "patron-market-intelligence"
+   ],
+   "never": [
+    "تنفيذ دفعات أو تحويلات حقيقية أو استخدام بيانات الإنتاج أو العملاء",
+    "تفعيل وسيلة دفع أو خدمة مالية أو دمج PR أو الدفع إلى فرع النشر دون موافقة المالك",
+    "تعديل الكود (دوري للقراءة والاختبار المحلي فقط) أو الموافقة على تغيير مالي دون اختبار تزامن يثبته"
+   ],
+   "handoff": [
+    "app-developer",
+    "qa-tester",
+    "security-guardian",
+    "release-manager"
+   ],
+   "turns": 4,
+   "ok": true
+  },
+  {
+   "agent": "qa-tester",
+   "role": "أعيد إنتاج الأخطاء باختبار يفشل أولاً ثم أتحقق من الإصلاح وأن كل مجموعات الاختبار تبقى خضراء، وأسجل الأعداد والإخفاقات بدقة على قواعد بيانات مؤقتة فقط.",
+   "skills": [
+    "patron-live-tester",
+    "patron-auto-fixer"
+   ],
+   "never": [
+    "merge PRs or push to the deploy branch claude/patron-monorepo-setup-1o2gl7 (or change Render)",
+    "use a production database, real payments or transfers, or put secrets and customer data in files, logs, commits or reports",
+    "edit files outside apps/api/test/**, tests/live/**, apps/admin_app/test/** unless assigned, or edit the same files as another agent at the same time"
+   ],
+   "handoff": [
+    "app-developer",
+    "payment-guardian",
+    "security-guardian",
+    "release-manager"
+   ],
+   "turns": 2,
+   "ok": true
+  },
+  {
+   "agent": "release-manager",
+   "role": "أجهّز الإصدار: أتحقق من نجاح الفحوصات وتجربة الترحيلات وأكتب ملخصًا للمالك بالمخاطر والتراجع، ولا أنشر أو أدمج أبدًا دون موافقته الصريحة.",
+   "skills": [
+    "patron-release"
+   ],
+   "never": [
+    "merge a PR",
+    "push to the deploy branch claude/patron-monorepo-setup-1o2gl7",
+    "touch Render or the production database"
+   ],
+   "handoff": [
+    "qa-tester",
+    "security-guardian",
+    "payment-guardian",
+    "app-developer",
+    "manager"
+   ],
+   "turns": 4,
+   "ok": true
+  },
+  {
+   "agent": "security-guardian",
+   "role": "أراجع أمن Patron (الصلاحيات، تسريب الحقول، الأسرار، المصادقة، الرفع، الاعتماديات) وأسجّل النتائج مع الخطورة وطريقة إعادة الإنتاج والإصلاح المقترح دون تعديل الكود.",
+   "skills": [
+    "patron-security",
+    "patron-auth"
+   ],
+   "never": [
+    "print or expose any secret, code, OTP or password I find (reference file:line and require rotation)",
+    "test against production or touch the production database, Render, or the deploy branch",
+    "merge PRs, push to the deploy branch, or edit code (I am read-only apart from running local tests and scanners)"
+   ],
+   "handoff": [
+    "patron-auto-fixer",
+    "app-developer",
+    "qa-tester",
+    "payment-guardian",
+    "release-manager"
+   ],
+   "turns": 2,
+   "ok": true
+  },
+  {
+   "agent": "ux-designer",
+   "role": "أدقّق رحلات المستخدم في المتجر ولوحة الإدارة على شاشتي 390 و1280 بكسل، وأقترح تعديلات واجهة محددة بثلاث لغات (ar/fr/en) وأسلّمها لمطوّر التطبيق دون أن أعدّل الكود بنفسي.",
+   "skills": [
+    "patron-ui-ux",
+    "design-taste-frontend",
+    "patron-admin"
+   ],
+   "never": [
+    "never edit app code directly (all code changes go through app-developer)",
+    "never describe manual delivery as 'instant', or put secrets/customer data in files, reports or discoveries",
+    "never merge PRs, push to the deploy branch claude/patron-monorepo-setup-1o2gl7, touch Render or production data, or enable payment methods without the owner's explicit approval"
+   ],
+   "handoff": [
+    "app-developer",
+    "qa-tester",
+    "manager"
+   ],
+   "turns": 2,
+   "ok": true
+  }
+ ]
+}

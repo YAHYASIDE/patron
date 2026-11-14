@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import {
+  Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, StreamableFile,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
@@ -6,8 +8,8 @@ import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import {
-  AuditQueryDto, BroadcastDto, BulkPriceDto, CreateCouponDto, ExportOrdersQueryDto, OrderNoteDto, UpdateCouponDto,
-  UpdateCustomerDto, WhatsappTemplatesDto,
+  AuditQueryDto, BroadcastDto, BulkPriceDto, CreateCouponDto, ExportOrdersQueryDto, OrderNoteDto, SegmentSettingsDto,
+  UpdateCouponDto, UpdateCustomerDto, WhatsappTemplatesDto,
 } from './admin-tools.dto';
 import { CustomersAdminService } from './customers-admin.service';
 import { DataExportService } from './data-export.service';
@@ -30,6 +32,17 @@ function attach(res: Response, contentType: string, filename: string) {
 @Controller('admin/customers')
 export class CustomersAdminController {
   constructor(private customers: CustomersAdminService) {}
+
+  @ApiOperation({ summary: 'VIP thresholds for the customer segments' })
+  @RequirePermissions('users.read') @Get('segments/settings')
+  segmentSettings() {
+    return this.customers.segmentSettings();
+  }
+
+  @RequirePermissions('users.write') @Put('segments/settings')
+  setSegmentSettings(@Body() dto: SegmentSettingsDto, @CurrentUser('id') actorId: string) {
+    return this.customers.setSegmentSettings(dto, actorId);
+  }
 
   @ApiOperation({ summary: 'A customer with stats, notes, tags and latest orders' })
   @RequirePermissions('users.read') @Get(':id')
@@ -95,10 +108,11 @@ export class DataExportController {
   })
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @RequirePermissions('settings.manage') @Get('backup')
-  async backup(@Res({ passthrough: true }) res: Response) {
-    const { filename, body } = await this.exporter.backup();
+  async backup(@Res({ passthrough: true }) res: Response, @CurrentUser('id') actorId?: string) {
+    const { filename, body } = await this.exporter.backup(actorId);
     attach(res, 'application/json; charset=utf-8', filename);
-    return body;
+    // the exact bytes that were measured and hashed for the backup log
+    return new StreamableFile(body, { length: body.length });
   }
 }
 

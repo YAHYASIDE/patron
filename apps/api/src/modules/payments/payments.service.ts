@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PaymentGateway as GatewayEnum, PaymentStatus, Prisma, WalletTxnType } from '@prisma/client';
 
@@ -17,6 +17,7 @@ import { ManualAccountsDto, SubmitTransferDto } from './dto/payment.dto';
 import { writeInAppNotification } from '../notifications/in-app';
 import { WalletService } from '../wallet/wallet.service';
 import { reportServerError } from '../../common/filters/server-error-sink';
+import { StaffEventsService } from '../staff-notifications/staff-events.service';
 
 /** What the customer reported for a manual transfer, kept on the payment. */
 interface TransferReport {
@@ -43,6 +44,7 @@ export class PaymentsService {
     private manual: ManualTransferGateway,
     private uploads: UploadsService,
     private wallet: WalletService,
+    @Optional() private staffEvents?: StaffEventsService,
   ) {}
 
   /**
@@ -443,6 +445,11 @@ export class PaymentsService {
         version: { increment: 1 },
       },
     });
+    // the owner's inbox: a transfer to check (closed by the approval's order.paid, or by a rejection)
+    await this.staffEvents?.transferReported({
+      paymentId, orderId: payment.orderId, orderNumber: payment.order.orderNumber,
+      amount: payment.amount.toString(), currency: payment.currency, method: account.method,
+    });
     return { paymentId, status: 'AUTHORIZED' as const };
   }
 
@@ -525,6 +532,7 @@ export class PaymentsService {
         fr: { title: 'Virement non confirmé', body: `Nous avons vérifié le virement de la commande ${number} sans pouvoir le confirmer : ${reason}. Vous pouvez payer à nouveau depuis la page de la commande.` },
       });
     });
+    await this.staffEvents?.transferReviewed(paymentId);
     return { status: 'FAILED' as const };
   }
 }

@@ -34,7 +34,10 @@ describe('JwtStrategy', () => {
   const payload: JwtPayload = { sub: 'u1', email: 'a@b.c', type: 'access' };
 
   beforeEach(() => {
-    prisma = { user: { findFirst: jest.fn().mockResolvedValue(dbUser) } };
+    prisma = {
+      user: { findFirst: jest.fn().mockResolvedValue(dbUser) },
+      refreshToken: { findFirst: jest.fn().mockResolvedValue({ id: 'live' }) },
+    };
     config = { getOrThrow: jest.fn().mockReturnValue(SECRET) };
     strategy = new JwtStrategy(config, prisma);
   });
@@ -78,5 +81,28 @@ describe('JwtStrategy', () => {
     const user = await strategy.validate(payload);
 
     expect(user).toEqual({ id: 'u1', email: 'a@b.c', roles: [], permissions: [] });
+  });
+
+  describe('device sessions', () => {
+    const withSid = { ...payload, sid: 's1' };
+
+    it('carries the session id when the device session is live', async () => {
+      const user = await strategy.validate(withSid);
+      expect(user.sessionId).toBe('s1');
+      expect(prisma.refreshToken.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sessionId: 's1', userId: 'u1', revokedAt: null } }),
+      );
+    });
+
+    it('refuses an access token whose device was signed out, at once', async () => {
+      prisma.refreshToken.findFirst.mockResolvedValue(null);
+      await expect(strategy.validate(withSid)).rejects.toThrow('Session ended');
+      expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('accepts tokens issued before sessions existed (no sid) without the extra check', async () => {
+      await strategy.validate(payload);
+      expect(prisma.refreshToken.findFirst).not.toHaveBeenCalled();
+    });
   });
 });

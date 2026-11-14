@@ -6,6 +6,8 @@ export interface AuthUser {
   phone?: string | null;
   roles: string[];
   permissions: string[];
+  /** The signed-in device's session (from the access token). */
+  sessionId?: string;
 }
 
 export const CurrentUser = createParamDecorator((field: keyof AuthUser | undefined, ctx: ExecutionContext) => {

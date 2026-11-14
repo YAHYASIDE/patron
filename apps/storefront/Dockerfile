@@ -14,6 +14,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Example: --build-arg NEXT_PUBLIC_API_URL=https://etssadagha-api.onrender.com/api/v1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# "true" only in the staging copy (render.staging.yaml): test banner + noindex
+ARG NEXT_PUBLIC_STAGING
+ENV NEXT_PUBLIC_STAGING=${NEXT_PUBLIC_STAGING}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # The committed tsconfig.json extends ../../packages/tsconfig, which is outside

@@ -5,6 +5,7 @@ describe('ProvidersService', () => {
   let registry: any;
   let crypto: any;
   let adapter: any;
+  let staff: any;
   let service: ProvidersService;
 
   beforeEach(() => {
@@ -23,7 +24,8 @@ describe('ProvidersService', () => {
       credentialsFor: jest.fn().mockResolvedValue({ adapter, creds: { apiKey: 'k' } }),
     };
     crypto = { encrypt: jest.fn((v: string) => `enc(${v})`) };
-    service = new ProvidersService(prisma, registry, crypto);
+    staff = { notify: jest.fn().mockResolvedValue(undefined), resolve: jest.fn().mockResolvedValue(undefined) };
+    service = new ProvidersService(prisma, registry, crypto, staff);
   });
 
   describe('findAll', () => {
@@ -78,13 +80,24 @@ describe('ProvidersService', () => {
 
     it('warns but stays healthy when the balance is under the low-balance alert', async () => {
       prisma.provider.findMany.mockResolvedValue([
-        { id: 'p1', code: 'fazercards', lowBalanceAlert: '1000' },
+        { id: 'p1', code: 'fazercards', name: 'Fazer', lowBalanceAlert: '1000' },
       ]);
       const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
 
       await service.runHealthChecks();
 
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/balance is low/));
+      // the owner is told once (deduped per provider), in Arabic, with where to act
+      expect(staff.notify).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'provider.low_balance', priority: 'HIGH', dedupeKey: 'provider.low_balance:p1', link: '/suppliers',
+      }));
+    });
+
+    it('closes the low-balance notice once the balance is back above the alert', async () => {
+      prisma.provider.findMany.mockResolvedValue([{ id: 'p1', code: 'fazercards', name: 'Fazer', lowBalanceAlert: '100' }]);
+      await service.runHealthChecks();
+      expect(staff.notify).not.toHaveBeenCalled();
+      expect(staff.resolve).toHaveBeenCalledWith('provider.low_balance:p1');
     });
 
     it('still marks healthy when balance lookup fails', async () => {

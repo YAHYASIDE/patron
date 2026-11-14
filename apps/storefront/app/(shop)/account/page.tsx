@@ -99,6 +99,19 @@ export default function AccountPage() {
             )}
           </div>
 
+          <Link
+            href="/account/security"
+            className="surface mt-4 flex items-center gap-3 rounded-2xl px-4 py-3.5 shadow-card transition hover:border-teal"
+          >
+            <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-teal/10 text-teal">
+              <ShieldIcon size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">{t('الأمان وتسجيل الدخول')}</span>
+              <span className="block text-xs text-muted">{t('كلمة المرور، البصمة أو الوجه، والأجهزة المتصلة')}</span>
+            </span>
+          </Link>
+
           <nav aria-label={t('حسابي')} className="mt-4 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
             {LINKS.map(({ href, label, Icon }) => (
               <Link
@@ -113,6 +126,17 @@ export default function AccountPage() {
               </Link>
             ))}
           </nav>
+
+          {/* agents (مندوبون) only: their code, referrals and commissions */}
+          {me.data.roles?.includes('agent') && (
+            <Link
+              href="/agent"
+              className="surface mt-4 flex items-center justify-between gap-3 rounded-2xl p-4 shadow-card transition hover:border-teal"
+            >
+              <span className="font-bold">{t('صفحة المندوب')}</span>
+              <span className="text-sm font-bold text-teal">{t('رمزك وعمولاتك')}</span>
+            </Link>
+          )}
 
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
