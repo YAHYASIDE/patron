@@ -7,11 +7,32 @@ import { CryptoService } from '../../common/crypto/crypto.service';
 import { ProviderRegistry } from './provider-registry.service';
 import { ProviderEngine } from './provider-engine.service';
 import { hasCatalog } from './adapters/provider-adapter.interface';
+import { ProviderHttpError } from './adapters/base-http.adapter';
 import { ConnectProviderDto, LinkProductDto, ProviderLimitsDto } from './dto/provider-setup.dto';
 
 const DEFAULTS: Record<string, { name: string; baseUrl: string }> = {
   gamesdrop: { name: 'GamesDrop', baseUrl: 'https://partner.gamesdrop.io' },
 };
+
+/** Why a supplier did not answer, as a short code the dashboard explains. */
+export type ConnectionProblem = {
+  reason: 'invalid_token' | 'forbidden' | 'timeout' | 'unreachable' | 'supplier_error' | 'unexpected';
+  /** The supplier's own error code (e.g. INVALID_TOKEN), or the HTTP status. Never the token. */
+  code: string | null;
+};
+
+export function connectionProblem(err: unknown): ConnectionProblem {
+  if (!(err instanceof ProviderHttpError)) return { reason: 'unexpected', code: null };
+  const raw = (err.body as { error?: { code?: unknown } | unknown } | null)?.error;
+  const supplierCode = typeof raw === 'string' ? raw : (raw as { code?: unknown } | undefined)?.code;
+  // only a plain upper-case code is echoed: nothing the supplier writes can carry text into the page
+  const code = typeof supplierCode === 'string' && /^[A-Z][A-Z0-9_]{1,40}$/.test(supplierCode) ? supplierCode : err.status ? String(err.status) : null;
+  if (err.status === null) return { reason: /timed out/i.test(err.message) ? 'timeout' : 'unreachable', code };
+  if (err.status === 401 || code === 'INVALID_TOKEN') return { reason: 'invalid_token', code };
+  if (err.status === 403) return { reason: 'forbidden', code };
+  if (err.status >= 500) return { reason: 'supplier_error', code };
+  return { reason: 'unexpected', code };
+}
 
 /**
  * What the owner does from the dashboard to sell through a supplier:
@@ -64,6 +85,7 @@ export class ProviderSetupService {
     const extra = (p.extraConfig as Record<string, unknown> | null) ?? {};
     let balance: { balance: number; currency: string } | null = null;
     let healthy = false;
+    let problem: ConnectionProblem | null = null;
     try {
       const { adapter, creds } = await this.registry.credentialsFor(p.id);
       balance = await adapter.getBalance(creds);
@@ -78,7 +100,8 @@ export class ProviderSetupService {
           extraConfig: { ...extra, currency: balance.currency } as Prisma.InputJsonValue,
         },
       });
-    } catch {
+    } catch (err) {
+      problem = connectionProblem(err);
       await this.prisma.provider.update({ where: { id: p.id }, data: { isHealthy: false, lastHealthCheckAt: new Date() } });
     }
     return {
@@ -87,6 +110,7 @@ export class ProviderSetupService {
       name: p.name,
       isActive: p.isActive,
       connected: healthy,
+      problem,
       balance,
       lowBalanceAlert: p.lowBalanceAlert === null ? null : Number(p.lowBalanceAlert),
       dailyLimit: typeof extra.dailyLimit === 'number' ? extra.dailyLimit : null,
