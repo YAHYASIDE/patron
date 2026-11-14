@@ -21,6 +21,21 @@ export function chip(s: string) {
   return ORDER_STATUS[s] ?? { t: s, c: 'bg-ink-400/15 text-muted' };
 }
 
+/**
+ * The status an order page shows: an unpaid order whose transfer the customer
+ * already sent is "being checked", not "awaiting payment" — the badge must not
+ * contradict the timeline under it.
+ */
+export function orderChip(order: { status: string; payments?: { gateway: string; status: string; createdAt: string }[] }) {
+  if (order.status === 'PENDING_PAYMENT') {
+    const latest = [...(order.payments ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    if (latest?.gateway === 'MANUAL' && latest.status === 'AUTHORIZED') {
+      return { t: 'نراجع تحويلك', c: 'bg-teal/12 text-teal' };
+    }
+  }
+  return chip(order.status);
+}
+
 /** The filter groups on the orders page. */
 export const ORDER_GROUPS: { id: string; t: string; statuses: string[] }[] = [
   { id: 'pending', t: 'بانتظار الدفع', statuses: ['PENDING_PAYMENT'] },

@@ -64,7 +64,8 @@ export class NotificationsService implements OnModuleInit {
         ar: fill(builtIn.ar), en: fill(builtIn.en), fr: fill(builtIn.fr),
         orderId,
         link: orderId ? `/orders/${orderId}` : undefined,
-        dedupeKey: orderId ? `${builtIn.type}:${orderId}` : undefined,
+        // one per event: a second partial refund of the same order is its own notice
+        dedupeKey: orderId ? `${builtIn.type}:${typeof req.data?.refundId === 'string' ? req.data.refundId : orderId}` : undefined,
       });
       results[ChannelEnum.IN_APP] = true;
     }

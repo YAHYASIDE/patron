@@ -1,11 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { PaymentGateway as GatewayEnum, PaymentStatus, Prisma } from '@prisma/client';
+import { PaymentGateway as GatewayEnum, PaymentStatus, Prisma, WalletTxnType } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { GatewayRegistry } from './gateways/gateway.registry';
-import { assertTransition } from '../orders/order-state.machine';
+import { assertTransition, canTransition } from '../orders/order-state.machine';
 import { MetricsService } from '../../common/metrics/metrics.service';
 import { LockRank, acquireLocks } from '../../common/locking/lock-order';
 import { AuditService } from '../../common/audit/audit.service';
@@ -15,6 +15,8 @@ import {
 import { UploadsService, IncomingFile } from '../uploads/uploads.service';
 import { ManualAccountsDto, SubmitTransferDto } from './dto/payment.dto';
 import { writeInAppNotification } from '../notifications/in-app';
+import { WalletService } from '../wallet/wallet.service';
+import { reportServerError } from '../../common/filters/server-error-sink';
 
 /** What the customer reported for a manual transfer, kept on the payment. */
 interface TransferReport {
@@ -40,6 +42,7 @@ export class PaymentsService {
     private audit: AuditService,
     private manual: ManualTransferGateway,
     private uploads: UploadsService,
+    private wallet: WalletService,
   ) {}
 
   /**
@@ -51,6 +54,8 @@ export class PaymentsService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.userId !== userId) throw new BadRequestException('This order belongs to another account');
     if (order.status !== 'PENDING_PAYMENT') throw new BadRequestException('This order is not awaiting payment');
+
+    if (gatewayCode === 'WALLET') return this.payFromWallet(orderId, userId);
 
     // Reuse an in-flight attempt rather than creating a second charge.
     const inFlight = await this.prisma.payment.findFirst({
@@ -136,6 +141,56 @@ export class PaymentsService {
   }
 
   /**
+   * Pay an order from the wallet: the order check, the debit and the capture
+   * are one transaction under the order's row lock. Two taps, two tabs or a
+   * retry after a dropped connection each carry a new Idempotency-Key, so the
+   * key cannot stop them; the lock does — the second request waits, then finds
+   * the order already paid and charges nothing. Locks follow ADR 010: wallet
+   * first, then order, then payment.
+   */
+  private payFromWallet(orderId: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const head = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { currency: true } });
+      await this.wallet.lockWallet(userId, head.currency, tx);
+      await acquireLocks(tx, [{ rank: LockRank.ORDER, id: orderId }]);
+
+      const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+      if (order.status !== 'PENDING_PAYMENT') throw new BadRequestException('This order is not awaiting payment');
+
+      const payment = await tx.payment.create({
+        data: {
+          orderId,
+          userId,
+          gateway: 'WALLET',
+          amount: order.total,
+          currency: order.currency,
+          baseCurrency: order.baseCurrency,
+          fxRate: order.fxRate,
+          amountBase: order.totalBase,
+          fxRateId: order.fxRateId,
+          status: PaymentStatus.INITIATED,
+        },
+      });
+      // an insufficient balance throws here and rolls the payment row back with it
+      await this.wallet.debit(
+        {
+          userId,
+          currency: order.currency,
+          amount: order.total,
+          type: WalletTxnType.ORDER_PAYMENT,
+          referenceType: 'order',
+          referenceId: orderId,
+          description: `Order ${order.orderNumber}`,
+        },
+        tx,
+      );
+      const gatewayRef = `wallet_${payment.id}`;
+      await this.capture(tx, payment.id, gatewayRef);
+      return { paymentId: payment.id, status: 'CAPTURED' as const, gatewayRef };
+    });
+  }
+
+  /**
    * Confirm with the gateway directly. The client telling us it paid is not
    * evidence; only the gateway's own answer moves an order to PAID.
    */
@@ -166,58 +221,78 @@ export class PaymentsService {
    * a double fulfilment.
    */
   markCaptured(paymentId: string, gatewayRef: string, raw?: unknown) {
-    return this.prisma.$transaction(async (tx) => {
-      // ADR 010 — payment (rank 3) is claimed first here only because the order
-      // id is not known until the payment row is read. The lock is then taken
-      // in canonical order before either row is *modified*.
-      const target = await tx.payment.findUniqueOrThrow({
-        where: { id: paymentId },
-        select: { orderId: true },
-      });
-      await acquireLocks(tx, [
-        { rank: LockRank.ORDER, id: target.orderId },
-        { rank: LockRank.PAYMENT, id: paymentId },
-      ]);
+    return this.prisma.$transaction((tx) => this.capture(tx, paymentId, gatewayRef, raw));
+  }
 
-      const claimed = await tx.payment.updateMany({
-        where: { id: paymentId, status: { in: [PaymentStatus.INITIATED, PaymentStatus.AUTHORIZED] } },
-        data: {
-          status: PaymentStatus.CAPTURED,
-          gatewayRef,
-          capturedAt: new Date(),
-          rawResponse: (raw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
-          version: { increment: 1 },
-        },
-      });
-      // A replayed webhook lands here and is a no-op, by design.
-      if (claimed.count === 0) return { alreadyCaptured: true };
-
-      const payment = await tx.payment.findUniqueOrThrow({
-        where: { id: paymentId },
-        include: { order: true },
-      });
-
-      assertTransition(payment.order.status, 'PAID');
-      await tx.order.update({
-        where: { id: payment.orderId },
-        data: { status: 'PAID', paidAt: new Date(), version: { increment: 1 } },
-      });
-
-      // Fulfilment is triggered from the outbox, not inline: if this
-      // transaction rolls back, no job was published; if it commits, the job
-      // is guaranteed to exist.
-      await this.outbox.emit(tx, {
-        aggregate: 'Order',
-        aggregateId: payment.orderId,
-        eventType: 'order.paid',
-        payload: { orderId: payment.orderId, paymentId, userId: payment.userId },
-      });
-
-      this.metrics.paymentsTotal.inc({ gateway: payment.gateway, status: 'captured' });
-      this.metrics.orderValue.inc({ currency: payment.currency }, Number(payment.amountBase));
-
-      return { alreadyCaptured: false };
+  private async capture(tx: Prisma.TransactionClient, paymentId: string, gatewayRef: string, raw?: unknown) {
+    // ADR 010 — payment (rank 3) is claimed first here only because the order
+    // id is not known until the payment row is read. The lock is then taken
+    // in canonical order before either row is *modified*.
+    const target = await tx.payment.findUniqueOrThrow({
+      where: { id: paymentId },
+      select: { orderId: true },
     });
+    await acquireLocks(tx, [
+      { rank: LockRank.ORDER, id: target.orderId },
+      { rank: LockRank.PAYMENT, id: paymentId },
+    ]);
+
+    const claimed = await tx.payment.updateMany({
+      where: { id: paymentId, status: { in: [PaymentStatus.INITIATED, PaymentStatus.AUTHORIZED] } },
+      data: {
+        status: PaymentStatus.CAPTURED,
+        gatewayRef,
+        capturedAt: new Date(),
+        rawResponse: (raw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+        version: { increment: 1 },
+      },
+    });
+    // A replayed webhook lands here and is a no-op, by design.
+    if (claimed.count === 0) return { alreadyCaptured: true };
+
+    const payment = await tx.payment.findUniqueOrThrow({
+      where: { id: paymentId },
+      include: { order: true },
+    });
+
+    // A second payment for an order that is already paid (a card page paid
+    // in another tab, a transfer approved twice) must not pay it again: the
+    // payment is set aside and the owner is told, so the money goes back.
+    if (payment.order.status !== 'PENDING_PAYMENT' && canTransition(payment.order.status, 'REFUNDED')) {
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: { status: PaymentStatus.FAILED, failureCode: 'duplicate_payment', failureReason: 'The order was already paid', version: { increment: 1 } },
+      });
+      reportServerError({
+        message: `Duplicate payment ${paymentId} for order ${payment.order.orderNumber}: refund it to the customer`,
+        method: 'CAPTURE',
+        path: `/orders/${payment.orderId}`,
+        status: 409,
+        correlationId: `payment:${paymentId}`,
+      });
+      return { alreadyCaptured: true, duplicate: true };
+    }
+
+    assertTransition(payment.order.status, 'PAID');
+    await tx.order.update({
+      where: { id: payment.orderId },
+      data: { status: 'PAID', paidAt: new Date(), version: { increment: 1 } },
+    });
+
+    // Fulfilment is triggered from the outbox, not inline: if this
+    // transaction rolls back, no job was published; if it commits, the job
+    // is guaranteed to exist.
+    await this.outbox.emit(tx, {
+      aggregate: 'Order',
+      aggregateId: payment.orderId,
+      eventType: 'order.paid',
+      payload: { orderId: payment.orderId, paymentId, userId: payment.userId },
+    });
+
+    this.metrics.paymentsTotal.inc({ gateway: payment.gateway, status: 'captured' });
+    this.metrics.orderValue.inc({ currency: payment.currency }, Number(payment.amountBase));
+
+    return { alreadyCaptured: false };
   }
 
   /**

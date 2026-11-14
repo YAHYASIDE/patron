@@ -114,7 +114,7 @@ export default function CurrencySwitch() {
           region: labelOf(country),
           currency: t(label(currency)),
         })}
-        className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-[rgb(var(--surface-2))] px-2.5 text-xs font-bold min-[360px]:px-3"
+        className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-[rgb(var(--surface-2))] px-2.5 text-xs font-bold min-[360px]:h-10 min-[360px]:px-3"
       >
         <span aria-hidden>{flagOf(country)}</span>
         {/* under 360px the flag alone, so the header fits a 320px phone */}

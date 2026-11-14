@@ -1,7 +1,7 @@
 import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, QuoteStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, QuoteStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
@@ -68,10 +68,13 @@ export class OrdersService {
       const existing = await this.prisma.order.findUnique({ where: { quoteId } });
       if (existing) return this.findOne(existing.id, userId);
     }
-    if (quote.status !== QuoteStatus.ACTIVE) throw new BadRequestException('This quote is no longer valid');
+    // a code the store can act on (price the cart again), with the English for logs and the API docs
+    if (quote.status !== QuoteStatus.ACTIVE) {
+      throw new BadRequestException({ message: 'This quote is no longer valid', error: 'QUOTE_EXPIRED' });
+    }
     if (quote.expiresAt < new Date()) {
       await this.prisma.checkoutQuote.update({ where: { id: quoteId }, data: { status: QuoteStatus.EXPIRED } });
-      throw new BadRequestException('This quote has expired — please request a new price');
+      throw new BadRequestException({ message: 'This quote has expired — please request a new price', error: 'QUOTE_EXPIRED' });
     }
 
     const order = await this.prisma.$transaction(async (tx) => {
@@ -159,7 +162,8 @@ export class OrdersService {
       },
     });
 
-    return toCursorPage(rows, query.limit);
+    const page = toCursorPage(rows, query.limit);
+    return { ...page, data: page.data.map(forCustomer) };
   }
 
   async findAllAdmin(query: QueryOrdersDto) {
@@ -214,7 +218,7 @@ export class OrdersService {
       where: { id },
       include: {
         items: { include: { inputs: true, results: true, product: { select: { metadata: true } } } },
-        payments: { select: { id: true, gateway: true, status: true, amount: true, failureReason: true, createdAt: true } },
+        payments: { select: { id: true, gateway: true, status: true, amount: true, refundedAmount: true, failureReason: true, createdAt: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -222,10 +226,10 @@ export class OrdersService {
 
     // the customer gets each product's how-to-use guide, not the rest of the product
     const presented = this.present(order, !!userId);
-    return {
-      ...presented,
-      items: presented.items.map(({ product, ...item }) => ({ ...item, guide: guideOf(product?.metadata) })),
-    };
+    const items = presented.items.map(({ product, ...item }) => ({ ...item, guide: guideOf(product?.metadata) }));
+    if (!userId) return { ...presented, items };
+    // and nothing staff-only: the owner's note, costs, provider routing, request metadata
+    return { ...forCustomer(presented), items: items.map(itemForCustomer) };
   }
 
   /**
@@ -254,16 +258,31 @@ export class OrdersService {
         payments: {
           orderBy: { createdAt: 'desc' },
           select: {
-            id: true, gateway: true, status: true, amount: true, currency: true,
-            failureReason: true, rawResponse: true, createdAt: true, updatedAt: true,
+            id: true, gateway: true, status: true, amount: true, currency: true, refundedAmount: true,
+            failureCode: true, failureReason: true, rawResponse: true, createdAt: true, updatedAt: true,
+          },
+        },
+        refunds: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, amount: true, currency: true, reason: true, status: true, toWallet: true, gatewayRef: true,
+            createdAt: true, processedAt: true,
+            requestedBy: { select: { fullName: true } }, processedBy: { select: { fullName: true } },
           },
         },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     const presented = this.present(order, false);
+    // what can still be refunded: the order total less every refund not rejected
+    const settled = order.payments.find((p) => ['CAPTURED', 'PARTIALLY_REFUNDED'].includes(p.status));
+    const committed = order.refunds
+      .filter((r) => r.status !== 'REJECTED')
+      .reduce((acc, r) => acc.plus(r.amount), new Prisma.Decimal(0));
     return {
       ...presented,
+      refundable: settled ? Prisma.Decimal.max(order.total.minus(committed), 0).toString() : '0',
+      refundGateway: settled?.gateway ?? null,
       // only the transfer report and review, never a gateway's raw payload
       payments: order.payments.map(({ rawResponse, ...p }) => {
         const raw = (rawResponse ?? {}) as { transfer?: unknown; review?: unknown };
@@ -491,42 +510,152 @@ export class OrdersService {
   async expireUnpaid(minutes: number, batchSize = 500) {
     const cutoff = new Date(Date.now() - minutes * 60_000);
 
-    // An order whose customer already reported a manual transfer is waiting on
-    // staff, not abandoned: it must not expire under them.
-    const awaitingReview: Prisma.OrderWhereInput = { payments: { none: { gateway: 'MANUAL', status: 'AUTHORIZED' } } };
+    // Not abandoned: an order whose customer reported a manual transfer is
+    // waiting on staff, and one with any payment activity inside the window
+    // (a transfer the owner just rejected, a card page just opened) gives the
+    // customer the full window again from that moment, so "you can pay
+    // again" is never followed by a cancellation minutes later.
+    const abandoned: Prisma.OrderWhereInput = {
+      status: 'PENDING_PAYMENT',
+      createdAt: { lt: cutoff },
+      payments: {
+        none: { OR: [{ gateway: 'MANUAL', status: 'AUTHORIZED' }, { updatedAt: { gte: cutoff } }] },
+      },
+    };
     const stale = await this.prisma.order.findMany({
-      where: { status: 'PENDING_PAYMENT', createdAt: { lt: cutoff }, ...awaitingReview },
-      select: { id: true, couponId: true },
+      where: abandoned,
+      select: { id: true },
       take: batchSize,
       orderBy: { createdAt: 'asc' },
     });
     if (stale.length === 0) return 0;
 
-    const ids = stale.map((o) => o.id);
-    const couponIds = stale.map((o) => o.couponId).filter((c): c is string => !!c);
-
-    await this.prisma.$transaction(async (tx) => {
-      // Conditional on status so an order paid between the read and the write
-      // is not cancelled out from under a customer who just paid.
-      const cancelled = await tx.order.updateMany({
-        where: { id: { in: ids }, status: 'PENDING_PAYMENT', ...awaitingReview },
-        data: { status: 'CANCELLED', version: { increment: 1 } },
+    const cancelled = await this.prisma.$transaction(async (tx) => {
+      // Row locks, so a wallet payment or an approval racing the sweep either
+      // lands first (and the order is no longer abandoned) or waits for it.
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "orders"
+        WHERE "id" = ANY(${stale.map((o) => o.id)}::uuid[]) AND "status" = 'PENDING_PAYMENT'
+        ORDER BY "id" FOR UPDATE`;
+      const due = await tx.order.findMany({
+        where: { id: { in: locked.map((o) => o.id) }, ...abandoned },
+        select: { id: true, userId: true, couponId: true },
       });
+      if (due.length === 0) return 0;
+      const ids = due.map((o) => o.id);
+
+      await tx.order.updateMany({ where: { id: { in: ids } }, data: { status: 'CANCELLED', version: { increment: 1 } } });
       await tx.orderItem.updateMany({
         where: { orderId: { in: ids }, status: { in: ['PENDING', 'FAILED'] } },
         data: { status: 'CANCELLED' },
       });
-      // An abandoned checkout must not burn a single-use coupon.
-      for (const couponId of new Set(couponIds)) {
-        await tx.coupon.update({
-          where: { id: couponId },
-          data: { usedCount: { decrement: 1 } },
+      // An abandoned checkout must not burn a single-use coupon: one use back per order.
+      for (const o of due) {
+        if (o.couponId) await tx.coupon.update({ where: { id: o.couponId }, data: { usedCount: { decrement: 1 } } });
+        // the customer is told, instead of finding a cancelled order later
+        await this.outbox.emit(tx, {
+          aggregate: 'Order',
+          aggregateId: o.id,
+          eventType: 'order.cancelled',
+          payload: { orderId: o.id, userId: o.userId, status: 'CANCELLED', reason: 'unpaid' },
         });
       }
-      this.logger.log(`Expired ${cancelled.count} unpaid order(s)`);
+      return due.length;
     });
 
-    return stale.length;
+    this.logger.log(`Expired ${cancelled} unpaid order(s)`);
+    return cancelled;
+  }
+
+  /**
+   * What needs the owner now, for the dashboard: paid orders whose delivery
+   * failed or is late, transfers waiting for review, and payments taken twice.
+   * Each list is short (the oldest first) and each has a total.
+   */
+  async attention(lateMinutes = 15) {
+    const late = new Date(Date.now() - lateMinutes * 60_000);
+    const orderSelect = {
+      id: true, orderNumber: true, status: true, total: true, currency: true, paidAt: true, createdAt: true,
+      user: { select: { fullName: true, phone: true } },
+    } as const;
+    const minutesSince = (d: Date | null) => (d ? Math.floor((Date.now() - d.getTime()) / 60_000) : null);
+
+    const failedWhere: Prisma.OrderWhereInput = {
+      OR: [
+        { status: { in: ['FAILED', 'PARTIALLY_COMPLETED'] } },
+        { status: { in: ['PAID', 'PROCESSING'] }, items: { some: { status: 'FAILED' } } },
+      ],
+    };
+    const lateWhere: Prisma.OrderWhereInput = {
+      status: { in: ['PAID', 'PROCESSING'] },
+      paidAt: { lt: late },
+      items: { none: { status: 'FAILED' } },
+    };
+    const transferWhere: Prisma.PaymentWhereInput = { gateway: 'MANUAL', status: 'AUTHORIZED', updatedAt: { lt: late } };
+    // Payments taken twice: the ones the payment service turned away, and any order that
+    // was settled more than once before that guard existed (all but its first payment,
+    // unless already refunded).
+    const settled: PaymentStatus[] = ['CAPTURED', 'PARTIALLY_REFUNDED', 'REFUNDED'];
+    const twice = await this.prisma.payment.groupBy({
+      by: ['orderId'],
+      where: { status: { in: settled } },
+      having: { orderId: { _count: { gt: 1 } } },
+    });
+    const extra: string[] = [];
+    if (twice.length) {
+      const seen = new Set<string>();
+      const rows = await this.prisma.payment.findMany({
+        where: { orderId: { in: twice.map((t) => t.orderId) }, status: { in: settled } },
+        select: { id: true, orderId: true, status: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      for (const p of rows) {
+        if (!seen.has(p.orderId)) seen.add(p.orderId);
+        else if (p.status !== 'REFUNDED') extra.push(p.id);
+      }
+    }
+    const duplicateWhere: Prisma.PaymentWhereInput = {
+      OR: [{ failureCode: 'duplicate_payment', status: 'FAILED' }, ...(extra.length ? [{ id: { in: extra } }] : [])],
+    };
+
+    const [failed, failedCount, lateOrders, lateCount, transfers, transferCount, duplicates, duplicateCount] = await Promise.all([
+      this.prisma.order.findMany({ where: failedWhere, select: { ...orderSelect, items: { where: { status: 'FAILED' }, select: { lastError: true }, take: 1 } }, orderBy: { paidAt: 'asc' }, take: 20 }),
+      this.prisma.order.count({ where: failedWhere }),
+      this.prisma.order.findMany({ where: lateWhere, select: orderSelect, orderBy: { paidAt: 'asc' }, take: 20 }),
+      this.prisma.order.count({ where: lateWhere }),
+      this.prisma.payment.findMany({
+        where: transferWhere,
+        select: { id: true, amount: true, currency: true, updatedAt: true, order: { select: orderSelect } },
+        orderBy: { updatedAt: 'asc' },
+        take: 20,
+      }),
+      this.prisma.payment.count({ where: transferWhere }),
+      this.prisma.payment.findMany({
+        where: duplicateWhere,
+        select: { id: true, gateway: true, amount: true, currency: true, createdAt: true, order: { select: orderSelect } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      this.prisma.payment.count({ where: duplicateWhere }),
+    ]);
+
+    return {
+      lateMinutes,
+      total: failedCount + lateCount + transferCount + duplicateCount,
+      failed: {
+        count: failedCount,
+        items: failed.map(({ items, ...o }) => ({ ...o, minutes: minutesSince(o.paidAt), error: items[0]?.lastError ?? null })),
+      },
+      lateDelivery: { count: lateCount, items: lateOrders.map((o) => ({ ...o, minutes: minutesSince(o.paidAt) })) },
+      waitingTransfers: {
+        count: transferCount,
+        items: transfers.map((p) => ({ paymentId: p.id, amount: p.amount, currency: p.currency, minutes: minutesSince(p.updatedAt), order: p.order })),
+      },
+      duplicatePayments: {
+        count: duplicateCount,
+        items: duplicates.map((p) => ({ paymentId: p.id, gateway: p.gateway, amount: p.amount, currency: p.currency, createdAt: p.createdAt, order: p.order })),
+      },
+    };
   }
 
   /** Never leak raw code values or decrypted inputs in list/detail payloads. */
@@ -551,4 +680,23 @@ export class OrdersService {
       })),
     };
   }
+}
+
+/** Order columns only staff may read; the customer's API never carries them. */
+const STAFF_ONLY_ORDER_FIELDS = ['adminNote', 'idempotencyKey', 'ipAddress', 'userAgent', 'fxRateId', 'quoteId', 'version'] as const;
+/** Order line columns only staff may read: what it cost us and how it was routed. */
+const STAFF_ONLY_ITEM_FIELDS = ['unitCost', 'plannedProviderId', 'fulfilledByProviderId', 'attemptCount', 'lastError', 'version'] as const;
+
+function omit<T extends object>(row: T, keys: readonly string[]): T {
+  const out = { ...row } as Record<string, unknown>;
+  for (const k of keys) delete out[k];
+  return out as T;
+}
+
+export function forCustomer<T extends object>(order: T): T {
+  return omit(order, STAFF_ONLY_ORDER_FIELDS);
+}
+
+export function itemForCustomer<T extends object>(item: T): T {
+  return omit(item, STAFF_ONLY_ITEM_FIELDS);
 }

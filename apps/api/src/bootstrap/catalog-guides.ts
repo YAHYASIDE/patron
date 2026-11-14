@@ -1088,14 +1088,14 @@ export const GUIDES: Record<string, BrandGuide> = {
   usdt: {
     help: {
       network: {
-        ar: 'لديك حساب بينانس؟ اختر «Binance ID» (تحويل داخلي مجاني وفوري). محفظة أخرى مثل Trust Wallet أو MetaMask؟ اختر BEP20.',
-        fr: 'Vous avez un compte Binance ? Choisissez « Binance ID » (transfert interne gratuit et instantané). Un autre portefeuille comme Trust Wallet ou MetaMask ? Choisissez BEP20.',
-        en: 'Have a Binance account? Choose Binance ID (free, instant internal transfer). Another wallet like Trust Wallet or MetaMask? Choose BEP20.',
+        ar: "لديك حساب بينانس؟ اختر «تحويل داخلي إلى معرّف Binance (UID)»: مجاني وفوري. محفظة أخرى مثل Trust Wallet أو MetaMask؟ اختر «شبكة BNB Smart Chain (BEP20)».",
+        fr: "Vous avez un compte Binance ? Choisissez « Transfert interne vers l'ID Binance (UID) » : gratuit et instantané. Un autre portefeuille comme Trust Wallet ou MetaMask ? Choisissez « Réseau BNB Smart Chain (BEP20) ».",
+        en: "Have a Binance account? Choose “Binance internal transfer (UID)”: free and instant. Another wallet like Trust Wallet or MetaMask? Choose “BNB Smart Chain (BEP20)”.",
       },
       address: {
-        ar: 'Binance ID: افتح Binance ← اضغط على صورتك أعلى اليسار ← انسخ الرقم بجانب UID. BEP20: الأصول ← إيداع ← USDT ← شبكة BNB Smart Chain (BEP20) ← انسخ العنوان الذي يبدأ بـ 0x (لا حاجة لـ Memo).',
-        fr: "Binance ID : ouvrez Binance → touchez votre photo en haut à gauche → copiez le numéro à côté de « UID ». BEP20 : Actifs → Dépôt → USDT → réseau BNB Smart Chain (BEP20) → copiez l'adresse qui commence par 0x (pas de mémo).",
-        en: 'Binance ID: open Binance → tap your photo (top-left) → copy the number next to UID. BEP20: Assets → Deposit → USDT → network BNB Smart Chain (BEP20) → copy the address starting with 0x (no memo needed).',
+        ar: "للتحويل الداخلي: افتح Binance، ثم اضغط صورتك أعلى الشاشة، وانسخ الرقم بجانب UID.\nلشبكة BEP20: الأصول، ثم إيداع، ثم USDT، ثم شبكة BNB Smart Chain (BEP20)، وانسخ العنوان الذي يبدأ بـ ‎0x‎. لا حاجة إلى Memo.",
+        fr: "Transfert interne : ouvrez Binance, touchez votre photo en haut de l'écran et copiez le numéro à côté de UID.\nRéseau BEP20 : Actifs, puis Dépôt, puis USDT, puis réseau BNB Smart Chain (BEP20), et copiez l'adresse qui commence par 0x. Pas de mémo.",
+        en: "Internal transfer: open Binance, tap your photo at the top of the screen and copy the number next to UID.\nBEP20 network: Assets, then Deposit, then USDT, then network BNB Smart Chain (BEP20), and copy the address starting with 0x. No memo needed.",
       },
     },
     before: [

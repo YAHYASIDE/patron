@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { BASE, catalog } from '@/lib/api';
-import { useT } from '@/lib/i18n';
+import { useT, useLang } from '@/lib/i18n';
 import type { Banner as BaseBanner } from '@/lib/types';
 import Countdown from './Countdown';
 
@@ -25,6 +25,7 @@ function href(b: Banner): string | null {
 }
 
 function Card({ b, onEnd }: { b: Banner; onEnd: (id: string) => void }) {
+  const lang = useLang();
   const ended = useCallback(() => onEnd(b.id), [b.id, onEnd]);
   const body = (
     <div
@@ -48,7 +49,7 @@ function Card({ b, onEnd }: { b: Banner; onEnd: (id: string) => void }) {
       )}
       {b.endsAt && <Countdown endsAt={b.endsAt} onEnd={ended} className="absolute start-4 top-3.5 sm:start-5" />}
       <div className="relative">
-        <div className="text-lg font-extrabold leading-snug sm:text-xl">{b.titleAr}</div>
+        <div className="text-lg font-extrabold leading-snug sm:text-xl">{lang !== 'ar' && b.titleEn ? b.titleEn : b.titleAr}</div>
         {b.subtitleAr && <div className="mt-0.5 text-sm opacity-90">{b.subtitleAr}</div>}
       </div>
     </div>
@@ -68,6 +69,7 @@ function Card({ b, onEnd }: { b: Banner; onEnd: (id: string) => void }) {
 export default function Banners() {
   const t = useT();
   const [list, setList] = useState<Banner[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [at, setAt] = useState(0);
   const track = useRef<HTMLDivElement>(null);
   // an offer whose time runs out while the page is open leaves the row
@@ -77,7 +79,8 @@ export default function Banners() {
     catalog
       .banners()
       .then(setList)
-      .catch(() => setList([]));
+      .catch(() => setList([]))
+      .finally(() => setLoaded(true));
   }, []);
 
   // advance unless the customer is touching it
@@ -92,6 +95,14 @@ export default function Banners() {
     return () => clearInterval(t);
   }, [list.length, at]);
 
+  // while the offers load, hold their place so the page below does not jump when they arrive
+  if (!loaded)
+    return (
+      <section className="mx-auto max-w-page px-4 pt-5" aria-hidden>
+        <div className="h-[132px] animate-pulse rounded-2xl bg-[rgb(var(--surface-2))] sm:h-[160px]" />
+        <div className="mt-2.5 h-1.5" />
+      </section>
+    );
   if (list.length === 0) return null;
 
   return (

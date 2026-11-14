@@ -6,8 +6,8 @@ import { useMe } from '@/lib/session';
 import { useT } from '@/lib/i18n';
 import { WhatsAppMark, supportNumber } from './WhatsAppHelp';
 
-// The sign-in page has its own WhatsApp button.
-const HIDDEN = ['/login', '/register'];
+// The sign-in page has its own WhatsApp button; checkout keeps the customer on paying.
+const HIDDEN = ['/login', '/register', '/checkout'];
 // Pages with a buy bar pinned to the bottom on phones: sit above it.
 const HAS_BUY_BAR = /^\/(brands|products)\/[^/]+/;
 

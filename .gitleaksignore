@@ -1,0 +1,5 @@
+# Findings reviewed and accepted. One fingerprint per line: commit:file:rule:line.
+#
+# A made-up password for a throwaway test account, created and deleted inside
+# the e2e run. The test now generates a random one; this pins the old commit only.
+c7aba28e893db4b430d5dc05b4fb70a2360d7e64:apps/api/test/e2e/money-flows.e2e-spec.ts:generic-api-key:56

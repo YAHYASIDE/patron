@@ -6,6 +6,7 @@ describe('PaymentsService', () => {
   let audit: any;
   let manual: any;
   let uploads: any;
+  let wallet: any;
   let prisma: any;
   let gateways: any;
   let gateway: any;
@@ -82,7 +83,11 @@ describe('PaymentsService', () => {
       saveProof: jest.fn().mockResolvedValue({ proofId: 'up1' }),
       getProof: jest.fn().mockResolvedValue({ mime: 'image/jpeg', data: Buffer.from('x') }),
     };
-    service = new PaymentsService(prisma, gateways, outbox, metrics, audit, manual, uploads);
+    wallet = {
+      lockWallet: jest.fn().mockResolvedValue({ id: 'w1' }),
+      debit: jest.fn().mockResolvedValue({ balanceAfter: new Prisma.Decimal('0') }),
+    };
+    service = new PaymentsService(prisma, gateways, outbox, metrics, audit, manual, uploads, wallet);
   });
 
   describe('initiate', () => {
@@ -186,7 +191,7 @@ describe('PaymentsService', () => {
         status: 'FAILED', failureCode: 'insufficient_funds', failureReason: 'No balance',
       });
 
-      await expect(service.initiate('ord1', 'usr1', 'WALLET' as any)).rejects.toThrow('No balance');
+      await expect(service.initiate('ord1', 'usr1', 'STRIPE' as any)).rejects.toThrow('No balance');
       expect(prisma.payment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: 'FAILED', failureCode: 'insufficient_funds' }),
@@ -194,14 +199,55 @@ describe('PaymentsService', () => {
       );
     });
 
-    it('captures immediately for an instant gateway', async () => {
-      gateway.initiate.mockResolvedValue({ status: 'CAPTURED', gatewayRef: 'wallet_pay1', raw: { ok: 1 } });
-      const spy = jest.spyOn(service, 'markCaptured').mockResolvedValue({ alreadyCaptured: false } as any);
+    describe('from the wallet', () => {
+      beforeEach(() => {
+        tx.order.findUniqueOrThrow = jest.fn()
+          .mockResolvedValueOnce({ currency: 'USD' })
+          .mockResolvedValueOnce(order);
+        tx.payment.create = jest.fn().mockResolvedValue({ id: 'pay1' });
+        tx.payment.update = jest.fn().mockResolvedValue({});
+        tx.payment.findUniqueOrThrow
+          .mockResolvedValueOnce({ orderId: 'ord1' })
+          .mockResolvedValueOnce({
+            orderId: 'ord1', userId: 'usr1', gateway: 'WALLET', currency: 'USD',
+            amountBase: new Prisma.Decimal('50'), order: { status: 'PENDING_PAYMENT', orderNumber: 'ORD-1000' },
+          });
+      });
 
-      const res = await service.initiate('ord1', 'usr1', 'WALLET' as any);
+      it('checks the order, debits and captures in one transaction, under the wallet then the order lock', async () => {
+        const res = await service.initiate('ord1', 'usr1', 'WALLET' as any);
 
-      expect(spy).toHaveBeenCalledWith('pay1', 'wallet_pay1', { ok: 1 });
-      expect(res).toEqual({ paymentId: 'pay1', status: 'CAPTURED', gatewayRef: 'wallet_pay1' });
+        expect(res).toEqual({ paymentId: 'pay1', status: 'CAPTURED', gatewayRef: 'wallet_pay1' });
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(wallet.lockWallet).toHaveBeenCalledWith('usr1', 'USD', tx);
+        const lockOrder = wallet.lockWallet.mock.invocationCallOrder[0];
+        const orderLock = tx.$queryRawUnsafe.mock.invocationCallOrder[0];
+        expect(lockOrder).toBeLessThan(orderLock);
+        expect(wallet.debit).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: 'usr1', currency: 'USD', amount: order.total, referenceId: 'ord1' }),
+          tx,
+        );
+        expect(tx.order.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'PAID' }) }));
+        expect(gateway.initiate).not.toHaveBeenCalled();
+      });
+
+      it('charges nothing when another request paid the order while this one waited for the lock', async () => {
+        tx.order.findUniqueOrThrow = jest.fn()
+          .mockResolvedValueOnce({ currency: 'USD' })
+          .mockResolvedValueOnce({ ...order, status: 'PAID' });
+
+        await expect(service.initiate('ord1', 'usr1', 'WALLET' as any)).rejects.toThrow('This order is not awaiting payment');
+        expect(wallet.debit).not.toHaveBeenCalled();
+        expect(tx.payment.create).not.toHaveBeenCalled();
+      });
+
+      it('lets an insufficient balance roll the whole payment back', async () => {
+        wallet.debit.mockRejectedValue(new BadRequestException('Insufficient wallet balance: 0 USD available'));
+
+        await expect(service.initiate('ord1', 'usr1', 'WALLET' as any)).rejects.toThrow('Insufficient wallet balance');
+        expect(tx.order.update).not.toHaveBeenCalled();
+        expect(outbox.emit).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -270,6 +316,25 @@ describe('PaymentsService', () => {
       expect(outbox.emit).toHaveBeenCalledWith(tx, expect.objectContaining({ eventType: 'order.paid' }));
       expect(metrics.paymentsTotal.inc).toHaveBeenCalledWith({ gateway: 'STRIPE', status: 'captured' });
       expect(metrics.orderValue.inc).toHaveBeenCalledWith({ currency: 'USD' }, 50);
+    });
+
+    it('sets aside a second payment for an order that is already paid, and tells the owner', async () => {
+      tx.payment.findUniqueOrThrow.mockReset()
+        .mockResolvedValueOnce({ orderId: 'ord1' })
+        .mockResolvedValueOnce({
+          id: 'pay2', orderId: 'ord1', userId: 'usr1', gateway: 'STRIPE', currency: 'USD',
+          amountBase: new Prisma.Decimal('50'), order: { status: 'PAID', orderNumber: 'ORD-1000' },
+        });
+      tx.payment.update = jest.fn().mockResolvedValue({});
+
+      const res = await service.markCaptured('pay2', 'pi_2');
+
+      expect(res).toEqual({ alreadyCaptured: true, duplicate: true });
+      expect(tx.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED', failureCode: 'duplicate_payment' }) }),
+      );
+      expect(tx.order.update).not.toHaveBeenCalled();
+      expect(outbox.emit).not.toHaveBeenCalled();
     });
 
     it('is a no-op when a replayed capture claims nothing', async () => {

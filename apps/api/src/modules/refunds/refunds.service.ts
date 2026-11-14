@@ -32,15 +32,17 @@ export class RefundsService {
   ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { payments: { where: { status: 'CAPTURED' } }, refunds: true },
+      // a payment already partly refunded can still be refunded up to what is left
+      include: { payments: { where: { status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED'] } } }, refunds: true },
     });
     if (!order) throw new NotFoundException('Order not found');
 
     const payment = order.payments[0];
-    if (!payment) throw new BadRequestException('This order has no captured payment');
+    if (!payment) throw new BadRequestException({ message: 'This order has no captured payment', error: 'NO_PAYMENT' });
 
+    // refunds still waiting count too: two requests must not add up past the total
     const alreadyRefunded = order.refunds
-      .filter((r) => r.status === RefundStatus.PROCESSED)
+      .filter((r) => r.status !== RefundStatus.REJECTED)
       .reduce((acc, r) => acc.plus(r.amount), new Prisma.Decimal(0));
 
     const requested = amount !== undefined ? D(amount) : order.total.minus(alreadyRefunded);
@@ -50,6 +52,8 @@ export class RefundsService {
         `Refund exceeds order total. Already refunded: ${alreadyRefunded} ${order.currency}`,
       );
     }
+    // wallet money can only go back to the wallet
+    if (payment.gateway === 'WALLET') toWallet = true;
 
     return this.prisma.refund.create({
       data: {
@@ -68,7 +72,12 @@ export class RefundsService {
     });
   }
 
-  async process(refundId: string, processedById: string) {
+  /**
+   * `reference` is the transfer the owner made back to the customer. A manual
+   * transfer has no gateway to call, so its refund is only marked done once
+   * the owner says the money went out and how — never on its own.
+   */
+  async process(refundId: string, processedById: string, reference?: string) {
     const refund = await this.prisma.refund.findUnique({
       where: { id: refundId },
       include: { order: true, payment: true },
@@ -78,10 +87,20 @@ export class RefundsService {
     if (refund.status === RefundStatus.REJECTED) throw new BadRequestException('This refund was rejected');
 
     let gatewayRef: string | undefined;
+    const byHand = !refund.toWallet && refund.payment?.gateway === 'MANUAL';
+    if (byHand) {
+      if (!reference?.trim()) {
+        throw new BadRequestException({
+          message: 'Send the money back to the customer first, then enter the transfer number',
+          error: 'REFUND_REFERENCE_REQUIRED',
+        });
+      }
+      gatewayRef = `manual:${reference.trim()}`;
+    }
 
     // Wallet refunds settle internally; card refunds must reach the gateway
     // first, so a gateway failure never credits a balance we did not recover.
-    if (!refund.toWallet && refund.payment?.gatewayRef) {
+    if (!byHand && !refund.toWallet && refund.payment?.gatewayRef) {
       const gateway = this.gateways.get(refund.payment.gateway);
       const result = await gateway.refund({
         gatewayRef: refund.payment.gatewayRef,
@@ -137,11 +156,14 @@ export class RefundsService {
       }
 
       if (refund.paymentId) {
+        // fully refunded once every refund together covers the payment, not only a single one
+        const paid = await tx.payment.findUniqueOrThrow({ where: { id: refund.paymentId }, select: { amount: true, refundedAmount: true } });
+        const refundedNow = D(paid.refundedAmount).plus(refund.amount);
         await tx.payment.update({
           where: { id: refund.paymentId },
           data: {
-            refundedAmount: { increment: refund.amount },
-            status: refund.amount.gte(refund.order.total) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+            refundedAmount: refundedNow,
+            status: refundedNow.gte(paid.amount) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
             version: { increment: 1 },
           },
         });
@@ -166,12 +188,16 @@ export class RefundsService {
         aggregate: 'Refund',
         aggregateId: refund.id,
         eventType: 'refund.processed',
-        payload: { refundId: refund.id, orderId: refund.orderId, userId: refund.order.userId },
+        payload: {
+          refundId: refund.id, orderId: refund.orderId, userId: refund.order.userId,
+          amount: refund.amount.toString(), currency: refund.currency,
+          destination: refund.toWallet ? 'wallet' : byHand ? 'transfer' : 'card',
+        },
       });
       await tx.auditLog.create({
         data: {
           userId: processedById, action: 'payments.refund', entityType: 'Refund', entityId: refund.id,
-          after: toAuditJson({ amount: refund.amount.toString(), currency: refund.currency }),
+          after: toAuditJson({ amount: refund.amount.toString(), currency: refund.currency, toWallet: refund.toWallet, reference: gatewayRef ?? null }),
         },
       });
 

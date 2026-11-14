@@ -21,8 +21,8 @@ const dict: Dict = {
     'تبديل الوضع الليلي/النهاري': 'Basculer entre mode sombre et mode clair',
 
     // Footer
-    'تسليم فوري': 'Livraison instantanée',
-    'تصلك الأكواد مباشرة بعد إتمام الدفع.': 'Vos codes arrivent dès que le paiement est effectué.',
+    'تسليم سريع وموثوق': 'Livraison rapide et fiable',
+    'نسلّم طلبك بعد تأكيد الدفع، ويصلك إشعار فور التسليم.': 'Nous livrons votre commande après confirmation du paiement, et vous êtes notifié dès la livraison.',
     'دفع آمن': 'Paiement sécurisé',
     'بياناتك محميّة ومعاملاتك مشفّرة.': 'Vos données sont protégées et vos transactions chiffrées.',
     'دعم قريب منك': 'Une assistance proche de vous',
@@ -128,8 +128,8 @@ const dict: Dict = {
     'تبديل الوضع الليلي/النهاري': 'Switch between dark and light mode',
 
     // Footer
-    'تسليم فوري': 'Instant delivery',
-    'تصلك الأكواد مباشرة بعد إتمام الدفع.': 'Your codes arrive right after payment.',
+    'تسليم سريع وموثوق': 'Fast, reliable delivery',
+    'نسلّم طلبك بعد تأكيد الدفع، ويصلك إشعار فور التسليم.': 'We deliver your order once the payment is confirmed, and notify you as soon as it is delivered.',
     'دفع آمن': 'Secure payment',
     'بياناتك محميّة ومعاملاتك مشفّرة.': 'Your data is protected and your transactions are encrypted.',
     'دعم قريب منك': 'Support close to you',

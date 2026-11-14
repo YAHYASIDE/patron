@@ -115,7 +115,7 @@ export default function WalletPage() {
             <li key={x.id} className="flex items-start justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
                 <div className="text-sm font-bold">{t(TYPES[x.type] ?? x.type)}</div>
-                {x.description && <div className="break-words text-xs text-muted">{x.description}</div>}
+                {x.description && <div className="break-words text-xs text-muted">{describe(x.description, t)}</div>}
                 <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted">
                   <span>{dayTime(x.createdAt)}</span>
                   {order && (
@@ -141,4 +141,17 @@ export default function WalletPage() {
       </ul>
     </div>
   );
+}
+
+/**
+ * The shop writes its own ledger lines in English ("Order PTN-…", "Refund for
+ * order PTN-…"); the customer reads them in their language. An owner's reason
+ * for a manual adjustment is shown as they wrote it.
+ */
+function describe(text: string, t: (ar: string, vars?: Record<string, string | number>) => string): string {
+  const refund = /^Refund for order (\S+)$/.exec(text);
+  if (refund) return t('استرجاع الطلب {n}', { n: refund[1] });
+  const order = /^Order (\S+)$/.exec(text);
+  if (order) return t('الطلب {n}', { n: order[1] });
+  return text;
 }

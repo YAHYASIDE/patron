@@ -51,7 +51,7 @@ export default function FavoriteButton({ brandKey, variant = 'tile' }: { brandKe
       aria-pressed={on}
       aria-label={label}
       title={label}
-      className="absolute end-0 top-0 z-10 grid h-8 w-8 place-items-center rounded-full"
+      className="absolute end-0 top-0 z-10 grid h-10 w-10 place-items-center rounded-full"
     >
       <span
         className={`grid h-[26px] w-[26px] place-items-center rounded-full backdrop-blur-sm transition ${

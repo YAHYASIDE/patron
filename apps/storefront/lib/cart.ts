@@ -8,6 +8,8 @@ export type CartItem = {
   productId: string;
   sku: string;
   nameAr: string;
+  /** The English name too, so the cart reads in French or English after a language switch. */
+  nameEn?: string;
   imageUrl?: string | null;
   unitPrice: string; // in `currency`
   currency: string;
@@ -105,3 +107,8 @@ export const cart = {
     return () => listeners.delete(l);
   },
 };
+
+/** A cart line's name in the page's language (lines saved before names were kept in both show as saved). */
+export function lineName(it: Pick<CartItem, 'nameAr' | 'nameEn'>, lang: string): string {
+  return lang === 'ar' ? it.nameAr : it.nameEn || it.nameAr;
+}

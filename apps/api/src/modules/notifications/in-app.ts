@@ -14,6 +14,9 @@ export interface LocalisedText {
 export type InAppType =
   | 'order.paid'
   | 'order.delivered'
+  | 'order.failed'
+  | 'order.cancelled'
+  | 'refund.processed'
   | 'payment.rejected'
   | 'support.reply'
   | 'watch.price'
@@ -105,5 +108,29 @@ export const ORDER_EVENT_TEXTS: Record<string, OrderEventText> = {
     ar: { title: 'تم تسليم طلبك', body: 'طلبك {{orderNumber}} جاهز. افتحه لعرض ما استلمته.' },
     en: { title: 'Your order is delivered', body: 'Order {{orderNumber}} is ready. Open it to see what you received.' },
     fr: { title: 'Commande livrée', body: 'La commande {{orderNumber}} est prête. Ouvrez-la pour voir ce que vous avez reçu.' },
+  },
+  'order.partially_completed': {
+    type: 'order.delivered',
+    ar: { title: 'سلّمنا جزءًا من طلبك', body: 'سلّمنا جزءًا من طلبك {{orderNumber}}، وما تعذّر تسليمه سنكمله يدويًا أو نعيد لك ثمنه.' },
+    en: { title: 'Part of your order is delivered', body: 'Part of order {{orderNumber}} is delivered. What could not be, we will deliver by hand or refund.' },
+    fr: { title: 'Commande livrée en partie', body: 'Une partie de la commande {{orderNumber}} est livrée. Le reste sera livré à la main ou remboursé.' },
+  },
+  'order.failed': {
+    type: 'order.failed',
+    ar: { title: 'تأخّر تسليم طلبك', body: 'لم نستطع تسليم طلبك {{orderNumber}} تلقائيًا. سنسلّمه يدويًا أو نعيد لك المبلغ كاملًا، ولا داعي للدفع مرة أخرى.' },
+    en: { title: 'Your order is delayed', body: 'We could not deliver order {{orderNumber}} automatically. We will deliver it by hand or refund you in full; there is no need to pay again.' },
+    fr: { title: 'Commande retardée', body: "La commande {{orderNumber}} n'a pas pu être livrée automatiquement. Nous la livrerons à la main ou vous rembourserons entièrement ; inutile de payer à nouveau." },
+  },
+  'refund.processed': {
+    type: 'refund.processed',
+    ar: { title: 'أعدنا لك المبلغ', body: 'أعدنا {{amount}} من طلبك {{orderNumber}} {{destinationAr}}.' },
+    en: { title: 'Refund sent', body: 'We refunded {{amount}} from order {{orderNumber}} {{destinationEn}}.' },
+    fr: { title: 'Remboursement effectué', body: 'Nous avons remboursé {{amount}} de la commande {{orderNumber}} {{destinationFr}}.' },
+  },
+  'order.cancelled': {
+    type: 'order.cancelled',
+    ar: { title: 'أُلغي طلبك', body: 'أُلغي طلبك {{orderNumber}} لأنه لم يُدفع في الوقت المحدد. إن كنت دفعت فعلًا، راسلنا من صفحة الطلب.' },
+    en: { title: 'Your order was cancelled', body: 'Order {{orderNumber}} was cancelled because it was not paid in time. If you did pay, message us from the order page.' },
+    fr: { title: 'Commande annulée', body: "La commande {{orderNumber}} a été annulée faute de paiement à temps. Si vous avez payé, écrivez-nous depuis la page de la commande." },
   },
 };

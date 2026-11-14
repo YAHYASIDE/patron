@@ -120,7 +120,7 @@ export function PayOrder({ order, initial, onChange }: { order: Order; initial?:
           <div>
             <h2 className="font-bold">{t('وصلنا تحويلك، بانتظار تأكيد المتجر')}</h2>
             <p className="mt-1 text-sm text-muted">
-              {t('نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا. حدّث الصفحة لاحقًا لترى الكود.')}
+              {t('نتحقّق من وصول المبلغ ثم نسلّمك طلبك هنا، ويصلك إشعار عند التسليم.')}
             </p>
           </div>
         </div>
@@ -378,7 +378,7 @@ function TransferForm({
                   <button
                     type="button"
                     onClick={() => copy(account.id, account.accountNumber)}
-                    className="flex-none rounded-lg border border-[rgb(var(--line))] px-2.5 py-1 text-xs font-bold text-muted"
+                    className="min-h-10 flex-none rounded-lg border border-[rgb(var(--line))] px-3.5 py-2 text-sm font-bold text-muted"
                   >
                     {copied === account.id ? t('نُسخ ✓') : t('نسخ')}
                   </button>
@@ -438,7 +438,7 @@ function TransferForm({
               onChange={(e) => setReference(e.target.value)}
               maxLength={100}
               dir="ltr"
-              placeholder={t('رقم العملية (اختياري) / Transaction ID')}
+              placeholder={t('رقم العملية (اختياري)')}
             />
           </div>
         </>

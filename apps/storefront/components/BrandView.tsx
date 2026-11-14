@@ -54,7 +54,13 @@ export default function BrandView({
   const t = useT();
   const lang = useLang();
   // account input labels come from the game: English for French and English visitors
-  const labelOf = (f: GameInput) => (lang === 'ar' ? f.labelAr || f.labelEn : f.labelEn || f.labelAr);
+  // French and English read the shop's own translation of a field's Arabic label when it has one
+  const tr = (ar: string | undefined, en: string | undefined) => {
+    if (lang === 'ar') return ar || en || '';
+    const done = ar ? t(ar) : '';
+    return done && done !== ar ? done : en || ar || '';
+  };
+  const labelOf = (f: GameInput) => tr(f.labelAr, f.labelEn);
   // where to find the value, in the page's language (Arabic when no translation)
   const helpOf = (f: GameInput) => (lang === 'fr' ? f.helpFr : lang === 'en' ? f.helpEn : f.helpAr) || f.helpAr;
   const section = sectionOf(brand);
@@ -70,11 +76,20 @@ export default function BrandView({
   const [added, setAdded] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const errRef = useRef<HTMLParagraphElement>(null);
+  // a problem with one account field is shown under that field, which gets the focus
+  const [fieldErr, setFieldErr] = useState<{ key: string; msg: string } | null>(null);
+  const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
   const isNew = useIsNew(brand);
   const reviews = useReviews(useMemo(() => brand.products.map((p) => p.id), [brand.products]));
   // account details used before for this game, and whether to keep these ones
   const saved = useSavedInputs(product.gameId);
   const [remember, setRemember] = useState(true);
+  // the last account details used for this game fill the form, until the customer types
+  useEffect(() => {
+    const last = saved.list[0]?.values;
+    if (last && Object.values(inputs).every((v) => !v)) setInputs(last);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.list]);
 
   useEffect(() => pushRecent(brand.key), [brand.key]);
   // for the owner's "most viewed": the title is the Arabic one (French and English visits show another name)
@@ -106,17 +121,30 @@ export default function BrandView({
     setErr(null);
   }
 
+  function flagField(key: string, msg: string) {
+    setFieldErr({ key, msg });
+    const el = fieldRefs.current[key];
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el?.focus({ preventScroll: true });
+  }
+
   function validate(): boolean {
     for (const f of schema) {
       const v = (inputs[f.key] ?? '').trim();
       if (f.required && !v) {
-        setErr(tNow('اكتب {label} أولًا.', { label: labelOf(f) }));
+        flagField(f.key, tNow('اكتب {label} أولًا.', { label: labelOf(f) }));
         return false;
       }
       if (f.regex && v) {
         try {
           if (!new RegExp(f.regex).test(v)) {
-            setErr(tNow('تحقّق من {label}: الصيغة غير صحيحة.', { label: labelOf(f) }));
+            const shape = describeFormat(f.regex);
+            flagField(
+              f.key,
+              shape
+                ? tNow('تحقّق من {label}: {shape}.', { label: labelOf(f), shape: tNow(shape.ar, shape.vars) })
+                : tNow('تحقّق من {label}: الصيغة غير صحيحة.', { label: labelOf(f) }),
+            );
             return false;
           }
         } catch {
@@ -124,6 +152,7 @@ export default function BrandView({
         }
       }
     }
+    setFieldErr(null);
     setErr(null);
     return true;
   }
@@ -138,6 +167,7 @@ export default function BrandView({
       productId: product.id,
       sku: product.sku,
       nameAr: product.nameAr || product.nameEn,
+      nameEn: product.nameEn || product.nameAr,
       imageUrl: product.imageUrl,
       unitPrice: product.sellPrice,
       currency: product.currency,
@@ -209,7 +239,8 @@ export default function BrandView({
                 </span>
               )}
             </p>
-            {product.description && (
+            {/* the description is written in Arabic only: French and English read the guide instead */}
+            {product.description && lang === 'ar' && (
               <p className="mt-2 hidden text-sm leading-relaxed text-muted sm:block">{product.description}</p>
             )}
             <div className="mt-3 flex items-center gap-2">
@@ -240,17 +271,23 @@ export default function BrandView({
                     </span>
                     {f.options?.length ? (
                       <select
+                        ref={(el) => {
+                          fieldRefs.current[f.key] = el;
+                        }}
                         value={inputs[f.key] ?? ''}
+                        aria-invalid={fieldErr?.key === f.key || undefined}
+                        aria-describedby={fieldErr?.key === f.key ? `err-${f.key}` : undefined}
                         onChange={(e) => {
                           setInputs((v) => ({ ...v, [f.key]: e.target.value }));
                           setErr(null);
+                          setFieldErr(null);
                         }}
-                        className="surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal"
+                        className={`surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal ${fieldErr?.key === f.key ? 'border-bad' : ''}`}
                       >
                         <option value="">{t('اختر…')}</option>
                         {f.options.map((o) => (
                           <option key={o.value} value={o.value}>
-                            {lang === 'ar' ? o.labelAr : o.labelEn}
+                            {tr(o.labelAr, o.labelEn)}
                           </option>
                         ))}
                       </select>
@@ -261,15 +298,26 @@ export default function BrandView({
                         }
                         inputMode={f.type === 'tel' ? 'tel' : undefined}
                         dir={f.type === 'tel' || f.type === 'email' || f.type === 'address' ? 'ltr' : undefined}
+                        ref={(el) => {
+                          fieldRefs.current[f.key] = el;
+                        }}
                         value={inputs[f.key] ?? ''}
+                        aria-invalid={fieldErr?.key === f.key || undefined}
+                        aria-describedby={fieldErr?.key === f.key ? `err-${f.key}` : undefined}
                         onChange={(e) => {
                           setInputs((v) => ({ ...v, [f.key]: e.target.value }));
                           setErr(null);
+                          setFieldErr(null);
                         }}
-                        className="surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal"
+                        className={`surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal ${fieldErr?.key === f.key ? 'border-bad' : ''}`}
                       />
                     )}
-                    {helpOf(f) && <span className="text-xs leading-relaxed text-muted">{helpOf(f)}</span>}
+                    {fieldErr?.key === f.key && (
+                      <span id={`err-${f.key}`} role="alert" className="text-sm font-semibold text-bad">
+                        {fieldErr.msg}
+                      </span>
+                    )}
+                    {helpOf(f) && <span className="whitespace-pre-line text-xs leading-relaxed text-muted">{helpOf(f)}</span>}
                   </label>
                 ))}
               </div>
@@ -440,4 +488,17 @@ export default function BrandView({
       </div>
     </div>
   );
+}
+
+/**
+ * The format a field's rule asks for, in words, for the common shapes:
+ * "8 to 12 digits" rather than "the format is wrong".
+ */
+function describeFormat(regex: string): { ar: string; vars?: Record<string, string | number> } | null {
+  const range = /^\^\[0-9\]\{(\d+),(\d+)\}\$$/.exec(regex);
+  if (range) return { ar: 'أرقام فقط، من {min} إلى {max} رقمًا', vars: { min: range[1], max: range[2] } };
+  const exact = /^\^\[0-9\]\{(\d+)\}\$$/.exec(regex);
+  if (exact) return { ar: 'أرقام فقط، {n} أرقام بالضبط', vars: { n: exact[1] } };
+  if (/^\^\(\\\+\?222\)\?/.test(regex)) return { ar: 'رقم هاتف موريتاني من 8 أرقام، مثل 22123456' };
+  return null;
 }

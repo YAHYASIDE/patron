@@ -65,6 +65,7 @@ export const PAYMENT_STATUS: Record<string, { label: string; cls: string }> = {
   CAPTURED: { label: 'مدفوع', cls: 'bg-ok/12 text-ok' },
   FAILED: { label: 'مرفوض', cls: 'bg-bad/12 text-bad' },
   REFUNDED: { label: 'مُسترجع', cls: 'bg-ink-400/15 text-muted' },
+  PARTIALLY_REFUNDED: { label: 'مُسترجع جزئيًا', cls: 'bg-warn/12 text-warn' },
 };
 
 export function paymentChip(status: string): { label: string; cls: string } {

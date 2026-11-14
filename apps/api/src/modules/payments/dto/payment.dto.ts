@@ -17,6 +17,11 @@ export class RequestRefundDto {
   @IsOptional() toWallet?: boolean;
 }
 
+export class ProcessRefundDto {
+  /** The transfer the owner made back (a manual-transfer refund needs it). */
+  @IsOptional() @IsString() @Length(2, 120) reference?: string;
+}
+
 export class RejectRefundDto {
   @IsString() @Length(3, 500) reason!: string;
 }

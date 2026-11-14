@@ -15,7 +15,7 @@ import CodeList, { type Revealed } from '@/components/my/CodeList';
 import ReviewForm from '@/components/my/ReviewForm';
 import TicketForm from '@/components/my/TicketForm';
 import PastPurchases from '@/components/my/PastPurchases';
-import { chip, isDelivered } from '@/components/my/status';
+import { orderChip, chip, isDelivered } from '@/components/my/status';
 import { day } from '@/components/my/when';
 import { reorder } from '@/lib/reorder';
 import { useCurrency } from '@/lib/currency';
@@ -96,7 +96,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
     );
 
-  const c = chip(order.status);
+  const c = orderChip(order);
+  // money already sent back on this order (partial or full refunds)
+  const refunded = (order.payments ?? []).reduce((sum, p) => sum + Number(p.refundedAmount ?? 0), 0);
 
   return (
     <div className="mx-auto max-w-page px-4 py-8">
@@ -127,6 +129,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <OrderTimeline order={order} />
+
+      {refunded > 0 && (
+        <div role="status" className="mt-4 rounded-2xl border border-teal/30 bg-teal/10 p-4 text-sm">
+          <p className="font-bold text-teal">{t('أعدنا إليك {amount}', { amount: money(refunded, order.currency) })}</p>
+          <p className="mt-1 text-muted">
+            {(order.payments ?? []).some((p) => p.gateway === 'WALLET' || p.gateway === 'MANUAL')
+              ? t('يصل المبلغ إلى محفظتك في المتجر أو إلى الرقم الذي دفعت منه، وستجد التفاصيل في الإشعارات.')
+              : t('ستجد تفاصيل الاسترجاع في الإشعارات.')}
+          </p>
+        </div>
+      )}
 
       {/* items */}
       <div className="mt-6 space-y-3">
@@ -159,10 +172,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {revealing === it.id ? t('جارٍ…') : t('إظهار الكود')}
                 </button>
               ) : (
-                <p className="mt-3 text-sm text-muted">
-                  {order.status === 'PENDING_PAYMENT'
-                    ? t('يُسلَّم هنا بعد تأكيد الدفع.')
-                    : t('نجهّز طلبك الآن، وسيظهر الكود هنا بمجرّد تسليمه.')}
+                <p className={`mt-3 text-sm ${it.status === 'FAILED' ? 'font-semibold text-bad' : 'text-muted'}`}>
+                  {it.status === 'FAILED'
+                    ? t('لم نستطع تسليمه تلقائيًا. سنسلّمه يدويًا أو نعيد لك المبلغ كاملًا، ولا داعي للدفع مرة أخرى.')
+                    : it.status === 'REFUNDED'
+                      ? t('أعدنا لك ثمن هذا البند.')
+                      : it.status === 'CANCELLED' || order.status === 'CANCELLED'
+                        ? t('أُلغي هذا البند، ولم يُخصم ثمنه.')
+                        : order.status === 'PENDING_PAYMENT'
+                          ? t('يُسلَّم هنا بعد تأكيد الدفع.')
+                          : t('نجهّز طلبك الآن، ويظهر هنا بمجرّد تسليمه مع إشعار لك.')}
                 </p>
               )}
 

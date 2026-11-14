@@ -92,7 +92,8 @@ export function TodayHero({ today }: { today: ReportSummary['today'] }) {
           </div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-white/75">
             <span>
-              المبيعات <b className="tnum text-white">{money(today.revenue)}</b>
+              المبيعات <b className="tnum text-white">{money(today.revenue)}</b>{' '}
+              <span className="text-[11.5px] text-white/55">صافي بعد الاسترجاع</span>
             </span>
             <span>
               التكلفة <b className="tnum text-white">{money(today.cost)}</b>
@@ -106,7 +107,7 @@ export function TodayHero({ today }: { today: ReportSummary['today'] }) {
         <div className="min-w-0 rounded-xl bg-white/[0.06] p-3 ring-1 ring-white/10">
           <div className="px-1 text-xs font-bold text-white/70">النقد الذي وصلك اليوم، حسب التطبيق</div>
           {today.cashByMethod.length === 0 ? (
-            <p className="px-1 pt-2 text-sm text-white/70">لم يصل أي دفع اليوم بعد.</p>
+            <p className="px-1 pt-2 text-sm text-white/70">لم يصل أي نقد اليوم بعد.</p>
           ) : (
             <ul className="mt-1 divide-y divide-white/10">
               {today.cashByMethod.map((m) => (
@@ -122,6 +123,13 @@ export function TodayHero({ today }: { today: ReportSummary['today'] }) {
                 </li>
               ))}
             </ul>
+          )}
+          {/* wallet payments spend a balance topped up earlier: not today's cash */}
+          {today.walletUsed.orders > 0 && (
+            <p className="mt-1 border-t border-white/10 px-1 pt-2 text-[11.5px] leading-5 text-white/60">
+              دُفع من أرصدة المحافظ: <span className="tnum font-bold">{money(today.walletUsed.amount)}</span>{' '}
+              في <span className="tnum">{today.walletUsed.orders}</span> طلبات (رصيد سابق، ليس نقدًا جديدًا)
+            </p>
           )}
         </div>
       </div>
@@ -276,6 +284,12 @@ export function Customers({ rows }: { rows: ReportSummary['topCustomers'] }) {
                 {flagOf(c.country)}
               </span>
               <span className="truncate text-sm font-bold">{c.fullName}</span>
+              {/* two customers can share a name: the phone's last digits tell them apart */}
+              {c.phone && (
+                <span dir="ltr" className="tnum flex-none text-[11.5px] font-normal text-muted">
+                  ••{c.phone.replace(/\D/g, '').slice(-4)}
+                </span>
+              )}
             </Link>
             <div className="mt-0.5 text-[11.5px] text-muted">
               <span className="tnum">{c.orders}</span> طلب · آخر طلب {date(c.lastOrderAt)}
@@ -360,22 +374,26 @@ function LossLine({
   title,
   note,
   value,
+  tone = 'bad',
   children,
 }: {
   title: string;
   note: string;
   value: string;
+  tone?: 'bad' | 'warn';
   children?: ReactNode;
 }) {
-  const bad = n(value) > 0;
+  const on = n(value) > 0;
   return (
     <div className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-bold">{title}</div>
+          <div className={`text-sm font-bold ${on && tone === 'warn' ? 'text-warn' : ''}`}>{title}</div>
           <div className="mt-0.5 text-[11.5px] leading-4 text-muted">{note}</div>
         </div>
-        <div className={`tnum flex-none text-base font-extrabold ${bad ? 'text-bad' : 'text-muted'}`}>
+        <div
+          className={`tnum flex-none text-base font-extrabold ${on ? (tone === 'warn' ? 'text-warn' : 'text-bad') : 'text-muted'}`}
+        >
           {money(value)}
         </div>
       </div>
@@ -384,8 +402,13 @@ function LossLine({
   );
 }
 
+/**
+ * The only loss is a sale under its cost. Refunds are already off the sales (shown
+ * for the record, never added again) and money still owed to customers is a debt to
+ * settle, not a loss.
+ */
 export function Losses({ losses }: { losses: ReportSummary['losses'] }) {
-  const f = losses.failedOrCancelled;
+  const owed = losses.owed;
   return (
     <div>
       {n(losses.total) === 0 && (
@@ -394,11 +417,6 @@ export function Losses({ losses }: { losses: ReportSummary['losses'] }) {
         </p>
       )}
       <div className="flex flex-col divide-y divide-[rgb(var(--line))]">
-        <LossLine
-          title="أموال أُعيدت للزبائن"
-          note={losses.refundCount ? `${losses.refundCount} عملية استرجاع` : 'لم تُرجِع أي مبلغ'}
-          value={losses.refunds}
-        />
         <LossLine
           title="بيع بأقل من التكلفة"
           note="منتجات بعتها بسعر أقل مما كلّفتك (محسوبة في الربح أعلاه)"
@@ -427,11 +445,31 @@ export function Losses({ losses }: { losses: ReportSummary['losses'] }) {
           )}
         </LossLine>
         <LossLine
-          title="طلبات مدفوعة فشلت أو أُلغيت"
-          note={f.count ? `${f.count} طلب، بعد خصم ما أُعيد منها` : 'لا يوجد'}
-          value={f.value}
-        />
+          title="مستحق للزبائن (لم يُسلَّم ولم يُسترجع)"
+          note={owed.count ? `${owed.count} طلب مدفوع فشل أو أُلغي، بعد خصم ما أُعيد منها` : 'لا يوجد'}
+          value={owed.value}
+          tone="warn"
+        >
+          {owed.count > 0 && (
+            <Link
+              href="/orders?status=FAILED"
+              className="mt-1.5 inline-block text-xs font-bold text-warn hover:underline"
+            >
+              سلّمها أو أرجِع المال ←
+            </Link>
+          )}
+        </LossLine>
       </div>
+      <p className="surface-2 mt-3 rounded-xl px-3.5 py-2.5 text-[12.5px] leading-5 text-muted">
+        {losses.refundCount > 0 ? (
+          <>
+            أُعيد للزبائن: <span className="tnum font-semibold">{money(losses.refunds)}</span> في{' '}
+            <span className="tnum">{losses.refundCount}</span> عملية — مخصوم من المبيعات
+          </>
+        ) : (
+          'لم تُرجِع أي مبلغ للزبائن في هذه الفترة.'
+        )}
+      </p>
     </div>
   );
 }
