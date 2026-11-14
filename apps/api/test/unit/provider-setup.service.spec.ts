@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { ProviderSetupService } from '../../src/modules/providers/provider-setup.service';
+import { ProviderSetupService, connectionProblem } from '../../src/modules/providers/provider-setup.service';
+import { ProviderHttpError } from '../../src/modules/providers/adapters/base-http.adapter';
 
 describe('ProviderSetupService', () => {
   let prisma: any;
@@ -68,8 +69,37 @@ describe('ProviderSetupService', () => {
   it('a token GamesDrop refuses shows as not connected', async () => {
     adapter.getBalance.mockRejectedValue(new Error('401'));
     const res = await service.status('prov-1');
-    expect(res).toMatchObject({ connected: false, balance: null });
+    expect(res).toMatchObject({ connected: false, balance: null, problem: { reason: 'unexpected', code: null } });
     expect(prisma.provider.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ isHealthy: false }) }));
+  });
+
+  it('status says why GamesDrop refused, without ever echoing the token', async () => {
+    adapter.getBalance.mockRejectedValue(
+      new ProviderHttpError('GamesDropAdapter 401', 401, { error: { code: 'INVALID_TOKEN', message: token } }, false),
+    );
+    const res = await service.status('prov-1');
+    expect(res.problem).toEqual({ reason: 'invalid_token', code: 'INVALID_TOKEN' });
+    expect(JSON.stringify(res)).not.toContain(token);
+  });
+
+  it('a connected supplier has no problem', async () => {
+    const res = await service.status('prov-1');
+    expect(res).toMatchObject({ connected: true, problem: null });
+  });
+
+  describe('connectionProblem', () => {
+    it.each([
+      [new ProviderHttpError('x', 401, { error: { code: 'INVALID_TOKEN' } }, false), { reason: 'invalid_token', code: 'INVALID_TOKEN' }],
+      [new ProviderHttpError('x', 200, { error: 'INVALID_TOKEN' }, false), { reason: 'invalid_token', code: 'INVALID_TOKEN' }],
+      [new ProviderHttpError('x', 403, '<html>blocked</html>', false), { reason: 'forbidden', code: '403' }],
+      [new ProviderHttpError('Timed out after 15000ms', null, null, true), { reason: 'timeout', code: null }],
+      [new ProviderHttpError('fetch failed', null, null, true), { reason: 'unreachable', code: null }],
+      [new ProviderHttpError('x', 503, { error: { code: 'SERVICE_UNAVAILABLE' } }, true), { reason: 'supplier_error', code: 'SERVICE_UNAVAILABLE' }],
+      [new ProviderHttpError('x', 400, { error: { code: 'not a <code>' } }, false), { reason: 'unexpected', code: '400' }],
+      [new Error('boom'), { reason: 'unexpected', code: null }],
+    ])('%#: %o', (err, expected) => {
+      expect(connectionProblem(err)).toEqual(expected);
+    });
   });
 
   it('catalog search marks offers already linked to a product', async () => {

@@ -174,4 +174,10 @@ describe('GamesDropAdapter', () => {
     mockApi({ '/api/v1/offers/balance': [resp({ error: 'INVALID_TOKEN' }, 401)] });
     expect(await adapter.healthCheck(creds)).toBe(false);
   });
+
+  it('a balance answer without a number (an error sent with HTTP 200) is a failure, not a NaN balance', async () => {
+    mockApi({ '/api/v1/offers/balance': [resp({ error: 'INVALID_TOKEN' })] });
+    await expect(adapter.getBalance(creds)).rejects.toMatchObject({ status: 200, body: { error: 'INVALID_TOKEN' } });
+    expect(await adapter.healthCheck(creds)).toBe(false);
+  });
 });

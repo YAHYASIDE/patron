@@ -282,6 +282,10 @@ export class GamesDropAdapter extends BaseHttpAdapter implements ProviderAdapter
       method: 'GET',
       headers: this.headers(creds),
     });
+    // GamesDrop may answer an error with HTTP 200 (`{ error: CODE }`): no number means no balance
+    if (!res || !Number.isFinite(Number(res.balance))) {
+      throw new ProviderHttpError('GamesDropAdapter balance response without a balance', 200, res, false);
+    }
     return { balance: Number(res.balance), currency: res.currency?.code ?? 'USD' };
   }
 
