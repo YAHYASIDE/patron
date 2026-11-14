@@ -34,7 +34,8 @@ env:
 jobs:
   live:
     name: Live shop · store, dashboard, API
-    runs-on: ubuntu-latest
+    # Playwright does not ship Chromium for ubuntu 26.04 yet (ubuntu-latest moved to it)
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     defaults:
       run:

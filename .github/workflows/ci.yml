@@ -198,7 +198,8 @@ jobs:
   # by the owner, wallet) with tests/live/checkout-flow.mjs.
   checkout:
     name: Checkout · a real order in a browser
-    runs-on: ubuntu-latest
+    # Playwright does not ship Chromium for ubuntu 26.04 yet (ubuntu-latest moved to it)
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
