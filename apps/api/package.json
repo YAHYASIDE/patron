@@ -40,7 +40,33 @@
     "braces": "^3.0.3",
     "micromatch": "^4.0.8",
     "js-yaml": "^5.4.3",
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "fast-uri": "^3.1.9",
+    "jest-config": {
+      "glob": "^14.0.6"
+    },
+    "jest-runtime": {
+      "glob": "^14.0.6"
+    },
+    "@jest/reporters": {
+      "glob": "^14.0.6"
+    },
+    "@nestjs/cli": {
+      "glob": "^14.0.6"
+    },
+    "test-exclude": {
+      "glob": "^14.0.6",
+      "minimatch": "^11.0.8"
+    },
+    "archiver-utils": {
+      "glob": "^14.0.6"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.8"
+    },
+    "gaxios": {
+      "glob": "^14.0.6"
+    }
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.0",
