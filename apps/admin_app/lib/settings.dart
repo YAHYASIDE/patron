@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -22,6 +23,13 @@ class AppSettings extends ChangeNotifier {
   static const _kDashboard = 'settings.dashboardUrl';
   static const _kBiometric = 'settings.biometricLock';
   static const _kDevice = 'settings.deviceId';
+  static const _kRelock = 'settings.relockMinutes';
+  static const _kHome = 'cache.home';
+
+  /// How long the app may stay in the background before the fingerprint is
+  /// asked again. The owner picks one in the settings screen.
+  static const relockChoices = [5, 30, 120];
+  static const defaultRelockMinutes = 30;
 
   final SharedPreferences _prefs;
 
@@ -41,6 +49,43 @@ class AppSettings extends ChangeNotifier {
     _prefs.setString(_kDevice, id);
     return id;
   }
+
+  int get relockMinutes {
+    final m = _prefs.getInt(_kRelock);
+    return relockChoices.contains(m) ? m! : defaultRelockMinutes;
+  }
+
+  Future<void> setRelockMinutes(int minutes) async {
+    if (!relockChoices.contains(minutes)) return;
+    await _prefs.setInt(_kRelock, minutes);
+    notifyListeners();
+  }
+
+  /// The last home screen the server sent ({attention, notices, savedAt}), so the
+  /// app opens on it at once while the fresh one loads. It holds order numbers
+  /// and notice titles, never tokens; it lives in the app's private storage and
+  /// is deleted on sign-out.
+  HomeSnapshot? get homeSnapshot {
+    final raw = _prefs.getString(_kHome);
+    if (raw == null) return null;
+    try {
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      return HomeSnapshot(
+        attention: (j['attention'] as Map).cast<String, dynamic>(),
+        notices: (j['notices'] as Map).cast<String, dynamic>(),
+        savedAt: DateTime.parse(j['savedAt'] as String),
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> saveHomeSnapshot(HomeSnapshot s) => _prefs.setString(
+        _kHome,
+        jsonEncode({'attention': s.attention, 'notices': s.notices, 'savedAt': s.savedAt.toIso8601String()}),
+      );
+
+  Future<void> clearHomeSnapshot() => _prefs.remove(_kHome);
 
   Future<void> setApiUrl(String url) => _setUrl(_kApi, url, defaultApiUrl);
   Future<void> setDashboardUrl(String url) => _setUrl(_kDashboard, url, defaultDashboardUrl);
@@ -80,4 +125,12 @@ class AppSettings extends ChangeNotifier {
     }
     return Uri.parse('$base${link.startsWith('/') ? link : '/$link'}');
   }
+}
+
+class HomeSnapshot {
+  const HomeSnapshot({required this.attention, required this.notices, required this.savedAt});
+
+  final Map<String, dynamic> attention;
+  final Map<String, dynamic> notices;
+  final DateTime savedAt;
 }

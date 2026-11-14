@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -187,7 +187,7 @@ void main() {
     // Lock again, then choose the password instead.
     services.session.didEnterBackground();
     await tester.pump();
-    unawaited(services.session.didResume()); // within 5 min: stays open
+    unawaited(services.session.didResume()); // within the relock delay: stays open
     await tester.pumpAndSettle();
     expect(services.session.state, SessionState.signedIn);
   });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { checkTeam, frontmatter, TEAM } from '../check-agents.mjs';
+import { checkSkills, checkTeam, frontmatter, TEAM } from '../check-agents.mjs';
 
 const repo = resolve(import.meta.dirname, '../../..');
 
@@ -37,4 +37,19 @@ test('a broken team is reported', () => {
   for (const want of ['does not match', 'description too short', 'unknown tool Teleport', 'meant to be read-only', 'unknown skill patron-nonexistent', 'does not point to _shared-rules.md']) {
     assert.ok(text.includes(want), `expected "${want}" in:\n${text}`);
   }
+});
+
+test('every skill loads: folder name = frontmatter name, real description', () => {
+  const { skills, problems } = checkSkills(repo);
+  assert.deepEqual(problems, []);
+  for (const s of ['patron-skill', 'patron-market-intelligence', 'patron-ai-team', 'patron-discovery']) assert.ok(skills.includes(s), s);
+});
+
+test('a broken skill is reported', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skills-'));
+  mkdirSync(join(root, '.claude/skills/x-skill'), { recursive: true });
+  mkdirSync(join(root, '.claude/skills/empty'), { recursive: true });
+  writeFileSync(join(root, '.claude/skills/x-skill/SKILL.md'), '---\nname: other\ndescription: short\n---\n');
+  const text = checkSkills(root).problems.join('\n');
+  for (const want of ['does not match the folder', 'description too short', 'empty: no SKILL.md']) assert.ok(text.includes(want), want);
 });

@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api/api_client.dart';
@@ -105,9 +104,17 @@ class _PatronAdminAppState extends State<PatronAdminApp> with WidgetsBindingObse
   }
 }
 
+/// Same colour as Android's launch screen (res/drawable*/launch_background.xml),
+/// so opening the app goes straight from the icon to the brand, with no white flash.
 class _Splash extends StatelessWidget {
   const _Splash();
 
   @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) => const Scaffold(
+        backgroundColor: Brand.teal,
+        body: Center(
+          child: Text('patron',
+              style: TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: 1)),
+        ),
+      );
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../app.dart';
 import '../settings.dart';
@@ -54,10 +54,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('قفل التطبيق بالبصمة'),
               subtitle: Text(_biometricAvailable == false
                   ? 'هذا الهاتف لا يدعم البصمة أو قفل الشاشة.'
-                  : 'يطلب البصمة عند فتح التطبيق وبعد 5 دقائق في الخلفية.'),
+                  : 'يطلب البصمة عند فتح التطبيق وبعد البقاء في الخلفية المدة المختارة أدناه.'),
               value: s.settings.biometricLock && _biometricAvailable != false,
               onChanged: _biometricAvailable == false ? null : s.settings.setBiometricLock,
             ),
+            if (s.settings.biometricLock && _biometricAvailable != false)
+              ListTile(
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('اطلب البصمة مجددا بعد'),
+                trailing: DropdownButton<int>(
+                  value: s.settings.relockMinutes,
+                  underline: const SizedBox.shrink(),
+                  onChanged: (m) => m == null ? null : s.settings.setRelockMinutes(m),
+                  items: [
+                    for (final m in AppSettings.relockChoices)
+                      DropdownMenuItem(value: m, child: Text(relockLabel(m))),
+                  ],
+                ),
+              ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('تسجيل الخروج'),
@@ -188,3 +202,11 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
     );
   }
 }
+
+/// "5 دقائق", "30 دقيقة", "ساعتين" for the relock choice.
+String relockLabel(int minutes) => switch (minutes) {
+      5 => '5 دقائق',
+      30 => '30 دقيقة',
+      120 => 'ساعتين',
+      _ => '$minutes دقيقة',
+    };

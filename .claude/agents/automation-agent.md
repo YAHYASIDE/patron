@@ -17,4 +17,5 @@ the periodic scans, **patron-market-intelligence**.
 
 ## Limits
 Never schedule anything that moves money, deploys or touches production data. Code changes on your
-assigned branch only. Follow .claude/agents/_shared-rules.md.
+assigned branch only. Load the skill **patron-discovery** when the work involves discoveries or the discovery engine.
+Follow .claude/agents/_shared-rules.md.

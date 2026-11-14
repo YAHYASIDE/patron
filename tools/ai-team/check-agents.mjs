@@ -33,6 +33,28 @@ export function frontmatter(text) {
   return out;
 }
 
+/** Every .claude/skills/<dir>/SKILL.md: frontmatter name equals the folder, a real description. */
+export function checkSkills(root) {
+  const dir = join(root, '.claude/skills');
+  const problems = [];
+  const skills = [];
+  for (const name of readdirSync(dir)) {
+    const file = join(dir, name, 'SKILL.md');
+    if (!existsSync(file)) {
+      problems.push(`skill ${name}: no SKILL.md`);
+      continue;
+    }
+    const fm = frontmatter(readFileSync(file, 'utf8'));
+    if (!fm) problems.push(`skill ${name}: no frontmatter`);
+    else {
+      if (fm.name !== name) problems.push(`skill ${name}: name "${fm.name}" does not match the folder`);
+      if (!fm.description || fm.description.length < 60) problems.push(`skill ${name}: description too short`);
+    }
+    skills.push(name);
+  }
+  return { skills, problems };
+}
+
 export function checkTeam(root) {
   const dir = join(root, '.claude/agents');
   const skillsDir = join(root, '.claude/skills');
@@ -69,11 +91,14 @@ export function checkTeam(root) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const root = resolve(process.argv[2] ?? '.');
-  const { agents, problems } = checkTeam(root);
+  const team = checkTeam(root);
+  const sk = checkSkills(root);
+  const { agents } = team;
+  const problems = [...team.problems, ...sk.problems];
   for (const a of agents) console.log(`${a.name.padEnd(20)} tools: ${a.tools.join(', ')} | skills: ${a.skills.join(', ') || '-'}`);
   if (problems.length) {
     console.error(`\n${problems.length} problem(s):\n- ${problems.join('\n- ')}`);
     process.exit(1);
   }
-  console.log(`\nOK: ${agents.length} agents`);
+  console.log(`\nOK: ${agents.length} agents, ${sk.skills.length} skills`);
 }
