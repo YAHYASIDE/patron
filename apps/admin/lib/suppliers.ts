@@ -9,6 +9,11 @@ export type SupplierStatus = {
   name: string;
   isActive: boolean;
   connected: boolean;
+  /** Why the last check failed (null when connected). */
+  problem?: {
+    reason: 'invalid_token' | 'forbidden' | 'timeout' | 'unreachable' | 'supplier_error' | 'unexpected';
+    code: string | null;
+  } | null;
   balance: { balance: number; currency: string } | null;
   lowBalanceAlert: number | null;
   dailyLimit: number | null;

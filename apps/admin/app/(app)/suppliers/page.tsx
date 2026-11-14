@@ -147,6 +147,25 @@ function NumberField({ label, value, onChange, hint }: { label: string; value: s
 
 // ─── status ───
 
+/** The reason GamesDrop did not answer, in words the owner can act on (the supplier's code in brackets). */
+function problemText(p: SupplierStatus['problem']): string {
+  const code = p?.code ? ` (${p.code})` : '';
+  switch (p?.reason) {
+    case 'invalid_token':
+      return `GamesDrop رفض المفتاح${code}. أنشئ مفتاحًا جديدًا في صفحة «مفاتيح API» عندهم، وانسخه كاملًا (لا تكتبه بيدك)، ثم «تغيير المفتاح». إن تكرر، اسأل GamesDrop هل حسابك مفعّل للـ API.`;
+    case 'forbidden':
+      return `GamesDrop رفض طلب خادم المتجر${code}. المفتاح وصلهم، لكن حسابك أو هذا المتجر غير مسموح له بعد. اسأل GamesDrop أن يفعّلوه.`;
+    case 'timeout':
+      return 'GamesDrop لم يرد في الوقت المحدد. أعد المحاولة بعد دقائق.';
+    case 'unreachable':
+      return 'خادم المتجر لم يستطع الوصول إلى GamesDrop. أعد المحاولة بعد دقائق، وإن تكرر فأخبر من يدير المتجر تقنيًا.';
+    case 'supplier_error':
+      return `GamesDrop عنده عطل الآن${code}. أعد المحاولة لاحقًا.`;
+    default:
+      return `GamesDrop لم يقبل المفتاح أو لا يرد الآن${code}. تأكد من المفتاح ثم أعد الربط.`;
+  }
+}
+
 function StatusCard({ s, onChange }: { s: SupplierStatus; onChange: (s: SupplierStatus) => void }) {
   const [rekey, setRekey] = useState(false);
   const [test, setTest] = useState<{ busy: boolean; text?: string; ok?: boolean }>({ busy: false });
@@ -195,9 +214,7 @@ function StatusCard({ s, onChange }: { s: SupplierStatus; onChange: (s: Supplier
         </div>
       </div>
 
-      {!s.connected && (
-        <Notice text="GamesDrop لم يقبل المفتاح أو لا يرد الآن. تأكد من المفتاح ثم أعد الربط." />
-      )}
+      {!s.connected && <Notice text={problemText(s.problem)} />}
 
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Fact k="الرصيد" v={s.balance ? money(s.balance.balance, cur) : '—'} warn={!!low} />
