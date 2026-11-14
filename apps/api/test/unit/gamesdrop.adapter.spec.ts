@@ -54,7 +54,7 @@ describe('GamesDropAdapter', () => {
     });
     const out = await adapter.fulfil(req(), creds);
 
-    expect(out).toMatchObject({ status: 'DELIVERED', providerRef: '555', results: [{ resultType: 'message' }] });
+    expect(out).toMatchObject({ status: 'DELIVERED', providerRef: '555', results: [{ resultType: 'message' }], raw: { unitPrice: 0.99 } });
     const opts = (fn.mock.calls[0] as unknown[])[1] as { headers: Record<string, string> };
     expect(opts.headers.authorization).toBe(token); // raw shop token, no "Bearer"
     expect(bodyOf(fn, '/api/v1/offers/find-one')[0]).toEqual({ offerId: 101, quantity: 1, countryCode: 'MR' });

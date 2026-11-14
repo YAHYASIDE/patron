@@ -166,6 +166,8 @@ describe('ProviderEngine', () => {
       primary.fulfil.mockResolvedValue(delivered());
       await engine.fulfilItem('item-1');
       expect(primary.fulfil.mock.calls[0][0]).toMatchObject({ providerSku: 'SKU_A', maxUnitCost: 0.99 });
+      // recorded with the call, so today's spend never depends on a cost changed later
+      expect(prisma.providerCall.create.mock.calls[0][0].data.requestBody).toMatchObject({ quantity: 1, maxUnitCost: 0.99 });
     });
 
     it('skips a supplier whose daily limit would be passed, and uses the next one', async () => {

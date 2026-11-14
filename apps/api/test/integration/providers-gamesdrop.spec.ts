@@ -87,24 +87,24 @@ describe('GamesDrop supplier setup (Postgres)', () => {
     expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).delivery).toBe('MANUAL');
   });
 
-  it('spentToday sums what was delivered or is in flight today, at the agreed cost', async () => {
+  it('spentToday counts the price paid on each purchase today, not the cost set later', async () => {
     const { id: providerId } = await connect();
     await setup.link(providerId, { productId, providerSku: '101', providerCost: 2.5 }, ownerId);
-    const user = await prisma.user.create({ data: { email: `c-${randomUUID()}@test.local`, fullName: 'C', passwordHash: 'x' } });
-    const order = await prisma.order.create({
-      data: { orderNumber: `PTN-G-${randomUUID().slice(0, 8)}`, userId: user.id, status: 'PAID', subtotal: 6, total: 6, currency: 'USD', baseCurrency: 'USD', fxRate: 1, totalBase: 6 },
-    });
-    const item = (status: 'DELIVERED' | 'PROCESSING' | 'FAILED', quantity: number) => prisma.orderItem.create({
+    const call = (over: Record<string, unknown>) => prisma.providerCall.create({
       data: {
-        orderId: order.id, productId, productNameAr: 'ببجي', productNameEn: 'PUBG', quantity, unitPrice: 1.5, unitCost: 2.5,
-        lineTotal: 1.5 * quantity, status, fulfilledByProviderId: providerId,
-        ...(status === 'DELIVERED' && { deliveredAt: new Date() }),
+        providerId, endpoint: 'fulfil', idempotencyKey: randomUUID(), success: true,
+        requestBody: { sku: '101', quantity: 2, maxUnitCost: 2.5 }, responseBody: { order_id: '1', unitPrice: 2.4 }, ...over,
       },
     });
-    await item('DELIVERED', 2); // 5
-    await item('PROCESSING', 1); // 2.5
-    await item('FAILED', 4); // not money spent
-    expect(await engine.spentToday(providerId)).toBe(7.5);
+    await call({}); // GamesDrop charged 2.4 × 2 = 4.8
+    await call({ responseBody: { order_id: '2' }, requestBody: { sku: '101', quantity: 1, maxUnitCost: 2.5 } }); // no price: the agreed 2.5
+    await call({ success: false }); // a refused purchase costs nothing
+    await call({ createdAt: new Date(Date.now() - 2 * 86_400_000) }); // not today
+    expect(await engine.spentToday(providerId)).toBeCloseTo(7.3, 6);
+
+    // the owner lowering the product's cost afterwards does not rewrite today's spend
+    await setup.link(providerId, { productId, providerSku: '101', providerCost: 0.5 }, ownerId);
+    expect(await engine.spentToday(providerId)).toBeCloseTo(7.3, 6);
   });
 
   it('the same supplier offer cannot be linked to two products', async () => {

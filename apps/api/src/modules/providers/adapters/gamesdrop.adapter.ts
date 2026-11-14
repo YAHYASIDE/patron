@@ -173,7 +173,7 @@ export class GamesDropAdapter extends BaseHttpAdapter implements ProviderAdapter
     if (code === 'WRONG_PRICE' && mayRequote) return this.requote(creds, req, offerId, countryCode, customer);
     if (code === 'SERVICE_UNAVAILABLE') return this.unknownOutcome(req.idempotencyKey, 'SERVICE_UNAVAILABLE on create-order');
     if (code) return fail(code.toLowerCase(), 'create-order refused the order', false, order);
-    return this.toOutcome(order, quote.isReturnDataForCustomer);
+    return this.toOutcome(order, quote.isReturnDataForCustomer, quote.price);
   }
 
   /** The price moved between find-one and create-order: quote again once, still within cost. */
@@ -298,11 +298,15 @@ export class GamesDropAdapter extends BaseHttpAdapter implements ProviderAdapter
     return this.request<T>(creds, path, { body, headers: this.headers(creds) });
   }
 
-  private toOutcome(order: GdOrder, returnsData: boolean | undefined): FulfilOutcome {
+  /** `unitPrice` (what GamesDrop charged per unit) is kept in raw for today's-spend accounting. */
+  private toOutcome(order: GdOrder, returnsData: boolean | undefined, unitPrice?: number): FulfilOutcome {
     const orderId = order.orderId !== undefined ? String(order.orderId) : undefined;
     const ref = orderId ?? (order.transactionId ? `${TX_PREFIX}${order.transactionId}` : 'unknown');
     // keys are secrets: they go to the encrypted order results, never to provider_calls
-    const raw = { order_id: ref, status: order.status, failureCode: order.failureCode, failureReason: order.failureReason };
+    const raw = {
+      order_id: ref, status: order.status, failureCode: order.failureCode, failureReason: order.failureReason,
+      ...(unitPrice !== undefined && { unitPrice }),
+    };
     switch ((order.status ?? '').toUpperCase()) {
       case 'COMPLETED':
       case 'DELIVERED': {

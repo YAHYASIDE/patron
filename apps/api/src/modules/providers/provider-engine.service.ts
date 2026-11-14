@@ -138,6 +138,8 @@ export class ProviderEngine {
       await this.recordCall(item.id, candidate.providerId, idempotencyKey, {
         sku: candidate.providerSku,
         quantity: item.quantity,
+        // the agreed cost at the time of this purchase: today's spend is counted from it
+        maxUnitCost: Number(candidate.providerCost),
         inputKeys: Object.keys(inputs), // values may be personal data — keys only
       }, outcome, Date.now() - startedAt, item.attemptCount);
 
@@ -199,15 +201,23 @@ export class ProviderEngine {
 
   // ─────────────── internals ───────────────
 
-  /** Spent at this supplier today (UTC) at the agreed costs: delivered or in flight. */
+  /**
+   * Spent at this supplier today (UTC), from the purchases themselves: the price
+   * the supplier charged when the adapter reports it (`unitPrice`), else the
+   * agreed cost recorded with the call. Changing a product's cost later does
+   * not rewrite what was already spent.
+   */
   async spentToday(providerId: string): Promise<number> {
     const [row] = await this.prisma.$queryRaw<Array<{ spent: Prisma.Decimal | null }>>`
-      SELECT COALESCE(SUM(pp."providerCost" * oi.quantity), 0) AS spent
-      FROM order_items oi
-      JOIN product_providers pp ON pp."productId" = oi."productId" AND pp."providerId" = oi."fulfilledByProviderId"
-      WHERE oi."fulfilledByProviderId" = ${providerId}::uuid
-        AND oi.status IN ('DELIVERED', 'PROCESSING')
-        AND oi."updatedAt" >= date_trunc('day', now() AT TIME ZONE 'UTC')`;
+      SELECT COALESCE(SUM(
+        COALESCE(("responseBody"->>'unitPrice')::numeric, ("requestBody"->>'maxUnitCost')::numeric, 0)
+        * COALESCE(("requestBody"->>'quantity')::numeric, 1)
+      ), 0) AS spent
+      FROM provider_calls
+      WHERE "providerId" = ${providerId}::uuid
+        AND endpoint = 'fulfil'
+        AND success = true
+        AND "createdAt" >= date_trunc('day', now() AT TIME ZONE 'UTC')`;
     return Number(row?.spent ?? 0);
   }
 
