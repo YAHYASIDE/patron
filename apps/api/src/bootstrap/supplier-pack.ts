@@ -523,3 +523,140 @@ export async function showNewSupplierProducts(client?: PrismaClient): Promise<nu
     if (!client) await prisma.$disconnect();
   }
 }
+
+// ───────────────────────── Binance gift cards (owner's real test) ─────────────────────────
+
+export const SUPPLIER_BINANCE_KEY = 'supplier.pack.gamesdrop.binance.v1';
+
+const binanceText = (usdt: number) =>
+  `بطاقة هدايا بينانس بقيمة ${usdt} USDT. بعد تأكيد الدفع يصلك رمز البطاقة في صفحة طلبك؛ افتح تطبيق بينانس ← المحفظة ← Gift Card ← استرداد (Redeem) والصق الرمز فتُضاف ${usdt} USDT إلى حسابك.`;
+
+/**
+ * [SKU, USDT value, GamesDrop offer, GamesDrop price on 14 Nov 2026, automatic delivery].
+ * Binance gift cards (USDT, "RoW", allowed for Mauritania) are delivered as a code.
+ * 10/25/50 existed hidden and priced below what GamesDrop charges; 1 and 5 are new,
+ * cheap cards for the owner's first real purchase. Only the 1 USDT card buys
+ * automatically: the owner's real end-to-end test, at most a few dollars.
+ */
+export const BINANCE_CARDS: Array<[string, number, string, number, boolean]> = [
+  ['GC-BINANCE-1', 1, '34262', 1.28, true],
+  ['GC-BINANCE-5', 5, '17450', 5.79, false],
+  ['GC-BINANCE-10', 10, '17449', 11.4, false],
+  ['GC-BINANCE-25', 25, '34260', 28.33, false],
+  ['GC-BINANCE-50', 50, '17394', 56.32, false],
+];
+
+/**
+ * Once, after GamesDrop is connected: every Binance card is linked, priced at
+ * least cost + 10% (never lowered), described as the code it is, and shown; the
+ * new cards are shaped like GC-BINANCE-10. A card the owner deleted stays deleted.
+ */
+export async function applyBinancePack(client?: PrismaClient): Promise<Record<string, unknown> | null> {
+  const root = client ?? new PrismaClient();
+  try {
+    return await root.$transaction(
+      async (prisma) => {
+        if (await prisma.systemSetting.findUnique({ where: { key: SUPPLIER_BINANCE_KEY } })) return null;
+        const provider = await prisma.provider.findUnique({ where: { code: PROVIDER_CODE } });
+        if (!provider) return null; // waits for the connection, like the links pack
+        const like = await prisma.product.findUnique({ where: { sku: 'GC-BINANCE-10' } });
+        const done = { created: 0, linked: 0, keptOwnerLinks: 0, auto: 0, shown: 0, missing: [] as string[] };
+        const changes: Change[] = [];
+
+        for (const [sku, usdt, offer, cost, auto] of BINANCE_CARDS) {
+          let product = await prisma.product.findUnique({ where: { sku } });
+          if (product?.deletedAt) {
+            done.missing.push(sku);
+            continue;
+          }
+          if (!product) {
+            if (!like) {
+              done.missing.push(sku);
+              continue;
+            }
+            product = await prisma.product.create({
+              data: {
+                sku,
+                type: like.type,
+                delivery: DeliveryMode.MANUAL,
+                nameAr: `بطاقة هدايا بينانس ${usdt} USDT`,
+                nameEn: `Binance Gift Card ${usdt} USDT`,
+                description: binanceText(usdt),
+                imageUrl: like.imageUrl,
+                costPrice: cost,
+                sellPrice: floorPrice(cost),
+                currency: like.currency,
+                maxPerOrder: like.maxPerOrder,
+                etaMinutes: like.etaMinutes,
+                metadata: (like.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+                categoryId: like.categoryId,
+                gameId: like.gameId,
+                isActive: true,
+              },
+            });
+            done.created++;
+          }
+          const list = listPriceFor(cost, product.discountPercent);
+          const sell = Number(product.sellPrice);
+          const newSell = sell < list ? list : sell;
+          if (newSell !== sell) changes.push({ sku, currency: product.currency, from: sell, to: newSell });
+          if (!product.isActive) done.shown++;
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { sellPrice: newSell, costPrice: cost, description: binanceText(usdt), isActive: true },
+          });
+
+          const mine = await prisma.productProvider.findUnique({
+            where: { productId_providerId: { productId: product.id, providerId: provider.id } },
+          });
+          if (mine) {
+            done.keptOwnerLinks++;
+            continue;
+          }
+          if (
+            await prisma.productProvider.findUnique({
+              where: { providerId_providerSku: { providerId: provider.id, providerSku: offer } },
+            })
+          )
+            continue;
+          await prisma.productProvider.create({
+            data: {
+              productId: product.id,
+              providerId: provider.id,
+              providerSku: offer,
+              providerCost: maxCost(cost, newSell),
+              isActive: auto && provider.isActive,
+            },
+          });
+          done.linked++;
+          if (auto && provider.isActive) {
+            await prisma.product.update({
+              where: { id: product.id },
+              data: { delivery: DeliveryMode.AUTO_PROVIDER },
+            });
+            done.auto++;
+          }
+        }
+
+        const value = { appliedAt: new Date().toISOString(), ...done, changes };
+        await prisma.systemSetting.create({
+          data: {
+            key: SUPPLIER_BINANCE_KEY,
+            group: 'catalog',
+            description:
+              'Binance gift cards linked to GamesDrop and shown; the 1 USDT card delivers automatically (once).',
+            value: value as unknown as Prisma.InputJsonValue,
+          },
+        });
+        console.log(
+          `supplier pack: ${SUPPLIER_BINANCE_KEY} applied`,
+          JSON.stringify({ ...done, changes: changes.length }),
+        );
+        return value;
+      },
+      { maxWait: 10_000, timeout: 60_000 },
+    );
+  } finally {
+    if (!client) await root.$disconnect();
+  }
+}

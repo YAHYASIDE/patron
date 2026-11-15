@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import {
+  applyBinancePack,
   applySupplierPack,
   ceilCents,
   floorPrice,
@@ -189,5 +190,34 @@ describe('GamesDrop supplier pack (Postgres)', () => {
     expect((await prisma.product.findUniqueOrThrow({ where: { sku: 'TOP-MLBB-WEEKLY' } })).isActive).toBe(
       false,
     );
+  });
+  it('Binance cards: linked, priced above cost, shown, described as a code; only the 1 USDT card buys automatically — once', async () => {
+    await product('GC-BINANCE-10', 10.6, { isActive: false, type: 'GIFT_CARD', description: 'old' });
+    expect(await applyBinancePack(prisma)).toBeNull(); // waits for GamesDrop
+    await provider();
+
+    const res = (await applyBinancePack(prisma))!;
+    expect(res).toMatchObject({ created: 4, linked: 5, auto: 1, shown: 1 });
+    const cards = await prisma.product.findMany({
+      where: { sku: { startsWith: 'GC-BINANCE-' } },
+      include: { providers: true },
+    });
+    expect(cards).toHaveLength(5);
+    for (const c of cards) {
+      expect(c.isActive).toBe(true);
+      expect(Number(c.providers[0].providerCost)).toBeLessThan(Number(c.sellPrice));
+      expect(c.description).toContain('Redeem');
+    }
+    const one = cards.find((c) => c.sku === 'GC-BINANCE-1')!;
+    expect(one).toMatchObject({ delivery: 'AUTO_PROVIDER', type: 'GIFT_CARD', categoryId, gameId });
+    expect(Number(one.sellPrice)).toBe(floorPrice(1.28));
+    expect(one.providers[0]).toMatchObject({ providerSku: '34262', isActive: true });
+    const ten = cards.find((c) => c.sku === 'GC-BINANCE-10')!;
+    expect(Number(ten.sellPrice)).toBe(floorPrice(11.4)); // 10.6 raised to 12.54
+    expect(ten).toMatchObject({ delivery: 'MANUAL' });
+    expect(ten.providers[0]).toMatchObject({ providerSku: '17449', isActive: false });
+
+    expect(await applyBinancePack(prisma)).toBeNull();
+    expect(await prisma.productProvider.count()).toBe(5);
   });
 });
