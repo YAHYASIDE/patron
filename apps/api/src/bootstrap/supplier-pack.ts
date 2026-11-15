@@ -311,7 +311,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 type Change = { sku: string; currency: string; from: number; to: number };
 
 /** Active USD → X rates (latest first wins) and each currency's rounding step. */
-async function currencyTable(prisma: Db) {
+export async function currencyTable(prisma: Db) {
   const rates = new Map<string, number>();
   const rows = await prisma.fxRate.findMany({
     where: { baseCurrency: 'USD', isActive: true },
@@ -325,7 +325,7 @@ async function currencyTable(prisma: Db) {
   return { rates, steps };
 }
 
-const ceilTo = (v: number, step: number) =>
+export const ceilTo = (v: number, step: number) =>
   step > 0 ? Math.ceil(Math.round((v / step) * 1e6) / 1e6) * step : v;
 
 export async function applySupplierPack(client?: PrismaClient): Promise<Record<string, unknown> | null> {
