@@ -405,6 +405,9 @@ model Product {
   isActive      Boolean @default(true)
   isFeatured    Boolean @default(false)
   sortOrder     Int     @default(0)
+  // «أسلّمه بنفسي»: a MANUAL product the owner delivers by hand stays orderable
+  // without a supplier link or code stock (catalog/availability.ts).
+  selfDelivery  Boolean @default(false)
 
   // type-specific extras: { durationDays, region, platform, licenseTerm ... }
   metadata Json?

@@ -467,6 +467,10 @@ export type AdminProduct = {
   maxPerOrder?: number | null;
   isActive: boolean;
   isFeatured: boolean;
+  /** «أسلّمه بنفسي»: orderable without a supplier or code stock. */
+  selfDelivery?: boolean;
+  /** Orderable in the store (the API's availability rule); false = greyed out for customers. */
+  inStock?: boolean;
   prices?: FixedPrice[];
 };
 

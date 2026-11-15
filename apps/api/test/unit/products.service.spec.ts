@@ -76,15 +76,20 @@ describe('ProductsService', () => {
     });
 
     it('strips cost, prices the page and reports stock', async () => {
+      prisma.product.findMany.mockResolvedValue([product({ selfDelivery: false })]);
+      // a MANUAL product linked to an active supplier
+      prisma.productProvider.groupBy.mockResolvedValue([{ productId: 'p1', _count: { _all: 1 } }]);
       const res = await service.findAllPublic(query());
       expect(pricing.pricingContext).toHaveBeenCalledWith('USD');
       const row = res.data[0] as any;
       expect(row.costPrice).toBeUndefined();
+      // how the owner delivers stays internal; customers only see inStock
+      expect(row.selfDelivery).toBeUndefined();
       expect(row.prices).toBeUndefined();
       expect(row.sellPrice).toEqual(D('10'));
       expect(row.currency).toBe('USD');
       expect(row.priceIsOverride).toBe(false);
-      // MANUAL delivery with stockQty 5 -> in stock
+      // MANUAL delivery, a supplier link and stockQty 5 -> in stock
       expect(row.inStock).toBe(true);
       expect(res.meta.total).toBe(1);
     });
@@ -119,14 +124,28 @@ describe('ProductsService', () => {
 
     it('treats a null stockQty as unlimited for MANUAL products', async () => {
       prisma.product.findMany.mockResolvedValue([
-        product({ id: 'a', delivery: DeliveryMode.MANUAL, stockQty: null }),
-        product({ id: 'b', delivery: DeliveryMode.MANUAL, stockQty: 0 }),
+        product({ id: 'a', delivery: DeliveryMode.MANUAL, stockQty: null, selfDelivery: true }),
+        product({ id: 'b', delivery: DeliveryMode.MANUAL, stockQty: 0, selfDelivery: true }),
       ]);
       prisma.product.count.mockResolvedValue(2);
       const res = await service.findAllPublic(query());
       const byId = new Map(res.data.map((r: any) => [r.id, r.inStock]));
       expect(byId.get('a')).toBe(true);
       expect(byId.get('b')).toBe(false);
+    });
+
+    it('greys out a MANUAL product with no supplier, no code stock and no self-delivery', async () => {
+      prisma.product.findMany.mockResolvedValue([
+        product({ id: 'none', stockQty: null, selfDelivery: false }),
+        product({ id: 'linked', stockQty: null, selfDelivery: false }),
+      ]);
+      prisma.product.count.mockResolvedValue(2);
+      prisma.productProvider.groupBy.mockResolvedValue([{ productId: 'linked', _count: { _all: 1 } }]);
+      const res = await service.findAllPublic(query());
+      const byId = new Map(res.data.map((r: any) => [r.id, r.inStock]));
+      // still listed (greyed in the store), just not orderable
+      expect(byId.get('none')).toBe(false);
+      expect(byId.get('linked')).toBe(true);
     });
   });
 
@@ -159,17 +178,26 @@ describe('ProductsService', () => {
 
     it('checks CODE_POOL stock via unused-code count', async () => {
       prisma.product.findFirst.mockResolvedValue(product({ delivery: DeliveryMode.CODE_POOL }));
-      prisma.productCode.count.mockResolvedValue(2);
+      prisma.productCode.groupBy.mockResolvedValue([{ productId: 'p1', _count: { _all: 2 } }]);
       const res: any = await service.findOnePublic('p1');
       expect(res.inStock).toBe(true);
-      expect(prisma.productCode.count).toHaveBeenCalledWith({ where: { productId: 'p1', isUsed: false } });
+      expect(prisma.productCode.groupBy.mock.calls[0][0].where).toEqual({ productId: { in: ['p1'] }, isUsed: false });
     });
 
     it('checks AUTO_PROVIDER stock via healthy-provider count', async () => {
       prisma.product.findFirst.mockResolvedValue(product({ delivery: DeliveryMode.AUTO_PROVIDER }));
-      prisma.productProvider.count.mockResolvedValue(0);
       const res: any = await service.findOnePublic('p1');
       expect(res.inStock).toBe(false);
+    });
+
+    it('applies the same MANUAL rule as the list', async () => {
+      prisma.product.findFirst.mockResolvedValue(product({ stockQty: null, selfDelivery: false }));
+      expect(((await service.findOnePublic('p1')) as any).inStock).toBe(false);
+
+      prisma.product.findFirst.mockResolvedValue(product({ stockQty: null, selfDelivery: true }));
+      const res: any = await service.findOnePublic('p1');
+      expect(res.inStock).toBe(true);
+      expect(res.selfDelivery).toBeUndefined();
     });
   });
 
@@ -187,6 +215,8 @@ describe('ProductsService', () => {
   describe('findAllAdmin', () => {
     it('includes cost and computes margin percent', async () => {
       const res: any = await service.findAllAdmin(query());
+      // the owner sees what customers see: no supplier, no codes, not self-delivered
+      expect(res.data[0].inStock).toBe(false);
       // margin = (10 - 4) / 10 * 100 = 60
       expect(res.data[0].marginPercent.toString()).toBe('60');
       expect(res.data[0].costPrice).toEqual(D('4'));

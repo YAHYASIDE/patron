@@ -1,22 +1,27 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DeliveryMode, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { PricingService } from './pricing.service';
 import { CreateProductDto, QueryCatalogDto, UpdateProductDto } from './dto/catalog.dto';
 import { toAuditJson } from '../../common/audit/audit.service';
 import { isUUID } from 'class-validator';
+import { availabilityMap } from './availability';
 
 /**
- * Strip the internal cost from a storefront payload.
+ * Strip the internal fields from a storefront payload.
  *
  * Previously written as `const { costPrice, ...rest } = product`, which reads
  * well but leaves an unused binding — and, more importantly, hid the intent.
- * Naming it makes the rule explicit: provider cost is never exposed publicly.
+ * Naming it makes the rule explicit: provider cost is never exposed publicly,
+ * and how the owner delivers (`selfDelivery`) only reaches customers as `inStock`.
  */
-function withoutCost<T extends { costPrice?: unknown }>(product: T): Omit<T, 'costPrice'> {
+function withoutCost<T extends { costPrice?: unknown; selfDelivery?: unknown }>(
+  product: T,
+): Omit<T, 'costPrice' | 'selfDelivery'> {
   const rest = { ...product };
   delete rest.costPrice;
+  delete rest.selfDelivery;
   return rest;
 }
 
@@ -58,7 +63,7 @@ export class ProductsService {
     // Previously each product triggered its own product fetch plus rate lookup:
     // 20 products meant ~41 queries to render one page.
     const ctx = await this.pricing.pricingContext(currency);
-    const stock = await this.stockForPage(products);
+    const stock = await availabilityMap(this.prisma, products);
 
     const priced = await Promise.all(
       products.map(async (product) => {
@@ -71,7 +76,7 @@ export class ProductsService {
           discountPercent: price.discountPercent,
           currency: price.currency,
           priceIsOverride: price.isOverride,
-          inStock: stock.get(product.id) ?? true,
+          inStock: stock.get(product.id) === true,
         };
       }),
     );
@@ -91,6 +96,7 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     const price = await this.pricing.priceProduct(product.id, currency);
+    const stock = await availabilityMap(this.prisma, [product]);
 
     return {
       ...withoutCost(product),
@@ -99,7 +105,7 @@ export class ProductsService {
       discountPercent: price.discountPercent,
       currency: price.currency,
       priceIsOverride: price.isOverride,
-      inStock: await this.isInStock(product.id, product.delivery, product.stockQty),
+      inStock: stock.get(product.id) === true,
     };
   }
 
@@ -131,6 +137,8 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where }),
     ]);
+    // what the store shows: the owner sees which products customers find greyed out
+    const stock = await availabilityMap(this.prisma, data);
 
     return paginate(
       data.map((p) => ({
@@ -138,6 +146,7 @@ export class ProductsService {
         marginPercent: p.sellPrice.gt(0)
           ? p.sellPrice.minus(p.costPrice).div(p.sellPrice).mul(100).toDecimalPlaces(2)
           : new Prisma.Decimal(0),
+        inStock: stock.get(p.id) === true,
       })),
       total,
       query,
@@ -227,60 +236,6 @@ export class ProductsService {
     await this.prisma.product.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
     await this.audit(actorId, 'catalog.product.delete', id, null, null);
     return { message: 'Product deleted' };
-  }
-
-  /**
-   * Resolve stock for an entire page in two aggregate queries instead of one
-   * per product.
-   */
-  private async stockForPage(products: Array<{ id: string; delivery: DeliveryMode; stockQty: number | null }>) {
-    const result = new Map<string, boolean>();
-
-    const codePool = products.filter((p) => p.delivery === DeliveryMode.CODE_POOL).map((p) => p.id);
-    const autoProvider = products.filter((p) => p.delivery === DeliveryMode.AUTO_PROVIDER).map((p) => p.id);
-
-    if (codePool.length) {
-      const counts = await this.prisma.productCode.groupBy({
-        by: ['productId'],
-        where: { productId: { in: codePool }, isUsed: false },
-        _count: { _all: true },
-      });
-      const available = new Map(counts.map((c) => [c.productId, c._count._all]));
-      for (const id of codePool) result.set(id, (available.get(id) ?? 0) > 0);
-    }
-
-    if (autoProvider.length) {
-      const counts = await this.prisma.productProvider.groupBy({
-        by: ['productId'],
-        where: { productId: { in: autoProvider }, isActive: true, provider: { isActive: true, isHealthy: true } },
-        _count: { _all: true },
-      });
-      const available = new Map(counts.map((c) => [c.productId, c._count._all]));
-      for (const id of autoProvider) result.set(id, (available.get(id) ?? 0) > 0);
-    }
-
-    for (const p of products) {
-      if (!result.has(p.id)) result.set(p.id, p.stockQty === null || p.stockQty > 0);
-    }
-    return result;
-  }
-
-  /**
-   * CODE_POOL stock is derived from unused inventory rather than a stored
-   * counter — a counter drifts the first time a fulfilment fails mid-flight.
-   */
-  private async isInStock(productId: string, delivery: DeliveryMode, stockQty: number | null) {
-    if (delivery === DeliveryMode.CODE_POOL) {
-      const available = await this.prisma.productCode.count({ where: { productId, isUsed: false } });
-      return available > 0;
-    }
-    if (delivery === DeliveryMode.AUTO_PROVIDER) {
-      const providers = await this.prisma.productProvider.count({
-        where: { productId, isActive: true, provider: { isActive: true, isHealthy: true } },
-      });
-      return providers > 0;
-    }
-    return stockQty === null || stockQty > 0;
   }
 
   /**

@@ -23,11 +23,13 @@ describe('inStockMap', () => {
       { id: 'c1', delivery: 'CODE_POOL', stockQty: null },
       { id: 'c2', delivery: 'CODE_POOL', stockQty: null },
       { id: 'a1', delivery: 'AUTO_PROVIDER', stockQty: null },
-      { id: 'm1', delivery: 'MANUAL', stockQty: null },
-      { id: 'm2', delivery: 'MANUAL', stockQty: 0 },
-      { id: 'm3', delivery: 'MANUAL', stockQty: 4 },
+      { id: 'm1', delivery: 'MANUAL', stockQty: null, selfDelivery: true },
+      { id: 'm2', delivery: 'MANUAL', stockQty: 0, selfDelivery: true },
+      { id: 'm3', delivery: 'MANUAL', stockQty: 4, selfDelivery: true },
+      // MANUAL with no supplier, no code stock and no self-delivery: greyed in the store
+      { id: 'm4', delivery: 'MANUAL', stockQty: null, selfDelivery: false },
     ] as any);
-    expect(Object.fromEntries(map)).toEqual({ c1: true, c2: false, a1: false, m1: true, m2: false, m3: true });
+    expect(Object.fromEntries(map)).toEqual({ c1: true, c2: false, a1: false, m1: true, m2: false, m3: true, m4: false });
     expect(prisma.productProvider.groupBy.mock.calls[0][0].where.provider).toEqual({ isActive: true, isHealthy: true });
   });
 
@@ -101,7 +103,7 @@ describe('WatchesService', () => {
     prisma.product.findFirst.mockResolvedValueOnce(null);
     await expect(service.create('u1', { productId: PRODUCT, kind: 'price' })).rejects.toThrow(NotFoundException);
 
-    prisma.product.findFirst.mockResolvedValueOnce({ ...product, stockQty: null });
+    prisma.product.findFirst.mockResolvedValueOnce({ ...product, stockQty: null, selfDelivery: true });
     await expect(service.create('u1', { productId: PRODUCT, kind: 'stock' }))
       .rejects.toMatchObject({ response: expect.objectContaining({ error: 'ALREADY_IN_STOCK' }) });
 
@@ -143,11 +145,13 @@ describe('WatchesService', () => {
       prisma.priceWatch.findMany.mockResolvedValue([
         item({ id: 'drop' }, { discountPercent: 20 }),
         item({ id: 'same' }),
-        item({ id: 'back', kind: 'stock', userId: 'u2' }, { id: 'p2', stockQty: 3 }),
-        item({ id: 'still-out', kind: 'stock' }, { id: 'p3', stockQty: 0 }),
+        item({ id: 'back', kind: 'stock', userId: 'u2' }, { id: 'p2', stockQty: 3, selfDelivery: true }),
+        item({ id: 'still-out', kind: 'stock' }, { id: 'p3', stockQty: 0, selfDelivery: true }),
+        // greyed in the store (no supplier, no codes, not self-delivered): no "back in stock" yet
+        item({ id: 'no-source', kind: 'stock' }, { id: 'p4', stockQty: null }),
       ]);
 
-      await expect(service.runChecks()).resolves.toEqual({ checked: 4, notified: 2 });
+      await expect(service.runChecks()).resolves.toEqual({ checked: 5, notified: 2 });
 
       expect(tx.priceWatch.updateMany).toHaveBeenCalledWith({ where: { id: 'drop', notifiedAt: null }, data: { notifiedAt: expect.any(Date) } });
       const [price, priceTx] = notifications.notify.mock.calls[0];

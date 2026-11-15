@@ -84,7 +84,7 @@ describe('CatalogToolsService', () => {
       id: 'p1', sku: 'GC-APPLE-US-25', type: 'GIFT_CARD', delivery: 'MANUAL', nameAr: 'آيتونز 25', nameEn: 'iTunes 25',
       description: null, imageUrl: 'https://x/a.svg', costPrice: D(24), sellPrice: D(26), discountPercent: null,
       currency: 'USD', stockQty: 7, lowStockAlert: 5, maxPerOrder: 10, isActive: true, isFeatured: true, sortOrder: 3,
-      metadata: { guide: { ar: 'x' } }, etaMinutes: 10, categoryId: 'cat', gameId: null,
+      selfDelivery: true, metadata: { guide: { ar: 'x' } }, etaMinutes: 10, categoryId: 'cat', gameId: null,
       prices: [{ currencyCode: 'MRU', sellPrice: D(1035), isActive: true }],
     };
 
@@ -93,7 +93,7 @@ describe('CatalogToolsService', () => {
       const copy: any = await service.clone('p1', 'admin-1');
       expect(copy).toMatchObject({
         sku: 'GC-APPLE-US-25-COPY', nameAr: 'آيتونز 25 (نسخة)', nameEn: 'iTunes 25 (copy)',
-        isActive: false, isFeatured: false, stockQty: 0, categoryId: 'cat', etaMinutes: 10,
+        isActive: false, isFeatured: false, stockQty: 0, categoryId: 'cat', etaMinutes: 10, selfDelivery: true,
         metadata: { guide: { ar: 'x' } },
         prices: { create: [{ currencyCode: 'MRU', sellPrice: D(1035), isActive: true }] },
       });

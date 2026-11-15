@@ -57,6 +57,11 @@ const find = async (sku) => (await call(`/admin/catalog/products?limit=50&search
 const keep = await find('TOP-PUBG-60');
 const gone = await find('TOP-PUBG-325');
 if (!keep || !gone) throw new Error('the starter catalog (TOP-PUBG-60 / TOP-PUBG-325) is missing — run the catalog pack first');
+// a fresh database has no supplier: the owner delivers these two himself («أسلّمه بنفسي»), else
+// the store shows them greyed out and checkout refuses them (catalog/availability.ts)
+for (const p of [keep, gone]) {
+  await call(`/admin/catalog/products/${p.id}`, { method: 'PATCH', token: admin, body: { selfDelivery: true } });
+}
 await call(`/admin/catalog/products/${gone.id}`, { method: 'PATCH', token: admin, body: { isActive: false } });
 
 async function customer() {

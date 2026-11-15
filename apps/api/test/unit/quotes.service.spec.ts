@@ -51,8 +51,12 @@ describe('QuotesService', () => {
     prisma = {
       user: { findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'u1', defaultCurrency: 'USD', phoneVerifiedAt: new Date() }) },
       product: { findFirst: jest.fn().mockResolvedValue(makeProduct()) },
-      productCode: { count: jest.fn().mockResolvedValue(100) },
-      productProvider: { count: jest.fn().mockResolvedValue(1) },
+      // MANUAL availability (catalog/availability.ts): no code stock, one supplier link
+      productCode: { count: jest.fn().mockResolvedValue(100), groupBy: jest.fn().mockResolvedValue([]) },
+      productProvider: {
+        count: jest.fn().mockResolvedValue(1),
+        groupBy: jest.fn().mockResolvedValue([{ productId: 'p1', _count: { _all: 1 } }]),
+      },
       coupon: { findUnique: jest.fn() },
       order: { count: jest.fn().mockResolvedValue(0) },
       checkoutQuote: {
@@ -292,6 +296,29 @@ describe('QuotesService', () => {
     it('rejects a MANUAL product with a tracked stockQty below demand', async () => {
       prisma.product.findFirst.mockResolvedValue(makeProduct({ delivery: DeliveryMode.MANUAL, stockQty: 1 }));
       await expect(service.create('u1', dto())).rejects.toThrow(/Not enough stock/);
+    });
+
+    it('refuses a MANUAL product with no supplier, no code stock and no self-delivery, naming it', async () => {
+      prisma.product.findFirst.mockResolvedValue(makeProduct({ nameAr: 'نتفليكس 25' }));
+      prisma.productProvider.groupBy.mockResolvedValue([]);
+      await expect(service.create('u1', dto())).rejects.toMatchObject({
+        response: { error: 'PRODUCT_UNAVAILABLE', productId: 'p1', productNameAr: 'نتفليكس 25' },
+      });
+      expect(tx.checkoutQuote.create).not.toHaveBeenCalled();
+      // the supplier link counts whatever its automatic-delivery switch says, if the supplier is active
+      expect(prisma.productProvider.groupBy.mock.calls[0][0].where).toEqual({
+        productId: { in: ['p1'] }, provider: { isActive: true },
+      });
+    });
+
+    it('accepts a MANUAL product the owner delivers from code stock or by hand', async () => {
+      prisma.productProvider.groupBy.mockResolvedValue([]);
+      prisma.productCode.groupBy.mockResolvedValue([{ productId: 'p1', _count: { _all: 1 } }]);
+      await expect(service.create('u1', dto())).resolves.toBeDefined();
+
+      prisma.productCode.groupBy.mockResolvedValue([]);
+      prisma.product.findFirst.mockResolvedValue(makeProduct({ selfDelivery: true }));
+      await expect(service.create('u1', dto())).resolves.toBeDefined();
     });
   });
 
