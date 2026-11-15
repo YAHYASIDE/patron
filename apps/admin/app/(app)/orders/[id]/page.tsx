@@ -38,7 +38,22 @@ type Item = {
   product?: { sku: string; delivery: string; _count?: { codes: number } };
   inputs: { fieldKey: string; fieldLabel: string; value: string }[];
   results: { id: string; resultType: string; revealed: boolean; deliveredAt: string }[];
+  /** Staff-only: why the supplier purchase failed (e.g. "all_providers_failed: …"). */
+  lastError?: string | null;
 };
+
+/** The supplier's failure in words the owner can act on; the raw reason is shown under it. */
+function failReason(err: string): string {
+  const e = err.toLowerCase();
+  if (e.includes('daily_limit')) return 'وصل المورّد إلى حد الصرف اليومي. سلّمه يدويًا أو ارفع الحد من صفحة «المورّدون».';
+  if (e.includes('price_above_cost')) return 'سعر المورّد صار أعلى من التكلفة القصوى المسموحة، فلم يُشترَ شيء.';
+  if (/insufficient|not_enough|balance/.test(e)) return 'رصيدك عند المورّد لا يكفي. اشحن رصيدك ثم سلّمه يدويًا.';
+  if (e.includes('invalid_player')) return 'المورّد رفض رقم الحساب الذي كتبه الزبون. تأكد منه مع الزبون.';
+  if (e.includes('missing_player_id') || e.includes('missing_server')) return 'ينقص الطلب رقم حساب يقبله المورّد.';
+  if (e.includes('no_provider')) return 'لا يوجد مورّد مفعّل لهذا المنتج.';
+  if (/provider error|provider_error|cancel|failed/.test(e)) return 'المورّد لم يستطع تسليمه وأعاد المبلغ إلى رصيدك.';
+  return 'تعذّر الشراء من المورّد.';
+}
 type Order = {
   id: string;
   orderNumber: string;
@@ -717,6 +732,21 @@ function ItemCard({
             <Line key={i.fieldKey} k={i.fieldLabel} v={i.value} mono />
           ))}
         </dl>
+      )}
+
+      {item.status === 'FAILED' && item.lastError && (
+        <div className="mt-3 rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-3 text-sm">
+          <p className="font-semibold text-bad">سبب الفشل: {failReason(item.lastError)}</p>
+          <p className="mt-1 break-all text-xs text-muted" dir="ltr">
+            {item.lastError}
+          </p>
+        </div>
+      )}
+
+      {orderPaid && item.product?.delivery === 'AUTO_PROVIDER' && ['PENDING', 'PROCESSING'].includes(item.status) && (
+        <p className="mt-3 rounded-xl bg-teal/10 px-3.5 py-3 text-sm text-teal">
+          يُشترى تلقائيًا من المورّد الآن… حدّث الصفحة بعد لحظات. لا تسلّمه يدويًا إلا إذا ظهر «فشل».
+        </p>
       )}
 
       {item.results.length > 0 && (
