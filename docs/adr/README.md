@@ -24,3 +24,6 @@ Superseding a decision means adding a new record, not editing an old one.
 | [017](017-scale-hardening.md) | Keyset pagination, rollups and retention | Accepted |
 | [018](018-simplification.md) | Removing complexity that was not earning its keep | Accepted |
 | [019](019-error-envelope.md) | One error shape, correlation id always present | Accepted |
+| [020](020-migration-drift-structural-gate.md) | Migration drift is a structural-only gate | Accepted |
+| [021](021-isolated-image-build-and-runtime.md) | Self-contained image build and an npm-free runtime | Accepted |
+| [022](022-coverage-gate-and-ci-database.md) | 80% coverage gate and the CI-provided test database | Accepted |

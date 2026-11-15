@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Patron الإدارة</string>
+    <!-- Shown in Android Settings › Notification access. -->
+    <string name="bank_listener_label">Patron الإدارة — إشعارات البنك</string>
+</resources>

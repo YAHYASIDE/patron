@@ -1,0 +1,97 @@
+'use client';
+
+import Link from 'next/link';
+import type { Brand } from '@/lib/brands';
+import { useIsNew } from '@/lib/fresh';
+import { money } from '@/lib/format';
+import { useT } from '@/lib/i18n';
+import FavoriteButton from './FavoriteButton';
+
+const SIZES = {
+  // four to a row on phones, like app icons
+  sm: { radius: 'rounded-xl', name: 'text-[12px] sm:text-[13px]', price: 'text-[11px] min-[360px]:text-[12px]', gap: 'gap-1.5' },
+  md: { radius: 'rounded-2xl', name: 'text-[14px]', price: 'text-xs', gap: 'gap-2.5' },
+} as const;
+
+/** One brand in the shop grid: its card, its name, and the lowest price. */
+export default function BrandTile({ brand, size = 'md' }: { brand: Brand; size?: keyof typeof SIZES }) {
+  const t = useT();
+  const s = SIZES[size];
+  const allOut = brand.products.every((p) => p.inStock === false);
+  // the lowest price the customer can actually order (products are sorted by price)
+  const from = brand.products.find((p) => p.inStock !== false) ?? brand.products[0];
+  const isNew = useIsNew(brand);
+
+  // the heart is a sibling of the link (a button inside a link is not allowed)
+  return (
+    <div className="relative min-w-0">
+      {/* nothing orderable: greyed out, but it still opens (the customer can ask to be told when it is back) */}
+      <Link href={`/brands/${brand.key}`} className={`group flex min-w-0 flex-col ${s.gap}`}>
+        <div
+          className={`relative aspect-square overflow-hidden ${s.radius} bg-[rgb(var(--surface-2))] shadow-card transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-float group-active:scale-[0.97]`}
+        >
+          {brand.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={brand.image}
+              alt={brand.title}
+              loading="lazy"
+              className={`h-full w-full object-cover ${allOut ? 'opacity-45 grayscale' : ''}`}
+            />
+          ) : (
+            <div
+              className={`grid h-full w-full place-items-center text-3xl font-extrabold text-teal/40 ${allOut ? 'opacity-45' : ''}`}
+            >
+              {brand.title.slice(0, 1)}
+            </div>
+          )}
+          {brand.maxDiscount > 0 && (
+            // dir=ltr keeps the minus in front ("-5%") inside right-to-left text
+            <span
+              dir="ltr"
+              className="absolute start-1.5 top-1.5 rounded-full bg-gold px-1.5 py-0.5 text-[10px] font-extrabold text-ink-950"
+            >
+              -{brand.maxDiscount}%
+            </span>
+          )}
+          {allOut && (
+            <span className="absolute inset-x-1.5 bottom-1.5 rounded-full bg-ink-950/75 px-1.5 py-0.5 text-center text-[10px] font-extrabold leading-tight text-white">
+              {t('غير متوفّر')}
+            </span>
+          )}
+          {isNew && !allOut && (
+            <span className="absolute bottom-1.5 start-1.5 rounded-full bg-teal-soft px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-teal-ink">
+              {t('جديد')}
+            </span>
+          )}
+        </div>
+        <div className={`px-0.5 ${allOut ? 'opacity-60' : ''}`}>
+          <div className={`line-clamp-2 min-h-[2.5em] font-bold [overflow-wrap:anywhere] leading-[1.25] ${s.name}`}>{brand.title}</div>
+          <div className={`mt-0.5 text-muted ${s.price}`}>
+            {allOut ? (
+              t('غير متوفّر')
+            ) : (
+              <>
+                {t('من')}{' '}
+                <span className="tnum font-bold text-teal">{money(from.sellPrice, from.currency)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </Link>
+      <FavoriteButton brandKey={brand.key} />
+    </div>
+  );
+}
+
+export function BrandTileSkeleton() {
+  return (
+    // the tile's own shape: square art, two lines of name, the price line
+    <div aria-hidden className="flex flex-col gap-1.5">
+      <div className="skel aspect-square rounded-xl" />
+      <div className="skel mt-0.5 h-3.5 w-3/4" />
+      <div className="skel h-3.5 w-1/3" />
+      <div className="skel h-3 w-1/2" />
+    </div>
+  );
+}

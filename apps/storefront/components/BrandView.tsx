@@ -1,0 +1,529 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { cart } from '@/lib/cart';
+import { money } from '@/lib/format';
+import { denominationLabel, type Brand } from '@/lib/brands';
+import { tNow, useLang, useT } from '@/lib/i18n';
+import { sectionOf } from '@/lib/sections';
+import type { GameInput, Product } from '@/lib/types';
+import { pushRecent } from '@/lib/recent';
+import { report } from '@/lib/events';
+import { etaMinutes, useIsNew } from '@/lib/fresh';
+import BrandTile from './BrandTile';
+import Guide, { guideOf } from './Guide';
+import { BoltIcon, CheckIcon, ChevronIcon, ShieldIcon } from './icons';
+import { ClockIcon } from './discovery-icons';
+import FavoriteButton from './FavoriteButton';
+import ShareButton from './ShareButton';
+import { PriceWatchButton, StockWatchList } from './WatchButtons';
+import { RatingLine, ReviewList, useReviews } from './BrandReviews';
+import { SavedInputChips, savable, useSavedInputs } from './SavedInputs';
+
+function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="surface rounded-2xl p-4 shadow-card sm:p-5">
+      <h2 className="flex items-center gap-2.5 text-base font-extrabold">
+        <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-teal text-sm text-white tnum">
+          {n}
+        </span>
+        {title}
+      </h2>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * One brand's purchase page, laid out the way top-up shops do it: who is it
+ * for (account inputs), which amount (denomination tiles), then pay. On phones
+ * the total and the buy button stay pinned at the bottom.
+ */
+export default function BrandView({
+  brand,
+  initialId,
+  related,
+}: {
+  brand: Brand;
+  initialId?: string;
+  related: Brand[];
+}) {
+  const router = useRouter();
+  const t = useT();
+  const lang = useLang();
+  // account input labels come from the game: English for French and English visitors
+  // French and English read the shop's own translation of a field's Arabic label when it has one
+  const tr = (ar: string | undefined, en: string | undefined) => {
+    if (lang === 'ar') return ar || en || '';
+    const done = ar ? t(ar) : '';
+    return done && done !== ar ? done : en || ar || '';
+  };
+  const labelOf = (f: GameInput) => tr(f.labelAr, f.labelEn);
+  // where to find the value, in the page's language (Arabic when no translation)
+  const helpOf = (f: GameInput) => (lang === 'fr' ? f.helpFr : lang === 'en' ? f.helpEn : f.helpAr) || f.helpAr;
+  const section = sectionOf(brand);
+  const firstAvailable = brand.products.find((p) => p.inStock !== false) ?? brand.products[0];
+  const [selectedId, setSelectedId] = useState(
+    brand.products.some((p) => p.id === initialId)
+      ? initialId!
+      : (brand.products.find((p) => p.isFeatured && p.inStock !== false) ?? firstAvailable).id,
+  );
+  const product = brand.products.find((p) => p.id === selectedId) ?? firstAvailable;
+  // the selected amount cannot be ordered (no supplier, no stock): the buy buttons stay off
+  const unavailable = product.inStock === false;
+  const allOut = brand.products.every((p) => p.inStock === false);
+  const [qty, setQty] = useState(1);
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [added, setAdded] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const errRef = useRef<HTMLParagraphElement>(null);
+  // a problem with one account field is shown under that field, which gets the focus
+  const [fieldErr, setFieldErr] = useState<{ key: string; msg: string } | null>(null);
+  const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
+  const isNew = useIsNew(brand);
+  const reviews = useReviews(useMemo(() => brand.products.map((p) => p.id), [brand.products]));
+  // account details used before for this game, and whether to keep these ones
+  const saved = useSavedInputs(product.gameId);
+  const [remember, setRemember] = useState(true);
+  // the last account details used for this game fill the form, until the customer types
+  useEffect(() => {
+    const last = saved.list[0]?.values;
+    if (last && Object.values(inputs).every((v) => !v)) setInputs(last);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.list]);
+
+  useEffect(() => pushRecent(brand.key), [brand.key]);
+  // for the owner's "most viewed": the title is the Arabic one (French and English visits show another name)
+  useEffect(() => {
+    report('brand_view', brand.key, lang === 'ar' ? { detail: { title: brand.title } } : undefined);
+  }, [brand.key, brand.title, lang]);
+
+  // the buy bar sits at the bottom on phones, so bring a problem into view
+  useEffect(() => {
+    if (err) errRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [err]);
+
+  const schema: GameInput[] = product.game?.inputSchema ?? [];
+  const cap = useMemo(
+    () => Math.max(1, Math.min(product.maxPerOrder ?? 99, product.stockQty ?? 99)),
+    [product],
+  );
+  const manual = product.delivery === 'MANUAL';
+  // the brand's guide lives on its products; the selected one, else the first that has one
+  const guide = guideOf(product.metadata) ?? brand.products.map((p) => guideOf(p.metadata)).find(Boolean) ?? null;
+  const total = parseFloat(product.sellPrice) * qty;
+  const step = schema.length > 0 ? 1 : 0;
+  const eta = etaMinutes(product);
+  const canSave = saved.authed && !!product.gameId && schema.some((f) => !f.sensitive);
+
+  function select(p: Product) {
+    setSelectedId(p.id);
+    setQty(1);
+    setErr(null);
+  }
+
+  function flagField(key: string, msg: string) {
+    setFieldErr({ key, msg });
+    const el = fieldRefs.current[key];
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el?.focus({ preventScroll: true });
+  }
+
+  function validate(): boolean {
+    for (const f of schema) {
+      const v = (inputs[f.key] ?? '').trim();
+      if (f.required && !v) {
+        flagField(f.key, tNow('اكتب {label} أولًا.', { label: labelOf(f) }));
+        return false;
+      }
+      if (f.regex && v) {
+        try {
+          if (!new RegExp(f.regex).test(v)) {
+            const shape = describeFormat(f.regex);
+            flagField(
+              f.key,
+              shape
+                ? tNow('تحقّق من {label}: {shape}.', { label: labelOf(f), shape: tNow(shape.ar, shape.vars) })
+                : tNow('تحقّق من {label}: الصيغة غير صحيحة.', { label: labelOf(f) }),
+            );
+            return false;
+          }
+        } catch {
+          /* ignore a bad regex from the server */
+        }
+      }
+    }
+    setFieldErr(null);
+    setErr(null);
+    return true;
+  }
+
+  function addToCart(): boolean {
+    if (product.inStock === false) {
+      setErr(tNow('هذه الفئة غير متوفّرة حاليًا، اختر فئة أخرى.'));
+      return false;
+    }
+    if (!validate()) return false;
+    cart.add({
+      productId: product.id,
+      sku: product.sku,
+      nameAr: product.nameAr || product.nameEn,
+      nameEn: product.nameEn || product.nameAr,
+      imageUrl: product.imageUrl,
+      unitPrice: product.sellPrice,
+      currency: product.currency,
+      quantity: qty,
+      gameId: product.gameId,
+      delivery: product.delivery,
+      maxPerOrder: product.maxPerOrder,
+      inputs: schema.map((f) => ({ key: f.key, value: (inputs[f.key] ?? '').trim() })).filter((i) => i.value),
+    });
+    if (canSave && remember) saved.save(savable(schema, inputs));
+    return true;
+  }
+
+  function onAdd() {
+    if (addToCart()) {
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2200);
+    }
+  }
+  function onBuyNow() {
+    if (addToCart()) router.push('/checkout');
+  }
+
+  return (
+    <div className="mx-auto max-w-page px-4 pb-32 pt-6 lg:pb-16">
+      <nav className="mb-4 flex items-center gap-1.5 text-sm text-muted">
+        <Link href="/products" className="hover:text-[rgb(var(--text))]">
+          {t('المتجر')}
+        </Link>
+        <ChevronIcon size={14} />
+        <Link href={`/products?s=${section.id}`} className="hover:text-[rgb(var(--text))]">
+          {t(section.label)}
+        </Link>
+      </nav>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
+        {/* brand card */}
+        <aside className="surface flex gap-4 rounded-2xl p-4 shadow-card lg:sticky lg:top-20 lg:flex-col lg:p-5">
+          <div className="aspect-square w-24 flex-none overflow-hidden rounded-xl bg-[rgb(var(--surface-2))] lg:w-full">
+            {brand.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.image} alt={brand.title} className="h-full w-full object-cover" />
+            ) : (
+              <div className="grid h-full place-items-center text-3xl font-extrabold text-teal/40">
+                {brand.title.slice(0, 1)}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-xl font-extrabold leading-snug lg:text-2xl">
+              {brand.title}
+              {isNew && (
+                <span className="ms-2 inline-block rounded-full bg-teal-soft px-2 py-0.5 align-middle text-[11px] font-extrabold leading-none text-teal-ink">
+                  {t('جديد')}
+                </span>
+              )}
+            </h1>
+            {reviews && <RatingLine summary={reviews} />}
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-teal">
+              <span className="inline-flex items-center gap-1">
+                <BoltIcon size={13} /> {manual ? t('يُجهَّز بعد تأكيد الدفع') : t('يُسلَّم فور الدفع')}
+              </span>
+              {eta && (
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <ClockIcon size={13} />
+                  {eta < 60
+                    ? t('عادة خلال {n} دقيقة', { n: eta })
+                    : t('عادة خلال {n} ساعة', { n: Math.round(eta / 60) })}
+                </span>
+              )}
+            </p>
+            {/* the description is written in Arabic only: French and English read the guide instead */}
+            {product.description && lang === 'ar' && (
+              <p className="mt-2 hidden text-sm leading-relaxed text-muted sm:block">{product.description}</p>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              <FavoriteButton brandKey={brand.key} variant="page" />
+              <ShareButton title={brand.title} path={`/brands/${brand.key}`} />
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex flex-col gap-4">
+          {schema.length > 0 && (
+            <Section n={1} title={t('بيانات الحساب')}>
+              <SavedInputChips
+                list={saved.list}
+                schema={schema}
+                current={inputs}
+                onPick={(values) => {
+                  setInputs((v) => ({ ...v, ...values }));
+                  setErr(null);
+                }}
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {schema.map((f) => (
+                  <label key={f.key} className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-sm font-semibold">
+                      {labelOf(f)}
+                      {f.required && <span className="text-bad"> *</span>}
+                    </span>
+                    {f.options?.length ? (
+                      <select
+                        ref={(el) => {
+                          fieldRefs.current[f.key] = el;
+                        }}
+                        value={inputs[f.key] ?? ''}
+                        aria-invalid={fieldErr?.key === f.key || undefined}
+                        aria-describedby={fieldErr?.key === f.key ? `err-${f.key}` : undefined}
+                        onChange={(e) => {
+                          setInputs((v) => ({ ...v, [f.key]: e.target.value }));
+                          setErr(null);
+                          setFieldErr(null);
+                        }}
+                        // w-full + min-w-0: a select is as wide as its longest option, which on a
+                        // 320 px phone in French pushed the page sideways
+                        className={`surface-2 hairline w-full min-w-0 rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal ${fieldErr?.key === f.key ? 'border-bad' : ''}`}
+                      >
+                        <option value="">{t('اختر…')}</option>
+                        {f.options.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {tr(o.labelAr, o.labelEn)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={
+                          f.sensitive ? 'password' : f.type === 'tel' || f.type === 'email' ? f.type : 'text'
+                        }
+                        inputMode={f.type === 'tel' ? 'tel' : undefined}
+                        dir={f.type === 'tel' || f.type === 'email' || f.type === 'address' ? 'ltr' : undefined}
+                        ref={(el) => {
+                          fieldRefs.current[f.key] = el;
+                        }}
+                        value={inputs[f.key] ?? ''}
+                        aria-invalid={fieldErr?.key === f.key || undefined}
+                        aria-describedby={fieldErr?.key === f.key ? `err-${f.key}` : undefined}
+                        onChange={(e) => {
+                          setInputs((v) => ({ ...v, [f.key]: e.target.value }));
+                          setErr(null);
+                          setFieldErr(null);
+                        }}
+                        className={`surface-2 hairline rounded-xl border px-3.5 py-3 text-[15px] outline-none transition focus:border-teal ${fieldErr?.key === f.key ? 'border-bad' : ''}`}
+                      />
+                    )}
+                    {fieldErr?.key === f.key && (
+                      <span id={`err-${f.key}`} role="alert" className="text-sm font-semibold text-bad">
+                        {fieldErr.msg}
+                      </span>
+                    )}
+                    {helpOf(f) && <span className="whitespace-pre-line text-xs leading-relaxed text-muted">{helpOf(f)}</span>}
+                  </label>
+                ))}
+              </div>
+              {canSave && (
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="h-4 w-4 flex-none accent-[#0d6d64]"
+                  />
+                  {t('احفظ هذه البيانات لطلباتي القادمة')}
+                </label>
+              )}
+              <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-muted">
+                <ShieldIcon size={14} className="text-teal" /> {t('لا نطلب كلمة المرور أبدًا.')}
+              </p>
+            </Section>
+          )}
+
+          {guide && (guide.before?.length || guide.warning) && (
+            <Guide title="قبل الدفع" steps={guide.before} warning={guide.warning} />
+          )}
+
+          <Section n={step + 1} title={t('اختر الفئة')}>
+            <div role="radiogroup" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+              {brand.products.map((p) => {
+                const on = p.id === product.id;
+                const out = p.inStock === false;
+                const off =
+                  (p.discountPercent ?? 0) > 0 &&
+                  p.listPrice &&
+                  parseFloat(p.listPrice) > parseFloat(p.sellPrice);
+                return (
+                  <button
+                    key={p.id}
+                    role="radio"
+                    aria-checked={on}
+                    disabled={out}
+                    onClick={() => select(p)}
+                    className={
+                      'relative flex min-h-[84px] flex-col items-start justify-between gap-2 rounded-xl border-2 p-3 text-start transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ' +
+                      (on ? 'border-teal bg-teal/[0.06]' : 'border-[rgb(var(--line))] hover:border-teal/50')
+                    }
+                  >
+                    <span className="text-[15px] font-extrabold leading-snug">
+                      {denominationLabel(p, brand)}
+                    </span>
+                    <span className="flex flex-wrap items-baseline gap-x-1.5">
+                      <span className="tnum text-sm font-bold text-teal">
+                        {money(p.sellPrice, p.currency)}
+                      </span>
+                      {off && (
+                        <span className="tnum text-[11px] text-muted line-through">
+                          {money(p.listPrice, p.currency)}
+                        </span>
+                      )}
+                    </span>
+                    {out && <span className="text-[11px] font-bold text-bad">{t('غير متوفّر')}</span>}
+                    {on && (
+                      <span className="absolute end-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-teal text-white">
+                        <CheckIcon size={12} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <StockWatchList products={brand.products} labelOf={(p) => denominationLabel(p, brand)} />
+          </Section>
+
+          <Section n={step + 2} title={t('أكمل الشراء')}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-muted">{t('الكمية')}</span>
+                <div className="surface-2 flex items-center rounded-xl">
+                  <button
+                    onClick={() => setQty((q) => Math.max(1, q - 1))}
+                    className="h-10 w-10 text-lg font-bold disabled:opacity-40"
+                    disabled={qty <= 1}
+                    aria-label={t('إنقاص')}
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center font-bold tnum">{qty}</span>
+                  <button
+                    onClick={() => setQty((q) => Math.min(cap, q + 1))}
+                    className="h-10 w-10 text-lg font-bold disabled:opacity-40"
+                    disabled={qty >= cap}
+                    aria-label={t('زيادة')}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div className="text-end">
+                <div className="text-xs text-muted">{t('الإجمالي')}</div>
+                <div className="tnum text-2xl font-extrabold text-teal">{money(total, product.currency)}</div>
+              </div>
+            </div>
+
+            {err && (
+              <p
+                ref={errRef}
+                role="alert"
+                className="mt-4 rounded-xl border border-bad/30 bg-bad/10 px-3.5 py-2.5 text-sm text-bad"
+              >
+                {err}
+              </p>
+            )}
+
+            {allOut && (
+              <p className="mt-4 rounded-xl border border-[rgb(var(--line))] bg-[rgb(var(--surface-2))] px-3.5 py-2.5 text-sm text-muted">
+                {t('كل فئات هذا المنتج غير متوفّرة حاليًا.')}
+              </p>
+            )}
+
+            <div className="mt-4 hidden gap-2.5 lg:flex">
+              <button
+                onClick={onBuyNow}
+                disabled={unavailable}
+                className="btn-brand flex-1 rounded-xl py-3.5 text-[15px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {unavailable ? t('غير متوفّر') : t('اشترِ الآن')}
+              </button>
+              <button
+                onClick={onAdd}
+                disabled={unavailable}
+                className="rounded-xl border border-[rgb(var(--line))] px-6 text-[15px] font-bold transition hover:border-teal hover:text-teal disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[rgb(var(--line))] disabled:hover:text-[rgb(var(--text))]"
+              >
+                {added ? t('أُضيف إلى السلّة') : t('أضف إلى السلّة')}
+              </button>
+            </div>
+
+            {product.inStock !== false && (
+              <div className="mt-4 border-t border-[rgb(var(--line))] pt-3">
+                <PriceWatchButton key={product.id} product={product} />
+              </div>
+            )}
+          </Section>
+
+          {product.description && (
+            <p className="px-4 text-sm leading-relaxed text-muted sm:hidden">{product.description}</p>
+          )}
+        </div>
+      </div>
+
+      {reviews && <ReviewList summary={reviews} />}
+
+      {related.length > 0 && (
+        <section className="mt-12">
+          <h2 className="text-lg font-extrabold">{t('من نفس القسم')}</h2>
+          <div className="mt-4 grid grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-6 md:grid-cols-8">
+            {related.map((b) => (
+              <BrandTile key={b.key} brand={b} size="sm" />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* phones: the total and the buy button stay in reach */}
+      {/* (the bottom padding clears the home indicator on notched phones) */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[rgb(var(--line))] bg-[rgb(var(--surface))]/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-page items-center gap-2 min-[360px]:gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="line-clamp-1 text-xs text-muted">{denominationLabel(product, brand)}</div>
+            {/* the amount never breaks between the number and the currency */}
+            <div className="tnum whitespace-nowrap text-base font-extrabold text-teal min-[360px]:text-lg">
+              {money(total, product.currency)}
+            </div>
+          </div>
+          <button
+            onClick={onAdd}
+            disabled={unavailable}
+            aria-label={t('أضف إلى السلّة')}
+            className="min-h-11 whitespace-nowrap rounded-xl border border-[rgb(var(--line))] px-3 text-sm font-bold disabled:opacity-45 min-[360px]:px-3.5"
+          >
+            {added ? t('أُضيف') : t('للسلّة')}
+          </button>
+          <button
+            onClick={onBuyNow}
+            disabled={unavailable}
+            className="btn-brand min-h-11 whitespace-nowrap rounded-xl px-4 text-[15px] font-bold disabled:opacity-45 min-[360px]:px-6"
+          >
+            {unavailable ? t('غير متوفّر') : t('اشترِ الآن')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The format a field's rule asks for, in words, for the common shapes:
+ * "8 to 12 digits" rather than "the format is wrong".
+ */
+function describeFormat(regex: string): { ar: string; vars?: Record<string, string | number> } | null {
+  const range = /^\^\[0-9\]\{(\d+),(\d+)\}\$$/.exec(regex);
+  if (range) return { ar: 'أرقام فقط، من {min} إلى {max} رقمًا', vars: { min: range[1], max: range[2] } };
+  const exact = /^\^\[0-9\]\{(\d+)\}\$$/.exec(regex);
+  if (exact) return { ar: 'أرقام فقط، {n} أرقام بالضبط', vars: { n: exact[1] } };
+  if (/^\^\(\\\+\?222\)\?/.test(regex)) return { ar: 'رقم هاتف موريتاني من 8 أرقام، مثل 22123456' };
+  return null;
+}

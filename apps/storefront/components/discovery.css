@@ -1,0 +1,223 @@
+/*
+ * Motion for the opening screen and the discovery bits (imported once by
+ * app/layout.tsx). The opening screen runs on CSS alone: it plays and
+ * removes itself even if JavaScript never loads, so it can never hide the page.
+ */
+
+@keyframes heartpop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* ───────── opening screen (components/Splash.tsx) ─────────
+ * Timeline (1.8 s): icons swing in on a ring 0–0.35 s, orbit a little, fly
+ * into the mark 0.75–1.2 s; the mark pulses as they land (1.02 s); the
+ * wordmark rises from 0.45 s; the whole screen fades out 1.4–1.8 s.
+ * Only transform and opacity animate, so it stays on the compositor.
+ */
+
+.splash {
+  /* ring radius, icon size, mark size: one set of numbers from 320px phones to desktops */
+  --R: clamp(96px, 27vw, 150px);
+  --u: clamp(42px, 11.5vw, 62px);
+  --m: clamp(88px, 23vw, 124px);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(160deg, #07423c 0%, #042f2b 55%, #021c19 100%);
+  animation: splash-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) 1.4s forwards;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+/* seen this visit (set before paint by the inline script) */
+.no-splash .splash {
+  display: none;
+}
+.splash-skip .splash {
+  animation: splash-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes splash-out {
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+/* a soft teal light behind the mark and a warm one from below: depth without an image */
+.splash-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(42% 32% at 50% 44%, rgba(45, 212, 191, 0.3), transparent 70%),
+    radial-gradient(90% 60% at 50% 115%, rgba(199, 154, 58, 0.22), transparent 65%);
+}
+
+.splash-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.splash-ring {
+  position: relative;
+  width: calc(var(--R) * 2 + var(--u));
+  height: calc(var(--R) * 2 + var(--u));
+}
+
+.splash-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--u);
+  height: var(--u);
+  margin: calc(var(--u) / -2) 0 0 calc(var(--u) / -2);
+  border-radius: 24%;
+  overflow: hidden;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  animation: splash-orbit 1.15s cubic-bezier(0.45, 0.05, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+.splash-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* rotate to the icon's angle, push out to the ring, rotate back so the art stays upright */
+@keyframes splash-orbit {
+  0% {
+    opacity: 0;
+    transform: rotate(calc(var(--a) - 60deg)) translateY(calc(var(--R) * -1.5)) rotate(calc(60deg - var(--a))) scale(0.5);
+  }
+  30% {
+    opacity: 1;
+    transform: rotate(var(--a)) translateY(calc(var(--R) * -1)) rotate(calc(0deg - var(--a))) scale(1);
+  }
+  62% {
+    opacity: 1;
+    transform: rotate(calc(var(--a) + 14deg)) translateY(calc(var(--R) * -1)) rotate(calc(-14deg - var(--a))) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(calc(var(--a) + 40deg)) translateY(0) rotate(calc(-40deg - var(--a))) scale(0.2);
+  }
+}
+
+.splash-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: var(--m);
+  height: var(--m);
+  margin: calc(var(--m) / -2) 0 0 calc(var(--m) / -2);
+  opacity: 0;
+  animation:
+    splash-mark-in 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.2) 0.05s forwards,
+    splash-pulse 0.4s ease-out 1.02s;
+}
+.splash-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 14px 30px rgba(45, 212, 191, 0.35));
+}
+/* a gold ring leaves the mark as the icons land in it */
+.splash-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 27%;
+  border: 2px solid #e9c45a;
+  opacity: 0;
+  animation: splash-ring 0.55s ease-out 1.02s;
+}
+@keyframes splash-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes splash-pulse {
+  40% { transform: scale(1.1); }
+}
+@keyframes splash-ring {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+.splash-word,
+.splash-tag {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: splash-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.splash-word {
+  margin-top: 16px;
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  animation-delay: 0.45s;
+}
+.splash-word b {
+  color: #e9c45a;
+}
+.splash-tag {
+  margin-top: 8px;
+  font-size: clamp(13px, 3.6vw, 16px);
+  font-weight: 600;
+  color: rgba(238, 242, 241, 0.78);
+  animation-delay: 0.6s;
+}
+@keyframes splash-rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* reduced motion: one still frame (icons on the ring, the mark, the name), then a plain fade */
+@media (prefers-reduced-motion: reduce) {
+  .splash {
+    animation: splash-out 0.3s linear 1s forwards !important;
+    animation-duration: 0.3s !important;
+  }
+  .splash-icon,
+  .splash-mark,
+  .splash-mark::after,
+  .splash-word,
+  .splash-tag {
+    animation: none !important;
+  }
+  .splash-icon {
+    opacity: 1;
+    transform: rotate(var(--a)) translateY(calc(var(--R) * -1)) rotate(calc(0deg - var(--a)));
+  }
+  .splash-mark,
+  .splash-word,
+  .splash-tag {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -1,0 +1,7 @@
+approve:200
+start:200
+admin-route-no-permission:GET_/admin/markets → IN_PROGRESS, prUrl=https://github.com/YAHYASIDE/patron/pull/7, branch=claude/intel-001-any-permission, tests={"qa":"PASS","after":2,"before":4,"failed":0,"passed":1851,"suites":{"unit":1723,"tools":39,"integration":89},"security":"APPROVE"}
+approve:200
+start:200
+admin-route-no-permission:GET_/admin/markets/:code → IN_PROGRESS, prUrl=https://github.com/YAHYASIDE/patron/pull/7, branch=claude/intel-001-any-permission, tests={"qa":"PASS","after":2,"before":4,"failed":0,"passed":1851,"suites":{"unit":1723,"tools":39,"integration":89},"security":"APPROVE"}
+last tests run: {"agent":"qa-tester","passed":1851,"failed":0}

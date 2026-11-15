@@ -1,0 +1,105 @@
+{
+ "date": "2026-10-20T12:04:15.421Z",
+ "results": [
+  {
+   "name": "staff login",
+   "ok": true,
+   "detail": "status 200"
+  },
+  {
+   "name": "POST /scan runs the five scanners",
+   "ok": true,
+   "detail": "created 15, updated 0"
+  },
+  {
+   "name": "a second scan creates nothing new (dedupe)",
+   "ok": true,
+   "detail": "created 0, updated 15"
+  },
+  {
+   "name": "each scanner recorded an AgentRun",
+   "ok": true,
+   "detail": "scanner:search-gaps, scanner:server-errors, scanner:market-staleness, scanner:payments-by-country, scanner:catalog-readiness, scanners"
+  },
+  {
+   "name": "CLI scan of the repo ingested into the center",
+   "ok": true,
+   "detail": "discovery: SUCCEEDED, 9 فحصًا، 4 اكتشافًا (HIGH 2، MEDIUM 1، LOW 1). | ingest ok: HTTP 201, created 4, updated 0"
+  },
+  {
+   "name": "known issue detected: admin route without permission",
+   "ok": true,
+   "detail": "مسار إدارة بلا صلاحية: DELETE /admin/widgets/:id"
+  },
+  {
+   "name": "known issue detected: focused test (.only)",
+   "ok": true,
+   "detail": "اختبار مُركَّز (it.only) يُخفي بقية الملف: captures a paid order once"
+  },
+  {
+   "name": "the known issue is in the center as a reviewable suggestion",
+   "ok": true,
+   "detail": "NEW, HIGH"
+  },
+  {
+   "name": "approve a suggestion",
+   "ok": true,
+   "detail": "APPROVED"
+  },
+  {
+   "name": "decision log shows it",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "re-ingest keeps the owner decision and counts the sighting",
+   "ok": true,
+   "detail": "APPROVED, seen 2"
+  },
+  {
+   "name": "market-scout ingest of Mali methods",
+   "ok": true,
+   "detail": "status 201"
+  },
+  {
+   "name": "Orange Money Mali is PENDING_REVIEW with its source and date",
+   "ok": true,
+   "detail": "PENDING_REVIEW"
+  },
+  {
+   "name": "link before approval is refused",
+   "ok": true,
+   "detail": "METHOD_NOT_APPROVED"
+  },
+  {
+   "name": "a Mauritanian account cannot be linked to a Mali method",
+   "ok": true,
+   "detail": "ACCOUNT_OTHER_COUNTRY"
+  },
+  {
+   "name": "an account without a number cannot be linked",
+   "ok": true,
+   "detail": "ACCOUNT_NOT_USABLE"
+  },
+  {
+   "name": "a Mali customer sees no Bankily / Masrvi / Sedad",
+   "ok": true,
+   "detail": "ML sees: nothing (no Mali account yet)"
+  },
+  {
+   "name": "public rules for ML only list approved rules",
+   "ok": true,
+   "detail": "rules 0"
+  },
+  {
+   "name": "methods still not ACTIVE without an owner account",
+   "ok": true,
+   "detail": "moov-money-ml:PENDING_REVIEW orange-money-ml:APPROVED"
+  },
+  {
+   "name": "summary counts",
+   "ok": true,
+   "detail": "{\"new\":31,\"critical\":9,\"opportunities\":2,\"pending\":1,\"done\":0,\"deferred\":0}"
+  }
+ ]
+}
