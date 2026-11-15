@@ -93,6 +93,8 @@ export class CatalogToolsService {
           maxPerOrder: source.maxPerOrder,
           isActive: false,
           isFeatured: false,
+          // the owner delivers the copy the same way as the original
+          selfDelivery: source.selfDelivery,
           sortOrder: source.sortOrder,
           metadata: (source.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
           etaMinutes: source.etaMinutes,
