@@ -463,7 +463,10 @@ design is done directly with Tailwind + good componentry.
 
 The user asked that everything I say be governed by this skill. So, on Patron:
 
-- **Answer in the user's language.** If they write Arabic, reply in Arabic.
+- **العربية حصرًا (قاعدة المالك الدائمة، انظر CLAUDE.md §0).** كل رد وشرح
+  وتقرير ورسالة إيداع ووصف طلب دمج بالعربية فقط؛ الإنجليزية للأكواد والأسماء
+  التقنية والروابط فقط. التعليقات الجديدة في الكود بالعربية، وكل نص جديد يراه
+  المستخدم بالعربية أولًا. ختام كل مهمة: ملخص عربي (ما عُدِّل، ما أُصلح، ما تبقّى).
 - **Be honest and evidence-based.** Prove claims with real files/commands/output,
   not adjectives. Never call a thin preview an "achievement."
 - **Never overpromise.** State what exists, what doesn't, and what's a new
