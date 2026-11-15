@@ -3,14 +3,15 @@
  * Standalone catalog-pack entry compiled into the image (dist/catalog-pack-runner.js).
  * The Docker entrypoint runs it when CATALOG_PACK=true: the catalog packs, then
  * the GamesDrop links (which wait until GamesDrop is connected), then showing
- * the new GamesDrop products the owner approved.
+ * the new GamesDrop products the owner approved, then the Binance cards.
  */
 import { applyCatalogPack } from './bootstrap/catalog-pack';
-import { applySupplierPack, showNewSupplierProducts } from './bootstrap/supplier-pack';
+import { applyBinancePack, applySupplierPack, showNewSupplierProducts } from './bootstrap/supplier-pack';
 
 applyCatalogPack()
   .then(() => applySupplierPack())
   .then(() => showNewSupplierProducts())
+  .then(() => applyBinancePack())
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e);
