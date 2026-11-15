@@ -17,22 +17,31 @@ const SIZES = {
 export default function BrandTile({ brand, size = 'md' }: { brand: Brand; size?: keyof typeof SIZES }) {
   const t = useT();
   const s = SIZES[size];
-  const from = brand.products[0];
   const allOut = brand.products.every((p) => p.inStock === false);
+  // the lowest price the customer can actually order (products are sorted by price)
+  const from = brand.products.find((p) => p.inStock !== false) ?? brand.products[0];
   const isNew = useIsNew(brand);
 
   // the heart is a sibling of the link (a button inside a link is not allowed)
   return (
     <div className="relative min-w-0">
+      {/* nothing orderable: greyed out, but it still opens (the customer can ask to be told when it is back) */}
       <Link href={`/brands/${brand.key}`} className={`group flex min-w-0 flex-col ${s.gap}`}>
         <div
           className={`relative aspect-square overflow-hidden ${s.radius} bg-[rgb(var(--surface-2))] shadow-card transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-float group-active:scale-[0.97]`}
         >
           {brand.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={brand.image} alt={brand.title} loading="lazy" className="h-full w-full object-cover" />
+            <img
+              src={brand.image}
+              alt={brand.title}
+              loading="lazy"
+              className={`h-full w-full object-cover ${allOut ? 'opacity-45 grayscale' : ''}`}
+            />
           ) : (
-            <div className="grid h-full w-full place-items-center text-3xl font-extrabold text-teal/40">
+            <div
+              className={`grid h-full w-full place-items-center text-3xl font-extrabold text-teal/40 ${allOut ? 'opacity-45' : ''}`}
+            >
               {brand.title.slice(0, 1)}
             </div>
           )}
@@ -45,13 +54,18 @@ export default function BrandTile({ brand, size = 'md' }: { brand: Brand; size?:
               -{brand.maxDiscount}%
             </span>
           )}
-          {isNew && (
+          {allOut && (
+            <span className="absolute inset-x-1.5 bottom-1.5 rounded-full bg-ink-950/75 px-1.5 py-0.5 text-center text-[10px] font-extrabold leading-tight text-white">
+              {t('غير متوفّر')}
+            </span>
+          )}
+          {isNew && !allOut && (
             <span className="absolute bottom-1.5 start-1.5 rounded-full bg-teal-soft px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-teal-ink">
               {t('جديد')}
             </span>
           )}
         </div>
-        <div className="px-0.5">
+        <div className={`px-0.5 ${allOut ? 'opacity-60' : ''}`}>
           <div className={`line-clamp-2 min-h-[2.5em] font-bold [overflow-wrap:anywhere] leading-[1.25] ${s.name}`}>{brand.title}</div>
           <div className={`mt-0.5 text-muted ${s.price}`}>
             {allOut ? (

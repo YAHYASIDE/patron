@@ -48,6 +48,7 @@ const dict: Dict = {
     'رقم هاتف موريتاني من 8 أرقام، مثل 22123456': 'un numéro mauritanien à 8 chiffres, par ex. 22123456',
     'هذه الفئة غير متوفّرة حاليًا، اختر فئة أخرى.':
       'Ce montant est indisponible pour le moment, choisissez-en un autre.',
+    'كل فئات هذا المنتج غير متوفّرة حاليًا.': 'Aucun montant de ce produit n’est disponible pour le moment.',
     'المتجر': 'Boutique',
     'يُجهَّز بعد تأكيد الدفع': 'Préparé après confirmation du paiement',
     'يُسلَّم فور الدفع': 'Livré dès le paiement',
@@ -95,7 +96,7 @@ const dict: Dict = {
     'طريقة الاستخدام': 'How to use it',
     'اختر…': 'Choose…',
     // brand tiles and grid
-    'غير متوفّر': 'Out of stock',
+    'غير متوفّر': 'Unavailable',
     'من': 'from',
     'الكل': 'All',
     // sections (lib/sections.ts)
@@ -137,6 +138,7 @@ const dict: Dict = {
     'رقم هاتف موريتاني من 8 أرقام، مثل 22123456': 'an 8-digit Mauritanian number, e.g. 22123456',
     'هذه الفئة غير متوفّرة حاليًا، اختر فئة أخرى.':
       'This amount is currently unavailable, please choose another one.',
+    'كل فئات هذا المنتج غير متوفّرة حاليًا.': 'None of this product’s amounts are available right now.',
     'المتجر': 'Shop',
     'يُجهَّز بعد تأكيد الدفع': 'Prepared once payment is confirmed',
     'يُسلَّم فور الدفع': 'Delivered right after payment',

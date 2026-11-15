@@ -71,6 +71,9 @@ export default function BrandView({
       : (brand.products.find((p) => p.isFeatured && p.inStock !== false) ?? firstAvailable).id,
   );
   const product = brand.products.find((p) => p.id === selectedId) ?? firstAvailable;
+  // the selected amount cannot be ordered (no supplier, no stock): the buy buttons stay off
+  const unavailable = product.inStock === false;
+  const allOut = brand.products.every((p) => p.inStock === false);
   const [qty, setQty] = useState(1);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [added, setAdded] = useState(false);
@@ -431,13 +434,24 @@ export default function BrandView({
               </p>
             )}
 
+            {allOut && (
+              <p className="mt-4 rounded-xl border border-[rgb(var(--line))] bg-[rgb(var(--surface-2))] px-3.5 py-2.5 text-sm text-muted">
+                {t('كل فئات هذا المنتج غير متوفّرة حاليًا.')}
+              </p>
+            )}
+
             <div className="mt-4 hidden gap-2.5 lg:flex">
-              <button onClick={onBuyNow} className="btn-brand flex-1 rounded-xl py-3.5 text-[15px] font-bold">
-                {t('اشترِ الآن')}
+              <button
+                onClick={onBuyNow}
+                disabled={unavailable}
+                className="btn-brand flex-1 rounded-xl py-3.5 text-[15px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {unavailable ? t('غير متوفّر') : t('اشترِ الآن')}
               </button>
               <button
                 onClick={onAdd}
-                className="rounded-xl border border-[rgb(var(--line))] px-6 text-[15px] font-bold transition hover:border-teal hover:text-teal"
+                disabled={unavailable}
+                className="rounded-xl border border-[rgb(var(--line))] px-6 text-[15px] font-bold transition hover:border-teal hover:text-teal disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[rgb(var(--line))] disabled:hover:text-[rgb(var(--text))]"
               >
                 {added ? t('أُضيف إلى السلّة') : t('أضف إلى السلّة')}
               </button>
@@ -482,16 +496,18 @@ export default function BrandView({
           </div>
           <button
             onClick={onAdd}
+            disabled={unavailable}
             aria-label={t('أضف إلى السلّة')}
-            className="min-h-11 whitespace-nowrap rounded-xl border border-[rgb(var(--line))] px-3 text-sm font-bold min-[360px]:px-3.5"
+            className="min-h-11 whitespace-nowrap rounded-xl border border-[rgb(var(--line))] px-3 text-sm font-bold disabled:opacity-45 min-[360px]:px-3.5"
           >
             {added ? t('أُضيف') : t('للسلّة')}
           </button>
           <button
             onClick={onBuyNow}
-            className="btn-brand min-h-11 whitespace-nowrap rounded-xl px-4 text-[15px] font-bold min-[360px]:px-6"
+            disabled={unavailable}
+            className="btn-brand min-h-11 whitespace-nowrap rounded-xl px-4 text-[15px] font-bold disabled:opacity-45 min-[360px]:px-6"
           >
-            {t('اشترِ الآن')}
+            {unavailable ? t('غير متوفّر') : t('اشترِ الآن')}
           </button>
         </div>
       </div>

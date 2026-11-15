@@ -154,7 +154,9 @@ export default function SearchSuggest({
             </li>
           )}
           {list.map((b, i) => {
-            const from = b.products[0];
+            // what can be ordered; a brand with nothing orderable is greyed but still opens
+            const from = b.products.find((p) => p.inStock !== false);
+            const allOut = !from;
             return (
               <li
                 key={b.key}
@@ -172,7 +174,7 @@ export default function SearchSuggest({
                 <span className="h-10 w-10 flex-none overflow-hidden rounded-xl bg-[rgb(var(--surface-2))]">
                   {b.image && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.image} alt="" className="h-full w-full object-cover" />
+                    <img src={b.image} alt="" className={`h-full w-full object-cover ${allOut ? 'opacity-45 grayscale' : ''}`} />
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -184,6 +186,9 @@ export default function SearchSuggest({
                     {t('من')}{' '}
                     <span className="tnum block text-[13px] font-bold text-teal">{money(from.sellPrice, from.currency)}</span>
                   </span>
+                )}
+                {allOut && b.products.length > 0 && (
+                  <span className="flex-none text-end text-xs font-bold text-muted">{t('غير متوفّر')}</span>
                 )}
               </li>
             );
