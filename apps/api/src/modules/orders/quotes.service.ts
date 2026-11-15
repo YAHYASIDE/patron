@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CryptoService } from '../../common/crypto/crypto.service';
 import { ReferenceService } from '../../common/reference/reference.service';
 import { PricingService } from '../catalog/pricing.service';
+import { AvailabilityProduct, NO_SOURCES, hasDeliverySource, loadDeliverySources } from '../catalog/availability';
 import { ZERO, sum } from '../../common/money/money';
 import { CreateQuoteDto, CreateQuoteItemDto } from './dto/order.dto';
 
@@ -219,7 +220,7 @@ export class QuotesService {
     }
 
     try {
-      await this.assertAvailable(product.id, product.delivery, product.stockQty, item.quantity);
+      await this.assertAvailable(product, item.quantity);
     } catch (err) {
       if (err instanceof BadRequestException) throw new BadRequestException({ ...(err.getResponse() as object), ...named });
       throw err;
@@ -258,7 +259,8 @@ export class QuotesService {
    * let anyone lock the entire code inventory for 15 minutes for free; the
    * authoritative allocation happens under a row lock at fulfilment.
    */
-  private async assertAvailable(productId: string, delivery: DeliveryMode, stockQty: number | null, qty: number) {
+  private async assertAvailable(product: AvailabilityProduct, qty: number) {
+    const { id: productId, delivery, stockQty } = product;
     if (delivery === DeliveryMode.CODE_POOL) {
       const available = await this.prisma.productCode.count({ where: { productId, isUsed: false } });
       if (available < qty) {
@@ -274,6 +276,12 @@ export class QuotesService {
         throw new BadRequestException({ message: 'This product is temporarily unavailable', error: 'PRODUCT_UNAVAILABLE' });
       }
       return;
+    }
+    // MANUAL: the owner must have a way to deliver it (catalog/availability.ts),
+    // else the store shows it greyed out and checkout refuses it the same way.
+    const sources = (await loadDeliverySources(this.prisma, [product])).get(productId) ?? NO_SOURCES;
+    if (!hasDeliverySource(product, sources)) {
+      throw new BadRequestException({ message: 'This product is temporarily unavailable', error: 'PRODUCT_UNAVAILABLE' });
     }
     if (stockQty !== null && stockQty < qty) {
       throw new BadRequestException({ message: 'Not enough stock for this product', error: 'OUT_OF_STOCK', available: stockQty });

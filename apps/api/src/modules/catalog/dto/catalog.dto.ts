@@ -88,6 +88,8 @@ export class CreateProductDto {
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsBoolean() isFeatured?: boolean;
+  /** «أسلّمه بنفسي»: orderable without a supplier or code stock (catalog/availability.ts). */
+  @IsOptional() @IsBoolean() selfDelivery?: boolean;
   @IsOptional() @IsInt() sortOrder?: number;
 }
 /**

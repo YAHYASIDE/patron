@@ -23,7 +23,7 @@ describe('Checkout edge cases (e2e)', () => {
   let prisma: PrismaService;
   let token: string;
   let userId: string;
-  const ids: Record<'game' | 'hidden' | 'codes' | 'limited' | 'auto', string> = {} as never;
+  const ids: Record<'game' | 'hidden' | 'codes' | 'limited' | 'auto' | 'greyed', string> = {} as never;
   const PLAYER = { key: 'player_id', value: '5123456789' };
 
   // the smallest valid PNG: the receipt upload checks the bytes, not the name
@@ -72,6 +72,15 @@ describe('Checkout edge cases (e2e)', () => {
 
     const rest = await quote([{ productId: ids.game, quantity: 1, inputs: [PLAYER] }]).expect(201);
     expect(rest.body.items).toHaveLength(1);
+  });
+
+  it('shows a product nobody can deliver greyed out, and refuses it by name at checkout', async () => {
+    const shown = await http().get(`/catalog/products/${ids.greyed}`).expect(200);
+    expect(shown.body).toMatchObject({ id: ids.greyed, inStock: false });
+    expect(shown.body.selfDelivery).toBeUndefined();
+
+    const res = await quote([{ productId: ids.greyed, quantity: 1 }]).expect(400);
+    expect(res.body).toMatchObject({ error: 'PRODUCT_UNAVAILABLE', productId: ids.greyed, productNameAr: 'بلا مورّد' });
   });
 
   it('says how many codes are left when the cart asks for more', async () => {
@@ -175,7 +184,9 @@ async function seed(prisma: PrismaService) {
       inputSchema: [{ key: 'player_id', labelAr: 'معرّف اللاعب', labelEn: 'Player ID', type: 'text', required: true, regex: '^[0-9]{8,12}$' }],
     },
   });
-  const base = { type: 'GAME_TOPUP' as const, currency: 'USD', categoryId: category.id, costPrice: 0.5 };
+  // MANUAL products here are ones the owner delivers by hand («أسلّمه بنفسي»),
+  // so they are orderable without a supplier link or code stock
+  const base = { type: 'GAME_TOPUP' as const, currency: 'USD', categoryId: category.id, costPrice: 0.5, selfDelivery: true };
   const game = await prisma.product.create({
     data: {
       ...base, sku: `EDGE-GAME-${stamp}`, nameAr: 'ببجي 60', nameEn: 'PUBG 60', delivery: 'MANUAL', sellPrice: 1, gameId: gameRow.id,
@@ -195,5 +206,12 @@ async function seed(prisma: PrismaService) {
   const auto = await prisma.product.create({
     data: { ...base, type: 'GIFT_CARD', sku: `EDGE-AUTO-${stamp}`, nameAr: 'سعر تلقائي', nameEn: 'Auto priced', delivery: 'MANUAL', sellPrice: 2 },
   });
-  return { game: game.id, hidden: hidden.id, codes: codes.id, limited: limited.id, auto: auto.id };
+  // no supplier, no code stock, not self-delivered: listed greyed out, never orderable
+  const greyed = await prisma.product.create({
+    data: {
+      ...base, type: 'GIFT_CARD', sku: `EDGE-GREY-${stamp}`, nameAr: 'بلا مورّد', nameEn: 'No supplier',
+      delivery: 'MANUAL', sellPrice: 1, selfDelivery: false,
+    },
+  });
+  return { game: game.id, hidden: hidden.id, codes: codes.id, limited: limited.id, auto: auto.id, greyed: greyed.id };
 }

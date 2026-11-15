@@ -47,7 +47,7 @@ export class WatchesService {
   async create(userId: string, dto: CreateWatchDto) {
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, deletedAt: null, isActive: true },
-      select: { id: true, sellPrice: true, discountPercent: true, delivery: true, stockQty: true },
+      select: { id: true, sellPrice: true, discountPercent: true, delivery: true, stockQty: true, selfDelivery: true },
     });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -97,7 +97,7 @@ export class WatchesService {
         product: {
           select: {
             id: true, sku: true, nameAr: true, nameEn: true,
-            sellPrice: true, discountPercent: true, delivery: true, stockQty: true,
+            sellPrice: true, discountPercent: true, delivery: true, stockQty: true, selfDelivery: true,
           },
         },
       },

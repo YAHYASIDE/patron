@@ -200,7 +200,8 @@ async function seed(prisma: PrismaService) {
   const product = await prisma.product.create({
     data: {
       sku: `MONEY-${stamp}`, type: 'GAME_TOPUP', delivery: 'MANUAL', nameAr: 'ببجي 60', nameEn: 'PUBG 60', currency: 'USD',
-      sellPrice: 1, costPrice: 0.5, categoryId: category.id, gameId: game.id,
+      // the owner delivers it by hand: orderable without a supplier or code stock
+      sellPrice: 1, costPrice: 0.5, categoryId: category.id, gameId: game.id, selfDelivery: true,
       prices: { create: [{ currencyCode: 'MRU', sellPrice: 40 }] },
     },
   });
