@@ -18,6 +18,8 @@ import * as si from 'simple-icons';
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, '..', 'public', 'art');
 const PACK = join(here, '..', '..', 'api', 'src', 'bootstrap', 'catalog-pack.ts');
+// supplier packs whose products carry pack art too (Windows / Office / Microsoft 365 keys)
+const EXTRA_PACKS = [join(here, '..', '..', 'api', 'src', 'bootstrap', 'microsoft-pack.ts')];
 
 const icons = Object.fromEntries(Object.values(si).filter((i) => i && i.slug).map((i) => [i.slug, i]));
 
@@ -64,6 +66,8 @@ const BRANDS = {
   gamepass: { word: 'GAME PASS', bg: '#107C10' },
   psplus: { icon: 'playstation', bg: '#F5B700', fg: '#151515' },
   m365: { word: 'Microsoft 365', bg: '#0F6CBD' },
+  windows: { word: 'WINDOWS 11', bg: '#0067C0' },
+  winoffice: { word: 'WINDOWS + OFFICE', bg: '#B7472A' },
   claude: { icon: 'claude', bg: '#D97757' },
   mattel: { word: 'MATTEL', bg: '#D7141A' },
   mauritel: { word: 'MAURITEL', bg: '#0A5BA8' },
@@ -119,7 +123,9 @@ function specFor(sku) {
     const [brand, sub] = subs[m[1]];
     return { brand, sub, label: months(m[2]) };
   }
-  if ((m = sku.match(/^LIC-M365-(PERSONAL|FAMILY)-(\d+M)$/))) return { brand: 'm365', sub: m[1], label: months(m[2]) };
+  if ((m = sku.match(/^LIC-M365-(PERSONAL|FAMILY|BUSINESS)-(\d+M)$/))) return { brand: 'm365', sub: m[1], label: months(m[2]) };
+  if ((m = sku.match(/^LIC-WIN11-(HOME|PRO)$/))) return { brand: 'windows', sub: 'DIGITAL KEY', label: m[1] };
+  if ((m = sku.match(/^LIC-WINOFFICE-(HOME|PRO)(\d\d)$/))) return { brand: 'winoffice', sub: `WINDOWS 11 ${m[1]}`, label: `OFFICE 20${m[2]}` };
   return null;
 }
 
@@ -204,6 +210,9 @@ const gameOf = Object.fromEntries(
   [...source.matchAll(/sku: '([A-Z0-9]+-[A-Z0-9-]+)', type: \w+, game: '([a-z0-9-]+)'/g)].map((m) => [m[1], m[2]]),
 );
 const skus = [...source.matchAll(/sku: '([A-Z0-9]+-[A-Z0-9-]+)'/g)].map((m) => m[1]);
+for (const file of EXTRA_PACKS)
+  for (const m of readFileSync(file, 'utf8').matchAll(/sku: '([A-Z0-9]+-[A-Z0-9-]+)'/g))
+    if (!skus.includes(m[1])) skus.push(m[1]);
 // v3 airtime SKUs are built from the operator list × face values (`TOP-${op.sku}-${mru}`)
 const faces = JSON.parse(source.match(/const AIRTIME_MRU = (\[[^\]]*\])/)[1]);
 for (const [, slug, op] of source.matchAll(/slug: '([a-z]+)', sku: '([A-Z]+)'/g))
