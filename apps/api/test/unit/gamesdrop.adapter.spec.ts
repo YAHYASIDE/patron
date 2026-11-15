@@ -64,6 +64,20 @@ describe('GamesDropAdapter', () => {
     });
   });
 
+  it.each([
+    ['a Telegram @username (Stars, Premium)', { username: '@patron_shop' }, 'patron_shop'],
+    ['a Bigo id', { bigo_id: '904417' }, '904417'],
+  ])('delivers to %s: the shop field reaches GamesDrop as the account', async (_name, inputs, account) => {
+    const fn = mockApi({
+      '/api/v1/offers/find-one': [resp(quote())],
+      '/api/v1/offers/check-game-data': [resp({ status: 'VALID' })],
+      '/api/v1/offers/create-order': [resp({ orderId: 556, status: 'COMPLETED', isReturnDataForCustomer: false })],
+    });
+    expect(await adapter.fulfil(req({ inputs }), creds)).toMatchObject({ status: 'DELIVERED' });
+    expect(bodyOf(fn, '/api/v1/offers/check-game-data')[0]).toMatchObject({ gameUserId: account });
+    expect(bodyOf(fn, '/api/v1/offers/create-order')[0]).toMatchObject({ customer: { gameUserId: account } });
+  });
+
   it('gift card: returns the key as an encrypted-later code, never in raw', async () => {
     const secret = `KEY-${randomUUID()}`;
     mockApi({

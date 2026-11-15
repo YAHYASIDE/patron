@@ -9,7 +9,11 @@ import {
 export const GAMESDROP_TEST_OFFER = 999;
 
 /** Customer input keys our products use for a player / server id, first match wins. */
-const USER_ID_KEYS = ['player_id', 'user_id', 'uid', 'game_user_id', 'gameUserId', 'id'];
+/**
+ * The shop's input keys that carry the account GamesDrop delivers to: player ids, Bigo
+ * ids and Telegram usernames (Stars and Premium go to an @username).
+ */
+const USER_ID_KEYS = ['player_id', 'user_id', 'uid', 'game_user_id', 'gameUserId', 'id', 'bigo_id', 'username'];
 const SERVER_KEYS = ['server', 'zone_id', 'server_id', 'gameServerId'];
 
 /** Our providerRef for an order whose creation outcome is unknown: look it up by our transactionId. */
@@ -344,7 +348,8 @@ function fail(errorCode: string, errorMessage: string, retryable: boolean, raw: 
 function pick(inputs: Record<string, string>, keys: string[]) {
   for (const k of keys) {
     const v = inputs[k]?.trim();
-    if (v) return v;
+    // a Telegram username is typed as "@name"; GamesDrop wants the name itself
+    if (v) return k === 'username' ? v.replace(/^@+/, '') : v;
   }
   return undefined;
 }
