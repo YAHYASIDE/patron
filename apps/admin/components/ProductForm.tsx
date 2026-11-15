@@ -28,6 +28,8 @@ export type ProductInput = {
   maxPerOrder?: number | null;
   isActive: boolean;
   isFeatured: boolean;
+  /** «أسلّمه بنفسي»: a MANUAL product stays orderable without a supplier or code stock. */
+  selfDelivery?: boolean;
   /** Fixed prices per currency; a currency without one is converted from sellPrice. */
   prices?: FixedPrice[];
 };
@@ -40,7 +42,11 @@ const TYPES = [
 ];
 
 const DELIVERIES = [
-  { v: 'MANUAL', l: 'يدوي', hint: 'الزبون يشتري، وأنت تسلّمه الكود بنفسك من صفحة الطلبات. يعمل الآن.' },
+  {
+    v: 'MANUAL',
+    l: 'يدوي',
+    hint: 'الزبون يشتري، وأنت تسلّمه من صفحة الطلبات. يظهر للزبائن «غير متوفر» ما لم يُربط بمورّد أو يكن له مخزون أكواد أو تفعّل «أسلّمه بنفسي».',
+  },
   {
     v: 'CODE_POOL',
     l: 'مخزون أكواد',
@@ -70,6 +76,7 @@ const EMPTY: ProductInput = {
   maxPerOrder: null,
   isActive: true,
   isFeatured: false,
+  selfDelivery: false,
 };
 
 /** Upper-case, dash-separated SKU from the English name (3–40 chars). */
@@ -188,6 +195,7 @@ export default function ProductForm({
       stockQty: f.stockQty === null || f.stockQty === undefined || String(f.stockQty) === '' ? null : Number(f.stockQty),
       isActive: f.isActive,
       isFeatured: f.isFeatured,
+      selfDelivery: !!f.selfDelivery,
     };
     // `prices` replaces every fixed price on the server: send it only when the owner changed one
     if (editing ? fixedChanged(fixed, savedFixed) : Object.values(fixed).some((v) => v.trim() !== '')) {
@@ -345,6 +353,28 @@ export default function ProductForm({
               ))}
             </select>
           </Field>
+          {f.delivery === 'MANUAL' && (
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!f.selfDelivery}
+                aria-describedby="self-delivery-hint"
+                onClick={() => set('selfDelivery', !f.selfDelivery)}
+                className="hairline flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-2 text-sm font-semibold"
+              >
+                <span>أسلّمه بنفسي</span>
+                <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${f.selfDelivery ? 'bg-teal' : 'bg-[rgb(var(--line))]'}`}>
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${f.selfDelivery ? 'end-0.5' : 'start-0.5'}`}
+                  />
+                </span>
+              </button>
+              <p id="self-delivery-hint" className="text-xs text-muted">
+                يبقى المنتج متاحًا للطلب حتى بدون مورّد أو مخزون، لأنك تسلّمه يدويًا.
+              </p>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="الكمية المتاحة (اختياري)" hint="اتركها فارغة = غير محدودة.">
               <input inputMode="numeric" dir="ltr" value={f.stockQty ?? ''} onChange={(e) => set('stockQty', e.target.value === '' ? null : (e.target.value as unknown as number))} className={input + ' text-right tnum'} />

@@ -340,6 +340,15 @@ function StatusChips({ p, out }: { p: Product; out: boolean }) {
       >
         {out ? 'نفد' : p.isActive ? 'نشط' : 'موقوف'}
       </span>
+      {/* shown greyed in the store: no supplier, no code stock and not «أسلّمه بنفسي» */}
+      {p.isActive && !out && p.inStock === false && (
+        <span
+          title="يظهر في المتجر باهتًا ولا يمكن طلبه: لا مورّد ولا مخزون، ولم تفعّل «أسلّمه بنفسي»"
+          className="whitespace-nowrap rounded-full bg-bad/12 px-2.5 py-1 text-xs font-bold text-bad"
+        >
+          غير متوفر للزبائن
+        </span>
+      )}
       {(p.discountPercent ?? 0) > 0 && (
         <span className="whitespace-nowrap rounded-full bg-teal/12 px-2.5 py-1 text-xs font-bold text-teal">
           خصم {num(p.discountPercent)}%
